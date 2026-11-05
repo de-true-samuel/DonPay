@@ -1,0 +1,274 @@
+// Kobo-Exact data model. See ARCHITECTURE.md §4.
+// Money is always whole kobo in BigInt columns. Balances are derived from Payment rows, never stored.
+// Constraints Prisma can't express (partial unique index, CHECKs, pg_trgm) live in hand-written
+// migration SQL: prisma/migrations/*_constraints/migration.sql
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "cloudflare"
+  moduleFormat = "esm"
+}
+
+// Same schema, Node runtime: used by tests (vitest aliases generated/prisma -> generated/prisma-node)
+// and by Node scripts (seed, sandbox e2e). The Worker always uses the cloudflare client above.
+generator node_client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma-node"
+  runtime      = "nodejs"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentPlan {
+  FULL
+  DEPOSIT_BALANCE
+}
+
+enum ReadyRule {
+  AFTER_DEPOSIT
+  AFTER_FULL
+}
+
+enum RequestKind {
+  FULL
+  DEPOSIT
+  BALANCE
+  CUSTOM
+}
+
+enum RequestStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentSource {
+  KORA_VERIFIED
+  MANUAL
+}
+
+enum ReviewKind {
+  UNMATCHED_REFERENCE
+  PAID_AFTER_EXPIRY
+  JOB_OVERPAID
+  AMOUNT_MISMATCH
+  PAYER_NAME_DIFFERS
+  VERIFICATION_FAILED
+}
+
+enum NotificationKind {
+  PAID_ALERT
+  BALANCE_DUE_PROMPT
+  SCHEDULED_SEND_PROMPT
+  DIGEST
+}
+
+model Provider {
+  id                String    @id @default(cuid())
+  businessName      String
+  telegramChatId    BigInt?   @unique
+  telegramUsername  String?
+  devLoginKey       String?   @unique
+  defaultReadyRule  ReadyRule @default(AFTER_DEPOSIT)
+  digestMinuteOfDay Int?
+  lastDigestOn      DateTime? @db.Date
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  customers     Customer[]
+  jobs          Job[]
+  requests      PaymentRequest[]
+  payments      Payment[]
+  reviewItems   ReviewItem[]
+  notifications Notification[]
+  sessions      Session[]
+  loginTokens   LoginToken[]
+}
+
+model Customer {
+  id             String   @id @default(cuid())
+  providerId     String
+  name           String
+  phoneE164      String
+  messageConsent Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  jobs     Job[]
+
+  @@unique([providerId, phoneE164])
+  @@index([providerId, createdAt])
+}
+
+model Job {
+  id                String      @id @default(cuid())
+  providerId        String
+  customerId        String
+  service           String
+  totalKobo         BigInt
+  plan              PaymentPlan
+  depositKobo       BigInt?
+  balanceDueAt      DateTime?
+  readyRule         ReadyRule
+  notes             String?
+  cancelledAt       DateTime?
+  balancePromptedAt DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  provider    Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  customer    Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requests    PaymentRequest[]
+  payments    Payment[]
+  reviewItems ReviewItem[]
+
+  @@index([providerId, createdAt])
+  @@index([customerId])
+  @@index([balanceDueAt])
+}
+
+model PaymentRequest {
+  id              String        @id @default(cuid())
+  providerId      String
+  jobId           String
+  kind            RequestKind
+  amountKobo      BigInt
+  status          RequestStatus @default(DRAFT)
+  publicToken     String        @unique
+  koraReference   String?       @unique
+  bankName        String?
+  accountNumber   String?
+  accountName     String?
+  expiresAt       DateTime?
+  scheduledFor    DateTime?
+  promptedAt      DateTime?
+  sentAt          DateTime?
+  paidAt          DateTime?
+  expiredAt       DateTime?
+  cancelledAt     DateTime?
+  replacesId      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  job         Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payment     Payment?
+  reviewItems ReviewItem[]
+
+  @@index([providerId, status])
+  @@index([status, expiresAt])
+  @@index([status, scheduledFor])
+  @@index([jobId])
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  providerId         String
+  jobId              String
+  requestId          String?       @unique
+  source             PaymentSource
+  amountKobo         BigInt
+  feeKobo            BigInt?
+  payerName          String?
+  payerBank          String?
+  payerAccountMasked String?
+  payerSimulated     Boolean       @default(false)
+  koraTransactionRef String?
+  note               String?
+  receivedAt         DateTime
+  createdAt          DateTime      @default(now())
+
+  provider    Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  job         Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  request     PaymentRequest? @relation(fields: [requestId], references: [id])
+  reviewItems ReviewItem[]
+
+  @@index([jobId])
+  @@index([providerId, receivedAt])
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  eventKey    String    @unique
+  eventType   String
+  reference   String?
+  signatureOk Boolean
+  payload     Json
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  reviewItems ReviewItem[]
+
+  @@index([processedAt, receivedAt])
+  @@index([reference])
+}
+
+model ReviewItem {
+  id             String     @id @default(cuid())
+  providerId     String?
+  kind           ReviewKind
+  jobId          String?
+  requestId      String?
+  paymentId      String?
+  webhookEventId String?
+  detail         Json
+  resolvedAt     DateTime?
+  resolution     String?
+  createdAt      DateTime   @default(now())
+
+  provider     Provider?       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  job          Job?            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  request      PaymentRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  payment      Payment?        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  webhookEvent WebhookEvent?   @relation(fields: [webhookEventId], references: [id])
+
+  @@index([providerId, resolvedAt])
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  providerId String
+  kind       NotificationKind
+  dedupeKey  String           @unique
+  payload    Json
+  sentAt     DateTime?
+  failedAt   DateTime?
+  attempts   Int              @default(0)
+  lastError  String?
+  createdAt  DateTime         @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt, createdAt])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  providerId String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+model LoginToken {
+  tokenHash  String    @id
+  providerId String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}

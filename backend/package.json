@@ -1,0 +1,44 @@
+{
+  "name": "kobo-exact-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kobo-Exact backend: Cloudflare Worker (Hono + Prisma + Hyperdrive + Queues + Cron)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:watch": "vitest",
+    "db:up": "docker compose up -d db",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force",
+    "cf-typegen": "wrangler types --include-runtime",
+    "telegram:set-webhook": "tsx scripts/set-telegram-webhook.ts",
+    "kora:sandbox-e2e": "tsx scripts/sandbox-e2e.ts",
+    "postinstall": "prisma generate && wrangler types --include-runtime"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "hono": "^4.13.16",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "dotenv": "^18.0.9",
+    "prisma": "7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.158.0"
+  }
+}
