@@ -1,0 +1,6 @@
+# Copy to .dev.vars for `wrangler dev`. These are the Worker's secrets in local development.
+# In staging/production, set each one with: npx wrangler secret put NAME --env staging
+KORA_SECRET_KEY=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=change-me-random-string
+ADMIN_SECRET=change-me-admin

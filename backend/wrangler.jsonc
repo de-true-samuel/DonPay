@@ -1,0 +1,91 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kobo-exact-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // 8790, not the default 8787, which another local app on the dev machine already uses.
+  "dev": { "port": 8790, "ip": "127.0.0.1" },
+
+  // Local development. `wrangler dev` connects Hyperdrive to localConnectionString.
+  "vars": {
+    "APP_ENV": "local",
+    "PUBLIC_BASE_URL": "http://127.0.0.1:8790",
+    "FRONTEND_URL": "http://localhost:5173",
+    "FRONTEND_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    "COOKIE_SAMESITE": "Lax",
+    "KORA_MODE": "fake",
+    "KORA_EXPIRY_MINUTES": "60",
+    "DEV_LOGIN_ENABLED": "true",
+    "TELEGRAM_BOT_USERNAME": ""
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgresql://kobo:kobo@localhost:54329/kobo_exact"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "QUEUE", "queue": "kobo-exact-local" }],
+    "consumers": [
+      { "queue": "kobo-exact-local", "max_batch_size": 10, "max_batch_timeout": 2, "max_retries": 5, "dead_letter_queue": "kobo-exact-local-dlq" },
+      { "queue": "kobo-exact-local-dlq", "max_batch_size": 10, "max_retries": 0 }
+    ]
+  },
+  "triggers": { "crons": ["* * * * *"] },
+
+  "env": {
+    // Create with: npx wrangler hyperdrive create kobo-exact-staging --connection-string="<neon staging url>" --caching-disabled
+    // Caching MUST stay disabled: payment status reads must never be stale.
+    "staging": {
+      "name": "kobo-exact-staging",
+      "vars": {
+        "APP_ENV": "staging",
+        "PUBLIC_BASE_URL": "https://kobo-exact-staging.YOUR-SUBDOMAIN.workers.dev",
+        "FRONTEND_URL": "https://staging.kobo-exact.example",
+        "FRONTEND_ORIGINS": "https://staging.kobo-exact.example",
+        "COOKIE_SAMESITE": "None",
+        "KORA_MODE": "sandbox",
+        "KORA_EXPIRY_MINUTES": "60",
+        "DEV_LOGIN_ENABLED": "true",
+        "TELEGRAM_BOT_USERNAME": "KoboExactStagingBot"
+      },
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_STAGING_HYPERDRIVE_ID" }],
+      "queues": {
+        "producers": [{ "binding": "QUEUE", "queue": "kobo-exact-staging" }],
+        "consumers": [
+          { "queue": "kobo-exact-staging", "max_batch_size": 10, "max_batch_timeout": 2, "max_retries": 5, "dead_letter_queue": "kobo-exact-staging-dlq" },
+          { "queue": "kobo-exact-staging-dlq", "max_batch_size": 10, "max_retries": 0 }
+        ]
+      },
+      "triggers": { "crons": ["* * * * *"] },
+      "ratelimits": [{ "name": "PUBLIC_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }]
+    },
+    "production": {
+      "name": "kobo-exact",
+      "vars": {
+        "APP_ENV": "production",
+        "PUBLIC_BASE_URL": "https://pay.kobo-exact.example",
+        "FRONTEND_URL": "https://app.kobo-exact.example",
+        "FRONTEND_ORIGINS": "https://app.kobo-exact.example",
+        "COOKIE_SAMESITE": "None",
+        "KORA_MODE": "live",
+        "KORA_EXPIRY_MINUTES": "60",
+        "DEV_LOGIN_ENABLED": "false",
+        "TELEGRAM_BOT_USERNAME": "KoboExactBot"
+      },
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_PRODUCTION_HYPERDRIVE_ID" }],
+      "queues": {
+        "producers": [{ "binding": "QUEUE", "queue": "kobo-exact" }],
+        "consumers": [
+          { "queue": "kobo-exact", "max_batch_size": 10, "max_batch_timeout": 2, "max_retries": 5, "dead_letter_queue": "kobo-exact-dlq" },
+          { "queue": "kobo-exact-dlq", "max_batch_size": 10, "max_retries": 0 }
+        ]
+      },
+      "triggers": { "crons": ["* * * * *"] },
+      "ratelimits": [{ "name": "PUBLIC_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } }]
+    }
+  }
+}
