@@ -1,0 +1,23 @@
+/* ---------- search ---------- */
+.pd-vtabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1.5px solid var(--line); margin: 6px 0 14px; scrollbar-width: none; }
+.pd-vtabs::-webkit-scrollbar { display: none; }
+.pd-vtab { flex: none; min-height: 44px; padding: 0 14px; border: 0; background: none; font-weight: 650; font-size: 15px; color: var(--ink-3); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1.5px; white-space: nowrap; }
+.pd-vtab:hover { color: var(--ink); }
+.pd-vtab.is-on { color: var(--violet); border-bottom-color: var(--violet); }
+.pd-interp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: -2px 0 10px; font-size: 14px; color: var(--ink-3); }
+.pd-interp b { font-weight: 650; padding: 3px 10px; border-radius: 999px; background: var(--violet-soft); color: var(--violet-ink); }
+.pd-dates { margin: 0 0 4px; }
+.pd-dates summary { cursor: pointer; font-weight: 650; color: var(--ink-2); min-height: 44px; display: flex; align-items: center; }
+.pd-dates__row { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: center; padding: 8px 0 12px; }
+.pd-dates__row .pd-label { margin: 0; }
+.pd-result { display: grid; gap: 8px; }
+.pd-result > .pd-btn { justify-self: start; min-height: 42px; padding: 0 16px; font-size: 15px; }
+
+/* ---------- review ---------- */
+.pd-rcard { display: grid; gap: 6px; padding: 16px; background: var(--surface); border: 1.5px solid var(--line-strong); border-left: 5px solid var(--red-ink); border-radius: var(--r-m); }
+.pd-rcard h2 { font-size: 18px; }
+.pd-rcard__done { padding: 10px 12px; background: var(--mint-soft); color: var(--mint-ink); border-radius: 10px; font-size: 15px; }
+.pd-rcard .pd-actions { margin-top: 6px; }
+.pd-check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; background: var(--violet-soft); border-radius: var(--r-m); cursor: pointer; font-size: 15px; }
+.pd-check input { width: 22px; height: 22px; margin-top: 1px; accent-color: var(--violet); flex: none; }
+.pd-qsection__more { margin-left: auto; font-size: 14px; font-weight: 650; text-transform: none; letter-spacing: 0; }

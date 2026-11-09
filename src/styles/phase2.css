@@ -1,0 +1,93 @@
+/* ---------- dialog / bottom sheet (native <dialog>) ---------- */
+.pd-dialog { border: 0; padding: 0; background: transparent; color: var(--ink); width: 100%; max-width: 100%; margin: auto 0 0; max-height: 92dvh; overflow: visible; }
+.pd-dialog::backdrop { background: rgba(11, 7, 20, 0.55); backdrop-filter: blur(2px); }
+.pd-dialog__in {
+  background: var(--surface); border-radius: 22px 22px 0 0; max-width: var(--content-w); margin: 0 auto;
+  padding: 18px 18px calc(18px + var(--safe-b)); display: grid; gap: 14px; max-height: 92dvh; overflow: auto;
+  animation: pd-rise 0.28s var(--ease);
+}
+.pd-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+@keyframes pd-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (min-width: 700px) {
+  .pd-dialog { margin: auto; max-width: 520px; }
+  .pd-dialog__in { border-radius: 22px; }
+}
+.pd-iconbtn { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 12px; cursor: pointer; color: inherit; flex: none; }
+.pd-iconbtn:hover { background: var(--violet-soft); }
+.pd-iconbtn--light:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* ---------- share sheet ---------- */
+.pd-sharehead { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--violet-soft); border-radius: var(--r-m); }
+.pd-msg {
+  white-space: pre-wrap; background: var(--paper); border: 1.5px solid var(--line-strong); border-radius: 12px;
+  padding: 14px; font-size: 15px; line-height: 1.55; max-height: 34dvh; overflow: auto; user-select: text; word-break: break-word;
+}
+.pd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pd-actions--stack { display: grid; gap: 10px; }
+.pd-ticket__foot .pd-btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.pd-plainlink { color: inherit; text-decoration: none; }
+.pd-plainlink:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- toasts and the paid ping ---------- */
+.pd-toasts {
+  position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); width: min(92vw, 480px);
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + 82px); display: grid; gap: 8px; pointer-events: none;
+}
+.pd-toast { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--toast-bg); color: #fff; font-weight: 600; font-size: 15px; box-shadow: 0 8px 22px rgba(20, 11, 43, 0.25); animation: pd-rise 0.25s var(--ease); }
+.pd-toast--bad { background: var(--solid-bad); }
+.pd-toast--ok { background: var(--solid-ok); }
+
+.pd-pings { position: fixed; z-index: 70; top: calc(var(--header-h) + var(--safe-t) + 8px); left: 50%; transform: translateX(-50%); width: min(94vw, 520px); display: grid; gap: 8px; pointer-events: none; }
+.pd-ping-toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px; padding: 10px 6px 10px 12px;
+  background: var(--night); color: #F5F2FF; border-radius: 16px; box-shadow: 0 12px 32px rgba(11, 7, 20, 0.45);
+  animation: pd-drop 0.4s var(--ease);
+}
+@keyframes pd-drop { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pd-ping-toast__disc { position: relative; width: 40px; height: 40px; border-radius: 50%; background: var(--mint); color: #062A1E; display: grid; place-items: center; flex: none; }
+.pd-ping-toast__disc .pd-ping { inset: -12px; }
+.pd-ping-toast__body { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; display: grid; gap: 1px; padding: 4px 0; }
+.pd-ping-toast__body strong { font-family: var(--font-display); font-size: 17px; }
+.pd-ping-toast__body span { font-size: 14px; color: var(--lavender); }
+.pd-ping-toast .pd-money__frac, .pd-ping-toast .pd-money__cur { color: inherit; }
+
+/* ---------- Today queue ---------- */
+.pd-qsection { margin-top: 26px; display: grid; gap: 12px; }
+.pd-qsection__h { font-size: 15px; font-family: var(--font-body); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+.pd-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--violet); color: var(--on-violet); display: inline-grid; place-items: center; font-size: 12px; letter-spacing: 0; }
+.pd-qsection__list { display: grid; gap: 12px; }
+.pd-live { font-size: 13px; color: var(--ink-3); }
+.pd-qrow { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--line-strong); border-left-width: 5px; border-radius: var(--r-m); }
+.pd-qrow--wait { border-left-color: var(--amber-ink); }
+.pd-qrow--bad { border-left-color: var(--red-ink); }
+.pd-qrow__main p { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
+.pd-qrow__side { display: grid; justify-items: end; gap: 8px; }
+.pd-qrow .pd-btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
+@media (max-width: 420px) { .pd-qrow { grid-template-columns: 1fr; } .pd-qrow__side { justify-items: start; grid-auto-flow: column; justify-content: space-between; align-items: center; } }
+
+/* ---------- forms ---------- */
+.pd-form { margin-top: 8px; }
+.pd-formhead { font-size: 18px; padding-top: 8px; border-top: 1px solid var(--line); }
+.pd-seg { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.pd-seg__row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--violet-soft); border-radius: 12px; }
+.pd-seg__opt { position: relative; text-align: center; padding: 11px 8px; border-radius: 9px; font-weight: 650; cursor: pointer; color: var(--ink-2); }
+.pd-seg__opt input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.pd-seg__opt.is-on { background: var(--surface); color: var(--violet-ink); box-shadow: 0 1px 3px rgba(20, 11, 43, 0.2); }
+.pd-seg__opt:focus-within { outline: 3px solid var(--violet); outline-offset: 2px; }
+
+/* ---------- job page and lists ---------- */
+.pd-ready { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; background: var(--solid-ok); color: #fff; font-weight: 650; font-size: 13px; line-height: 1.4; white-space: nowrap; }
+.pd-back { display: inline-flex; align-items: center; gap: 2px; text-decoration: none; font-weight: 650; margin-bottom: 8px; }
+.pd-back svg { transform: rotate(180deg); }
+.pd-jobhead { display: grid; gap: 4px; }
+.pd-sumline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--ink-2); }
+.pd-progress { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.pd-progress i { display: block; height: 100%; background: var(--mint-ink); border-radius: inherit; transition: width 0.6s var(--ease); }
+.pd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pd-list__item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-m); }
+.pd-list__side { display: grid; justify-items: end; gap: 8px; }
+.pd-list__item .pd-btn { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.pd-jobrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-m); text-decoration: none; color: inherit; }
+.pd-jobrow:hover { border-color: var(--violet); }
+.pd-jobrow__main p { color: var(--ink-2); font-size: 14px; }
+.pd-jobrow__side { display: grid; justify-items: end; gap: 4px; }

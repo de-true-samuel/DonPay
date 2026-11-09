@@ -1,0 +1,26 @@
+/* Dark theme. Follows the device unless Settings forces light or dark. Generated from one set of values. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #F1EDFB; --ink-2: #CFC6EA; --ink-3: #A99FCB;
+    --paper: #0F0A1E; --surface: #1A1230; --line: #2E2450; --line-strong: #4A3D78;
+    --violet: #9170F4; --violet-ink: #DCD0FF; --violet-soft: #2A1F4D; --on-violet: #0B0714;
+    --mint-ink: #38DCA4; --mint-soft: #0F3A2D; --amber-ink: #F5B565; --amber-soft: #3A2A12;
+    --red-ink: #FF8FA0; --red-soft: #411824;
+    --fab-bg: #9170F4; --fab-fg: #0B0714; --toast-bg: #2E2450;
+    --paper-glass: rgba(15, 10, 30, 0.9); --skel-hi: #2A2050; --amber-line: #7A5A22; --red-line: #7A2D3C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --ink: #F1EDFB; --ink-2: #CFC6EA; --ink-3: #A99FCB;
+  --paper: #0F0A1E; --surface: #1A1230; --line: #2E2450; --line-strong: #4A3D78;
+  --violet: #9170F4; --violet-ink: #DCD0FF; --violet-soft: #2A1F4D; --on-violet: #0B0714;
+  --mint-ink: #38DCA4; --mint-soft: #0F3A2D; --amber-ink: #F5B565; --amber-soft: #3A2A12;
+  --red-ink: #FF8FA0; --red-soft: #411824;
+  --fab-bg: #9170F4; --fab-fg: #0B0714; --toast-bg: #2E2450;
+  --paper-glass: rgba(15, 10, 30, 0.9); --skel-hi: #2A2050; --amber-line: #7A5A22; --red-line: #7A2D3C;
+  color-scheme: dark;
+}
+
+/* The sign-in screen is always the dark brand moment, in either theme. */
+.pd-night { color-scheme: dark; }
