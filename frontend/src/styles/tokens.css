@@ -1,0 +1,54 @@
+:root {
+  /* text and surfaces: cool lavender-tinted light theme, readable in bright sun */
+  --ink: #140B2B;
+  --ink-2: #4B4266;
+  --ink-3: #6E6689;
+  --paper: #F6F4FB;
+  --surface: #FFFFFF;
+  --line: #E1DBF0;
+  --line-strong: #C9BFE3;
+
+  /* brand */
+  --violet: #6D28D9;
+  --violet-ink: #4C1D95;
+  --violet-soft: #EDE7FB;
+  --lavender: #C9B8FF;
+  --night: #0B0714;
+  --night-2: #1B0B3A;
+
+  /* meaning: mint = verified, amber = waiting, red = problem */
+  --mint: #2EE6A6;
+  --mint-ink: #0B7A55;
+  --mint-soft: #DDF8EE;
+  --amber-ink: #9A4A06;
+  --amber-soft: #FCEBD0;
+  --red-ink: #B4233A;
+  --red-soft: #FBE4E8;
+
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+
+  --r-s: 8px;
+  --r-m: 14px;
+  --r-l: 22px;
+
+  --tabbar-h: 64px;
+  --header-h: 56px;
+  --content-w: 640px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* tokens that change between light and dark (see dark.css) */
+  --on-violet: #FFFFFF;
+  --fab-bg: #140B2B;
+  --fab-fg: #FFFFFF;
+  --toast-bg: #140B2B;
+  --solid-ok: #0B7A55;
+  --solid-bad: #B4233A;
+  --paper-glass: rgba(246, 244, 251, 0.92);
+  --skel-hi: #EFEAF8;
+  --amber-line: #E8B877;
+  --red-line: #E7A1AD;
+  color-scheme: light;
+}
