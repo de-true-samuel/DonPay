@@ -11,8 +11,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "noEmit": true,
-    "types": ["./worker-configuration.d.ts", "node"]
+    "noEmit": true
   },
-  "include": ["src", "test", "prisma", "scripts", "prisma.config.ts", "vitest.config.ts"]
+  "include": ["src", "test", "prisma", "scripts", "prisma.config.ts", "vitest.config.ts", "worker-configuration.d.ts"]
 }
