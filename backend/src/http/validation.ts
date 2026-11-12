@@ -51,6 +51,7 @@ export const pageQuery = z.object({
 });
 
 export const readyRule = z.enum(['AFTER_DEPOSIT', 'AFTER_FULL']);
+export const messageLanguage = z.enum(['en', 'pcm']);
 export const paymentPlan = z.enum(['FULL', 'DEPOSIT_BALANCE']);
 export const jobStatus = z.enum(['NOT_STARTED', 'PART_PAID', 'FULLY_PAID', 'CANCELLED']);
 export const searchStatus = z.enum(['paid', 'waiting', 'balance_due', 'expired', 'needs_review']);

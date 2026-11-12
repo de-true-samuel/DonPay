@@ -18,7 +18,9 @@
     "KORA_MODE": "fake",
     "KORA_EXPIRY_MINUTES": "60",
     "DEV_LOGIN_ENABLED": "true",
-    "TELEGRAM_BOT_USERNAME": ""
+    "TELEGRAM_BOT_USERNAME": "",
+    // BE-04: one follow-up reminder next morning at this Lagos time; empty = off.
+    "REMINDER_FOLLOW_UP_TIME": ""
   },
   "hyperdrive": [
     {
@@ -50,7 +52,8 @@
         "KORA_MODE": "sandbox",
         "KORA_EXPIRY_MINUTES": "60",
         "DEV_LOGIN_ENABLED": "true",
-        "TELEGRAM_BOT_USERNAME": "KoboExactStagingBot"
+        "TELEGRAM_BOT_USERNAME": "KoboExactStagingBot",
+        "REMINDER_FOLLOW_UP_TIME": "08:00"
       },
       "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_STAGING_HYPERDRIVE_ID" }],
       "queues": {
@@ -74,7 +77,8 @@
         "KORA_MODE": "live",
         "KORA_EXPIRY_MINUTES": "60",
         "DEV_LOGIN_ENABLED": "false",
-        "TELEGRAM_BOT_USERNAME": "KoboExactBot"
+        "TELEGRAM_BOT_USERNAME": "KoboExactBot",
+        "REMINDER_FOLLOW_UP_TIME": ""
       },
       "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_PRODUCTION_HYPERDRIVE_ID" }],
       "queues": {

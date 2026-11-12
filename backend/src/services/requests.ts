@@ -1,16 +1,18 @@
 /**
- * Payment requests: send (allocate a Kora account at send time), schedule, cancel, resend,
- * and exact balance requests. See ARCHITECTURE.md §6.1, §6.4–6.6.
+ * Payment requests: send ("Get payment details": allocate a Kora account at that moment), schedule
+ * (a reminder only), cancel, resend, exact balance requests, plus the 1.1.0 additions: copied
+ * marker, recheck with Kora and the nudge message. See ARCHITECTURE.md §6.1, §6.4–6.6.
  */
 import { isUniqueViolation } from '../db/client';
 import type { Deps } from '../deps';
 import { computeJobFinancials } from '../domain/job';
-import { paymentRequestMessage, type PreparedMessage } from '../domain/messages';
+import { languageOf, nudgeMessage, paymentRequestMessage, type PreparedMessage, type RequestMessageInput } from '../domain/messages';
 import { isActionAllowed } from '../domain/request-state';
 import { koraReferenceFor, nextAttemptReference, randomToken } from '../domain/tokens';
 import { AppError, invalidState, notFound, validation } from '../errors';
 import { KoraDuplicateReferenceError, KoraError } from '../integrations/kora/types';
 import { payLink, toRequest } from './serialize';
+import { reconcileRequest } from './reconcile';
 import { assertJobOpen, getJobSummary } from './jobs';
 import { buildReceipt } from './payments';
 import type * as C from '../shared/contract';
@@ -27,11 +29,10 @@ async function loadRequest(deps: Deps, providerId: string, requestId: string) {
 }
 type LoadedRequest = Awaited<ReturnType<typeof loadRequest>>;
 
-function messageFor(deps: Deps, r: LoadedRequest): PreparedMessage {
-  if (!r.bankName || !r.accountNumber || !r.accountName || !r.expiresAt) throw invalidState('This request has no bank account yet. Send it first.');
-  return paymentRequestMessage({
+function messageInput(deps: Deps, r: LoadedRequest): RequestMessageInput {
+  if (!r.bankName || !r.accountNumber || !r.accountName || !r.expiresAt) throw invalidState('This request has no bank account yet. Get payment details first.');
+  return {
     businessName: r.provider.businessName,
-    customerName: r.job.customer.name,
     customerPhone: r.job.customer.phoneE164,
     service: r.job.service,
     kind: r.kind,
@@ -41,7 +42,13 @@ function messageFor(deps: Deps, r: LoadedRequest): PreparedMessage {
     accountName: r.accountName,
     expiresAt: r.expiresAt,
     payLink: payLink(deps.config, r.publicToken),
-  });
+    language: languageOf(r.job.customer.messageLanguage),
+    now: deps.now(),
+  };
+}
+
+function messageFor(deps: Deps, r: LoadedRequest): PreparedMessage {
+  return paymentRequestMessage(messageInput(deps, r));
 }
 
 async function withMessage(deps: Deps, providerId: string, requestId: string, includeMessage: boolean): Promise<C.RequestWithMessage> {
@@ -141,6 +148,12 @@ export async function sendRequest(deps: Deps, providerId: string, requestId: str
   } catch (err) {
     if (isUniqueViolation(err, 'one_open_request_per_job')) {
       throw new AppError('OPEN_REQUEST_EXISTS', 'This job already has an open payment request.');
+    }
+    if (isUniqueViolation(err, 'one_live_request_per_account')) {
+      // Kora handed out an account number that another live request already uses. Never show it.
+      // The request stays a draft; a retry gets a fresh account under the next reference.
+      deps.log.error('request.duplicate_account_number', { requestId: r.id, koraReference: reference, bankName: account.bankName });
+      throw new AppError('KORA_UNAVAILABLE', "Couldn't create a unique payment account. Please try again.");
     }
     throw err;
   }
@@ -242,4 +255,41 @@ export async function getRequestMessage(deps: Deps, providerId: string, requestI
 
 export async function getReceiptMessage(deps: Deps, providerId: string, paymentId: string): Promise<PreparedMessage> {
   return buildReceipt(deps.db, deps, paymentId, providerId);
+}
+
+/** BE-05: the provider copied the details. Set once; later calls return the existing value. */
+export async function markDetailsCopied(deps: Deps, providerId: string, requestId: string): Promise<C.PaymentRequest> {
+  const r = await deps.db.paymentRequest.findFirst({ where: { id: requestId, providerId }, select: { id: true, accountNumber: true } });
+  if (!r) throw notFound('Payment request');
+  if (!r.accountNumber) throw invalidState('This request has no payment details yet.');
+  await deps.db.paymentRequest.updateMany({ where: { id: r.id, detailsCopiedAt: null }, data: { detailsCopiedAt: deps.now() } });
+  return toRequest(deps.config, await deps.db.paymentRequest.findUniqueOrThrow({ where: { id: r.id } }));
+}
+
+/**
+ * BE-06: ask Kora about this request now and record any payment it confirms. Same code path as
+ * webhooks and background reconciliation, so it can never double-credit. Safe to call repeatedly.
+ */
+export async function recheckRequest(deps: Deps, providerId: string, requestId: string): Promise<C.RequestWithMessage> {
+  const r = await loadRequest(deps, providerId, requestId);
+  try {
+    const outcome = await reconcileRequest(deps, r.id);
+    deps.log.info('request.recheck', { requestId: r.id, koraReference: r.koraReference, providerId, outcome });
+  } catch (err) {
+    deps.log.warn('request.recheck_failed', { requestId: r.id, koraReference: r.koraReference, error: (err as Error).message });
+    if (err instanceof KoraError) throw new AppError('KORA_UNAVAILABLE', "Couldn't reach Kora to check this payment. Please try again.");
+    throw err;
+  }
+  const after = await loadRequest(deps, providerId, requestId);
+  return withMessage(deps, providerId, requestId, after.status === 'SENT');
+}
+
+/** BE-07: a reminder the provider can copy while the account still has time left. Read-only. */
+export async function getNudgeMessage(deps: Deps, providerId: string, requestId: string): Promise<PreparedMessage> {
+  const r = await loadRequest(deps, providerId, requestId);
+  const now = deps.now();
+  const expired = r.status === 'EXPIRED' || (r.status === 'SENT' && r.expiresAt != null && r.expiresAt.getTime() <= now.getTime());
+  if (expired) throw new AppError('REQUEST_EXPIRED', 'These payment details have expired. Get new details instead.');
+  if (r.status !== 'SENT') throw new AppError('REQUEST_NOT_WAITING', `A ${r.status.toLowerCase()} request isn't waiting for payment.`);
+  return nudgeMessage(messageInput(deps, r));
 }

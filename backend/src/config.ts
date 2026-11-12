@@ -1,3 +1,4 @@
+import { parseHHMM } from './domain/time';
 import type { QueueMessage } from './queue/messages';
 
 /** Worker bindings (see wrangler.jsonc). Secrets are set with `wrangler secret put`. */
@@ -17,6 +18,8 @@ export interface Env {
   KORA_PLACEHOLDER_EMAIL_DOMAIN?: string;
   DEV_LOGIN_ENABLED?: string;
   TELEGRAM_BOT_USERNAME?: string;
+  TELEGRAM_API_BASE?: string; // override only for tests against a mock Bot API
+  REMINDER_FOLLOW_UP_TIME?: string; // "08:00" (Lagos) = one follow-up reminder next morning; empty = off
 
   KORA_SECRET_KEY?: string;
   TELEGRAM_BOT_TOKEN?: string;
@@ -40,6 +43,9 @@ export interface AppConfig {
   devLoginEnabled: boolean;
   telegramBotToken: string | null;
   telegramBotUsername: string | null;
+  telegramApiBase: string;
+  /** Lagos minute-of-day for the next-morning follow-up reminder (BE-04); null = off. */
+  reminderFollowUpMinute: number | null;
   telegramWebhookSecret: string | null;
   adminSecret: string | null;
 }
@@ -70,6 +76,8 @@ export function loadConfig(env: Env): AppConfig {
     devLoginEnabled: devLogin,
     telegramBotToken: env.TELEGRAM_BOT_TOKEN || null,
     telegramBotUsername: env.TELEGRAM_BOT_USERNAME || null,
+    telegramApiBase: trimSlash(env.TELEGRAM_API_BASE || 'https://api.telegram.org'),
+    reminderFollowUpMinute: env.REMINDER_FOLLOW_UP_TIME ? parseHHMM(env.REMINDER_FOLLOW_UP_TIME) : null,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || null,
     adminSecret: env.ADMIN_SECRET || null,
   };

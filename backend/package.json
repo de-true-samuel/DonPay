@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:watch": "vitest",
+    "test:e2e": "tsx e2e/run.ts",
     "db:up": "docker compose up -d db",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

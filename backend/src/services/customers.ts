@@ -2,7 +2,7 @@ import type { Deps } from '../deps';
 import { computeJobFinancials } from '../domain/job';
 import { formatNairaShort } from '../domain/money';
 import { normalizeNigerianPhone, phoneSearchDigits } from '../domain/phone';
-import { kindLabel } from '../domain/messages';
+import { kindLabel, type MessageLanguage } from '../domain/messages';
 import { AppError, notFound, validation } from '../errors';
 import type { Prisma } from '../generated/prisma/client';
 import { isUniqueViolation } from '../db/client';
@@ -66,7 +66,7 @@ export async function listCustomers(deps: Deps, providerId: string, opts: { q?: 
 export async function createCustomer(
   deps: Deps,
   providerId: string,
-  input: { name: string; phone: string; messageConsent?: boolean },
+  input: { name: string; phone: string; messageLanguage?: MessageLanguage | null },
 ): Promise<C.Customer> {
   const phone = normalizeNigerianPhone(input.phone);
   if (!phone) throw validation('Enter a valid Nigerian phone number', 'phone');
@@ -74,7 +74,7 @@ export async function createCustomer(
   if (existing) throw new AppError('CONFLICT', 'A customer with this phone number already exists', { existingId: existing.id });
   try {
     const c = await deps.db.customer.create({
-      data: { providerId, name: input.name.trim(), phoneE164: phone, messageConsent: input.messageConsent ?? false },
+      data: { providerId, name: input.name.trim(), phoneE164: phone, messageLanguage: input.messageLanguage ?? null },
     });
     return toCustomer(c);
   } catch (err) {
@@ -87,7 +87,7 @@ export async function updateCustomer(
   deps: Deps,
   providerId: string,
   id: string,
-  patch: { name?: string; phone?: string; messageConsent?: boolean },
+  patch: { name?: string; phone?: string; messageLanguage?: MessageLanguage | null },
 ): Promise<C.Customer> {
   const c = await deps.db.customer.findFirst({ where: { id, providerId } });
   if (!c) throw notFound('Customer');
@@ -102,7 +102,7 @@ export async function updateCustomer(
       data: {
         ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
         ...(phone ? { phoneE164: phone } : {}),
-        ...(patch.messageConsent !== undefined ? { messageConsent: patch.messageConsent } : {}),
+        ...(patch.messageLanguage !== undefined ? { messageLanguage: patch.messageLanguage } : {}),
       },
     });
     return toCustomer(updated);
@@ -186,12 +186,12 @@ export async function importCustomers(deps: Deps, providerId: string, csv: strin
   const header = rows[0]!.map((h) => h.trim().toLowerCase());
   const nameIdx = header.indexOf('name');
   const phoneIdx = header.indexOf('phone');
-  const consentIdx = header.indexOf('consent');
   if (nameIdx < 0 || phoneIdx < 0) throw validation('The first row must be a header with "name" and "phone" columns', 'csv');
   if (rows.length > 5001) throw validation('Import at most 5,000 customers at a time', 'csv');
 
   const result: C.ImportResult = { created: 0, skipped: 0, errors: [] };
-  const valid: { name: string; phoneE164: string; messageConsent: boolean }[] = [];
+  // A "consent" column, if present, is ignored (deprecated in 1.1.0, BE-15).
+  const valid: { name: string; phoneE164: string }[] = [];
   const seen = new Set<string>();
   rows.slice(1).forEach((r, i) => {
     const line = i + 2;
@@ -204,8 +204,7 @@ export async function importCustomers(deps: Deps, providerId: string, csv: strin
       return;
     }
     seen.add(phone);
-    const consentRaw = consentIdx >= 0 ? (r[consentIdx] ?? '').trim().toLowerCase() : '';
-    valid.push({ name, phoneE164: phone, messageConsent: ['yes', 'y', 'true', '1'].includes(consentRaw) });
+    valid.push({ name, phoneE164: phone });
   });
   const { count } = await deps.db.customer.createMany({ data: valid.map((v) => ({ ...v, providerId })), skipDuplicates: true });
   result.created = count;

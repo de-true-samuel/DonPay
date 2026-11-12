@@ -21,13 +21,14 @@ export class TelegramSendError extends Error {
 export class TelegramHttpSender implements TelegramSender {
   constructor(
     private readonly botToken: string,
+    private readonly apiBase = 'https://api.telegram.org',
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
   ) {}
 
   async sendMessage(chatId: bigint | string, text: string, buttons?: InlineButton[][]): Promise<void> {
     let res: Response;
     try {
-      res = await this.fetchImpl(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+      res = await this.fetchImpl(`${this.apiBase}/bot${this.botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

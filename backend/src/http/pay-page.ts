@@ -1,148 +1,212 @@
 /**
- * The customer payment page: bank details with copy buttons and a countdown, and it turns into the
- * receipt once paid. Server-rendered, no framework, tiny: built for cheap phones on slow networks.
+ * The customer payment page (BE-13). This page is the customer's entire experience of Paidar.
+ *
+ * - Server-rendered per state (waiting / paid / expired / cancelled / not ready / not found), so
+ *   every detail is plain, selectable text that reads without JavaScript.
+ * - No framework, inline styles, system fonts, well under 30 KB.
+ * - Script only enhances: copy buttons, a countdown corrected by the server clock, status polling
+ *   (4 s, then 10 s after two minutes, paused while hidden) and the "I've paid" button.
+ * - Privacy: customer first name only, noindex, nothing about other requests.
  */
 import { formatNaira } from '../domain/money';
-import { kindLabel } from '../domain/messages';
-import { formatLagosDateTime } from '../domain/time';
+import { formatDueDay, formatLagosDateTime, formatLagosExpiry } from '../domain/time';
 import type { PublicRequest } from '../shared/contract';
+
+export const PAY_PAGE_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-export function renderPayPage(token: string, r: PublicRequest): string {
-  const amount = formatNaira(BigInt(r.amountKobo));
-  const title = `${esc(r.businessName)} · ${amount}`;
-  // Embed the state as JSON; "<" escaped so it can't close the script tag.
-  const state = JSON.stringify(r).replace(/</g, '\\u003c');
+const QUALIFIER: Record<string, string> = { DEPOSIT: ' (deposit)', BALANCE: ' (balance)' };
 
+const STYLE = `
+:root{--bg:#f4f5f7;--card:#fff;--text:#111418;--muted:#4a5260;--line:#dde1e6;--ok:#0a6b40;--ok-bg:#e3f3ea;--warn:#7a4500;--warn-bg:#fdf0d9;--btn:#111418;--btn-text:#fff;--focus:#1b5fd1}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1013;--card:#181b20;--text:#f1f3f5;--muted:#aab2bd;--line:#2c323a;--ok:#5fd39a;--ok-bg:#12291d;--warn:#f3be6b;--warn-bg:#2d2312;--btn:#f1f3f5;--btn-text:#0e1013;--focus:#7fb0ff}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px 16px 40px}
+.biz{font-weight:700;font-size:19px;margin:4px 0 0}
+.for{color:var(--muted);margin:2px 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.label{color:var(--muted);font-size:14px;margin:0}
+.amount{font-size:34px;font-weight:750;letter-spacing:-.4px;margin:0 0 6px}
+dl{margin:0}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+dt{color:var(--muted);font-size:15px;flex:none}
+dd{margin:0;font-weight:650;text-align:right;word-break:break-word}
+.sel{user-select:all;-webkit-user-select:all;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.btns{display:grid;gap:10px;margin-top:14px}
+button,.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;padding:10px 16px;border-radius:12px;border:0;background:var(--btn);color:var(--btn-text);font:inherit;font-weight:650;text-decoration:none;cursor:pointer}
+button.alt,.btn.alt{background:transparent;color:var(--text);border:2px solid var(--line)}
+button:focus-visible,.btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button[disabled]{opacity:.6}
+.timer{margin-top:14px;padding:12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-weight:650;text-align:center}
+.notes{margin:16px 2px 0;font-size:15px}
+.notes p{margin:0 0 10px}
+.small{color:var(--muted);font-size:14px}
+.badge{display:inline-block;padding:6px 12px;border-radius:999px;background:var(--ok-bg);color:var(--ok);font-weight:750;margin:0 0 10px}
+h1{font-size:21px;margin:0 0 8px}
+.js-only{display:none}
+.js .js-only{display:flex}
+.js div.js-only,.js section.js-only{display:block}
+[hidden]{display:none!important}
+`;
+
+interface PageParts {
+  title: string;
+  body: string;
+  script?: string;
+}
+
+function page(p: PageParts): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>${title}</title>
-<style>
-:root{--bg:#f6f7f9;--card:#fff;--text:#14171c;--muted:#5d6673;--line:#e3e6ea;--accent:#0b7a4b;--accent-bg:#e6f4ed;--warn:#9a5b00;--warn-bg:#fdf3e1;--btn:#14171c;--btn-text:#fff}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1114;--card:#181b20;--text:#eef0f3;--muted:#9aa3ae;--line:#2a2f36;--accent:#4cc38a;--accent-bg:#14291f;--warn:#f0b35a;--warn-bg:#2b2112;--btn:#eef0f3;--btn-text:#0f1114}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:440px;margin:0 auto;padding:20px 16px 40px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
-.biz{font-weight:650;font-size:18px;margin:0}
-.for{color:var(--muted);margin:2px 0 16px}
-.amount{font-size:34px;font-weight:700;letter-spacing:-.5px;margin:0}
-.exact{color:var(--muted);font-size:14px;margin:2px 0 18px}
-.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
-.label{color:var(--muted);font-size:13px}
-.value{font-weight:600;font-size:17px;word-break:break-all}
-button.copy{flex:none;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:8px;padding:8px 12px;font:inherit;font-size:14px;cursor:pointer;min-height:40px}
-button.copy:active{transform:scale(.97)}
-.timer{margin-top:16px;padding:12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-weight:600;text-align:center}
-.status{text-align:center;padding:8px 0}
-.badge{display:inline-block;padding:6px 12px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font-weight:700}
-.muted{color:var(--muted);font-size:14px}
-.note{margin-top:18px;font-size:13px;color:var(--muted)}
-dl{margin:16px 0 0}dl div{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}dt{color:var(--muted)}dd{margin:0;font-weight:600}
-[hidden]{display:none!important}
-</style>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>${p.title}</title>
+<style>${STYLE.trim()}</style>
 </head>
 <body>
 <main>
-  <div class="card">
-    <p class="biz" id="biz"></p>
-    <p class="for" id="for"></p>
-
-    <section id="pay" hidden>
-      <p class="amount" id="amount"></p>
-      <p class="exact">Pay this exact amount from any bank app.</p>
-      <div class="row"><div><div class="label">Bank</div><div class="value" id="bank"></div></div></div>
-      <div class="row"><div><div class="label">Account number</div><div class="value" id="acct"></div></div><button class="copy" data-copy="acct">Copy</button></div>
-      <div class="row"><div><div class="label">Account name</div><div class="value" id="acctName"></div></div></div>
-      <div class="row"><div><div class="label">Amount</div><div class="value" id="amount2"></div></div><button class="copy" data-copy="amountPlain">Copy</button></div>
-      <div class="timer" id="timer"></div>
-      <p class="note">This account is for this payment only. This page updates by itself when your payment is confirmed.</p>
-    </section>
-
-    <section id="paid" hidden>
-      <div class="status"><span class="badge">Paid ✔</span></div>
-      <p class="muted" style="text-align:center" id="paidLine"></p>
-      <dl>
-        <div><dt>Receipt</dt><dd id="rcpRef"></dd></div>
-        <div><dt>Amount paid</dt><dd id="rcpAmt"></dd></div>
-        <div><dt>Date</dt><dd id="rcpDate"></dd></div>
-        <div><dt>Job total</dt><dd id="rcpTotal"></dd></div>
-        <div><dt>Balance remaining</dt><dd id="rcpBal"></dd></div>
-      </dl>
-    </section>
-
-    <section id="closed" hidden>
-      <div class="status"><p class="value" id="closedTitle"></p><p class="muted" id="closedText"></p></div>
-    </section>
-  </div>
+${p.body}
 </main>
-<script>
-(function(){
-  var token = ${JSON.stringify(token)};
-  var s = ${state};
-  var fmt = function(k){ var n = BigInt(k), w = (n/100n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ","), f = (n%100n).toString().padStart(2,"0"); return "\\u20a6" + w + "." + f; };
-  var plain = function(k){ var n = BigInt(k); return (n/100n).toString() + (n%100n ? "." + (n%100n).toString().padStart(2,"0") : ""); };
-  var when = function(iso){ return new Date(iso).toLocaleString("en-NG", { timeZone: "Africa/Lagos", hour: "numeric", minute: "2-digit", weekday: "short", day: "numeric", month: "short" }); };
-  var $ = function(id){ return document.getElementById(id); };
-  var kinds = ${JSON.stringify({ FULL: kindLabel('FULL'), DEPOSIT: kindLabel('DEPOSIT'), BALANCE: kindLabel('BALANCE'), CUSTOM: kindLabel('CUSTOM') })};
-  var copyValues = {};
-  function render(){
-    $("biz").textContent = s.businessName;
-    $("for").textContent = "For " + s.customerFirstName + ": " + s.service + " (" + kinds[s.kind] + ")";
-    ["pay","paid","closed"].forEach(function(id){ $(id).hidden = true; });
-    if (s.status === "SENT") {
-      $("pay").hidden = false;
-      $("amount").textContent = fmt(s.amountKobo); $("amount2").textContent = fmt(s.amountKobo);
-      $("bank").textContent = s.bankName; $("acct").textContent = s.accountNumber; $("acctName").textContent = s.accountName;
-      copyValues.acct = s.accountNumber; copyValues.amountPlain = plain(s.amountKobo);
-    } else if (s.status === "PAID" && s.receipt) {
-      $("paid").hidden = false;
-      var r = s.receipt;
-      $("paidLine").textContent = s.businessName + " has received your payment.";
-      $("rcpRef").textContent = r.reference; $("rcpAmt").textContent = fmt(r.amountKobo); $("rcpDate").textContent = when(r.paidAt);
-      $("rcpTotal").textContent = fmt(r.jobTotalKobo); $("rcpBal").textContent = r.jobBalanceKobo === "0" ? "Fully paid" : fmt(r.jobBalanceKobo);
-    } else {
-      $("closed").hidden = false;
-      var t = { EXPIRED: ["This payment link has expired", "Ask " + s.businessName + " to send a new one. Don't pay into an expired account."],
-                CANCELLED: ["This payment request was cancelled", "Please contact " + s.businessName + "."],
-                DRAFT: ["Payment details aren't ready yet", "Please check back shortly."],
-                SCHEDULED: ["Payment details aren't ready yet", "Please check back shortly."] }[s.status] || ["Unavailable", ""];
-      $("closedTitle").textContent = t[0]; $("closedText").textContent = t[1];
-    }
-  }
-  function tick(){
-    if (s.status !== "SENT" || !s.expiresAt) return;
-    var ms = new Date(s.expiresAt).getTime() - Date.now();
-    if (ms <= 0) { s.status = "EXPIRED"; render(); return; }
-    var m = Math.floor(ms/60000), sec = Math.floor(ms/1000)%60, h = Math.floor(m/60);
-    $("timer").textContent = "Valid for " + (h ? h + "h " + (m%60) + "m" : m + "m " + String(sec).padStart(2,"0") + "s") + " · until " + when(s.expiresAt);
-  }
-  function poll(){
-    if (s.status === "PAID" || s.status === "CANCELLED") return;
-    fetch("/p/" + encodeURIComponent(token) + "/status", { cache: "no-store" }).then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(next){ if (next) { s = next; render(); } }).catch(function(){});
-  }
-  document.addEventListener("click", function(e){
-    var b = e.target.closest && e.target.closest("button.copy"); if (!b) return;
-    var v = copyValues[b.getAttribute("data-copy")]; if (!v) return;
-    (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function(){ b.textContent = "Copied ✔"; setTimeout(function(){ b.textContent = "Copy"; }, 1500); }, function(){ window.prompt("Copy:", v); });
-  });
-  render(); tick(); setInterval(tick, 1000); setInterval(poll, 5000);
-})();
-</script>
-<noscript><main><p>${esc(r.businessName)}: ${esc(amount)}${r.status === 'SENT' && r.bankName ? ` · ${esc(r.bankName)} ${esc(r.accountNumber ?? '')} · valid until ${esc(r.expiresAt ? formatLagosDateTime(new Date(r.expiresAt)) : '')}` : ` · ${esc(r.status)}`}</p></main></noscript>
+${p.script ? `<script>${p.script}</script>` : ''}
 </body>
 </html>`;
 }
 
+function header(r: PublicRequest): string {
+  return `<p class="biz">${esc(r.businessName)}</p>
+<p class="for">For ${esc(r.customerFirstName)}: ${esc(r.service)}${QUALIFIER[r.kind] ?? ''}</p>`;
+}
+
+function contactButton(r: PublicRequest): string {
+  if (!r.businessPhone) return '';
+  const digits = r.businessPhone.replace(/^\+/, '');
+  const text = encodeURIComponent(`Hi ${r.businessName}, it's ${r.customerFirstName} about my payment for ${r.service}.`);
+  return `<div class="btns"><a class="btn" href="https://wa.me/${esc(digits)}?text=${text}" rel="noopener">Message ${esc(r.businessName)} on WhatsApp</a>
+<a class="btn alt" href="tel:${esc(r.businessPhone)}">Call ${esc(r.businessPhone)}</a></div>`;
+}
+
+/** Shared client script: config is JSON (with "<" escaped) so it can't break out of the tag. */
+function script(token: string, r: PublicRequest, state: string): string {
+  const cfg = JSON.stringify({
+    token,
+    state,
+    serverNow: Date.parse(r.serverNow),
+    expiresAt: r.expiresAt ? Date.parse(r.expiresAt) : null,
+    biz: r.businessName,
+  }).replace(/</g, '\\u003c');
+  return `(function(){
+var C=${cfg},d=document,$=function(i){return d.getElementById(i)};
+d.documentElement.className+=" js";
+var offset=C.serverNow-Date.now(),start=Date.now(),timer=null;
+function now(){return Date.now()+offset}
+function tick(){var el=$("left");if(!el||!C.expiresAt)return;var ms=C.expiresAt-now();
+if(ms<=0){el.textContent="Expired";location.reload();return}
+var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60);s=s%60;
+el.textContent=(h?h+" h "+m+" min":m+" min "+(s<10?"0":"")+s+" s")+" left";setTimeout(tick,1000)}
+function poll(){timer=null;if(d.hidden)return;
+fetch("/p/"+encodeURIComponent(C.token)+"/status",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(s){
+if(s){offset=Date.parse(s.serverNow)-Date.now();if(s.state!==C.state){location.reload();return}}schedule()},schedule)}
+function schedule(){if(timer||d.hidden)return;timer=setTimeout(poll,Date.now()-start<120000?4000:10000)}
+d.addEventListener("visibilitychange",function(){if(!d.hidden){clearTimeout(timer);timer=null;poll()}});
+d.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("button[data-copy]");if(!b)return;
+var v=b.getAttribute("data-copy"),label=b.getAttribute("data-label"),src=$(b.getAttribute("data-src"));
+function done(t){b.textContent=t;setTimeout(function(){b.textContent=label},2000)}
+function fallback(){if(src){var g=d.createRange();g.selectNodeContents(src);var sel=getSelection();sel.removeAllRanges();sel.addRange(g)}done("Selected: press and hold to copy")}
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v).then(function(){done("Copied \\u2713")},fallback)}else fallback()});
+var cb=$("claimBtn");if(cb){setTimeout(function(){$("claim").hidden=false},60000);
+cb.addEventListener("click",function(){cb.disabled=true;cb.textContent="Sending\\u2026";
+fetch("/p/"+encodeURIComponent(C.token)+"/claim-paid",{method:"POST",headers:{"X-Requested-With":"kobo-exact"}}).then(function(){},function(){}).then(function(){
+$("claim").innerHTML='<p><strong>Thanks. '+C.biz.replace(/[&<>]/g,"")+' has been told.</strong></p><p class="small">They will see your payment as soon as the bank confirms it. This page will update by itself.</p>'})})}
+if(C.state==="waiting"){tick();schedule()}else if(C.state==="not_ready"){schedule()}
+})();`;
+}
+
+export function renderPayPage(token: string, r: PublicRequest): string {
+  const amount = formatNaira(BigInt(r.amountKobo));
+  const now = new Date(r.serverNow);
+  const biz = esc(r.businessName);
+
+  if (r.status === 'SENT' && r.bankName && r.accountNumber && r.accountName && r.expiresAt) {
+    const until = formatLagosExpiry(new Date(r.expiresAt), now);
+    const acct = esc(r.accountNumber);
+    const body = `${header(r)}
+<section class="card" aria-label="Payment details">
+<p class="label">Amount to pay</p>
+<p class="amount" id="amt">${esc(amount)}</p>
+<dl>
+<div class="row"><dt>Bank</dt><dd>${esc(r.bankName)}</dd></div>
+<div class="row"><dt>Account number</dt><dd class="sel" id="acct">${acct}</dd></div>
+<div class="row"><dt>Account name</dt><dd>${esc(r.accountName)}</dd></div>
+<div class="row"><dt>Pay before</dt><dd>${esc(until)}</dd></div>
+</dl>
+<div class="btns">
+<button type="button" class="js-only" data-copy="${acct}" data-src="acct" data-label="Copy account number" aria-label="Copy account number ${acct}">Copy account number</button>
+<button type="button" class="js-only alt" data-copy="${esc(r.amountPlain)}" data-src="amt" data-label="Copy amount (${esc(r.amountPlain)})" aria-label="Copy amount ${esc(r.amountPlain)}">Copy amount (${esc(r.amountPlain)})</button>
+</div>
+<div class="timer js-only" role="timer" aria-live="off" id="left">Valid until ${esc(until)}</div>
+</section>
+<div class="notes">
+<p><strong>Pay exactly ${esc(amount)}.</strong> A different amount may be reversed by your bank.</p>
+<p>Your bank app should show the account name <strong>${esc(r.accountName)}</strong>.</p>
+<p>This account is for this payment only. Payment goes to ${biz} via Kora.</p>
+<p class="small">This page updates by itself when your payment arrives.</p>
+</div>
+<section class="card" id="claim" hidden>
+<p><strong>Already paid?</strong></p>
+<button type="button" id="claimBtn" class="alt">Tell ${biz} I've paid</button>
+<p class="small">This only lets ${biz} know to check. Your payment is confirmed when the bank confirms it, not by this button.</p>
+</section>`;
+    return page({ title: `Pay ${biz}: ${esc(amount)}`, body, script: script(token, r, 'waiting') });
+  }
+
+  if (r.status === 'PAID' && r.receipt) {
+    const rc = r.receipt;
+    const balance = BigInt(rc.jobBalanceKobo);
+    const due = rc.balanceDueAt ? `, due ${esc(formatDueDay(new Date(rc.balanceDueAt), now))}` : '';
+    const body = `${header(r)}
+<section class="card" aria-label="Receipt">
+<p class="badge">Payment received &#10003;</p>
+<p class="amount">${esc(formatNaira(BigInt(rc.amountKobo)))}</p>
+<dl>
+<div class="row"><dt>Reference</dt><dd class="sel">${esc(rc.reference)}</dd></div>
+<div class="row"><dt>Paid</dt><dd>${esc(formatLagosDateTime(new Date(rc.paidAt)))}</dd></div>
+<div class="row"><dt>Paid to</dt><dd>${biz}</dd></div>
+<div class="row"><dt>Job total</dt><dd>${esc(formatNaira(BigInt(rc.jobTotalKobo)))}</dd></div>
+<div class="row"><dt>Balance</dt><dd>${balance > 0n ? `${esc(formatNaira(balance))}${due}` : 'Fully paid'}</dd></div>
+</dl>
+</section>
+<div class="notes"><p class="small">Keep this page or take a screenshot as your receipt.</p></div>`;
+    return page({ title: `Paid: ${biz}`, body });
+  }
+
+  const closed: Record<string, [string, string]> = {
+    EXPIRED: ['These payment details have expired', `Please don't pay into this account. Ask ${biz} for new payment details.`],
+    CANCELLED: ['This payment request was cancelled', `Please don't pay into this account. Contact ${biz} if you have questions.`],
+    DRAFT: ["Payment details aren't ready yet", `${biz} hasn't created the account for this payment yet. Check back shortly.`],
+    SCHEDULED: ["Payment details aren't ready yet", `${biz} hasn't created the account for this payment yet. Check back shortly.`],
+  };
+  const [title, text] = closed[r.status] ?? ['This payment is not available', `Contact ${biz}.`];
+  const notReady = r.status === 'DRAFT' || r.status === 'SCHEDULED';
+  const body = `${header(r)}
+<section class="card">
+<h1>${title}</h1>
+<p>${text}</p>
+${notReady ? '' : contactButton(r)}
+</section>`;
+  return page({ title: `${title}: ${biz}`, body, script: notReady ? script(token, r, 'not_ready') : undefined });
+}
+
 export function renderNotFoundPage(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Not found</title>
-<style>body{margin:0;font:16px system-ui,sans-serif;background:#f6f7f9;color:#14171c}@media (prefers-color-scheme:dark){body{background:#0f1114;color:#eef0f3}}main{max-width:440px;margin:0 auto;padding:40px 16px;text-align:center}</style></head>
-<body><main><h1 style="font-size:20px">Payment link not found</h1><p>Check the link you were sent, or ask the business for a new one.</p></main></body></html>`;
+  return page({
+    title: 'Payment link not found',
+    body: `<section class="card"><h1>Payment link not found</h1><p>Check the link you were sent, or ask the business for new payment details.</p></section>`,
+  });
 }

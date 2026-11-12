@@ -44,6 +44,17 @@ jobs:
       - run: npx wrangler types --include-runtime
       - run: npm run typecheck
       - run: npm test
+      # BE-20 contract tests: the real Worker (wrangler dev) against mock Kora/Telegram; every
+      # response is validated against contract.md v1.1.0 (e2e/contract-schemas.ts).
+      - name: Contract + end-to-end tests
+        run: npm run test:e2e
+      - name: Upload e2e report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: backend/e2e/last-run.md
+          if-no-files-found: ignore
       - name: Bundle check (size must stay under the Workers limit)
         run: npx wrangler deploy --dry-run --outdir dist --env staging
 

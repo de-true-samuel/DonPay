@@ -10,31 +10,37 @@ import type { Env } from '../config';
 import type { Deps } from '../deps';
 import { InvalidTransitionError } from '../domain/request-state';
 import { MoneyError } from '../domain/money';
+import { normalizeNigerianPhone } from '../domain/phone';
 import { parseHHMM } from '../domain/time';
 import { randomToken } from '../domain/tokens';
 import { AppError } from '../errors';
 import type { Provider as ProviderRow } from '../generated/prisma/client';
+import * as account from '../services/account';
 import * as auth from '../services/auth';
 import * as customers from '../services/customers';
 import { simulatePayment } from '../services/dev';
 import { exportPaymentsCsv } from '../services/export';
+import { getHealthReport } from '../services/health';
 import * as jobs from '../services/jobs';
 import { recordManualPayment } from '../services/payments';
-import { getPublicRequest } from '../services/public';
+import { claimPaid, getPublicRequest, getPublicStatus } from '../services/public';
 import * as requests from '../services/requests';
 import * as review from '../services/review';
 import { search } from '../services/search';
 import { toProvider } from '../services/serialize';
+import { supportLookup } from '../services/support';
 import { createTelegramLink, handleTelegramUpdate } from '../services/telegram-bot';
 import { getToday } from '../services/today';
 import { receiveKoraWebhook } from '../services/webhooks';
-import type { ApiError } from '../shared/contract';
-import { renderNotFoundPage, renderPayPage } from './pay-page';
+import { CONTRACT_VERSION, type ApiError } from '../shared/contract';
+import { idempotent } from './idempotency';
+import { PAY_PAGE_CSP, renderNotFoundPage, renderPayPage } from './pay-page';
 import {
   hhmm,
   isoDate,
   jobStatus,
   kobo,
+  messageLanguage,
   pageQuery,
   paymentPlan,
   phone,
@@ -58,7 +64,7 @@ export interface AppOptions {
   makeDeps: (c: Context<AppEnv>) => Deps;
   /** Called after the response is ready (Worker: disconnect Prisma via waitUntil). */
   afterRequest?: (c: Context<AppEnv>, deps: Deps) => void;
-  /** Optional per-IP rate limit for public endpoints. Return false to reject. */
+  /** Optional rate limit for public and sign-in endpoints. Key is "<scope>:<ip>". Return false to reject. */
   rateLimit?: (c: Context<AppEnv>, key: string) => Promise<boolean>;
 }
 
@@ -78,6 +84,10 @@ export function createApp(opts: AppOptions) {
       await next();
     } finally {
       c.header('x-request-id', requestId);
+      c.header('x-contract-version', CONTRACT_VERSION);
+      // Security baseline (BE-17) on every response; the pay page adds a CSP of its own.
+      c.header('X-Content-Type-Options', 'nosniff');
+      if (!c.res.headers.get('Referrer-Policy')) c.header('Referrer-Policy', 'no-referrer');
       opts.afterRequest?.(c, deps);
     }
   });
@@ -106,8 +116,8 @@ export function createApp(opts: AppOptions) {
       origin: (origin, c) => (c.get('deps').config.frontendOrigins.includes(origin) ? origin : null),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id'],
-      exposeHeaders: ['x-request-id', 'Content-Disposition'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'Idempotency-Key'],
+      exposeHeaders: ['x-request-id', 'x-contract-version', 'Content-Disposition', 'Idempotent-Replayed'],
       maxAge: 600,
     }),
   );
@@ -129,12 +139,21 @@ export function createApp(opts: AppOptions) {
     return next();
   });
 
-  const publicRateLimit: MiddlewareHandler<AppEnv> = async (c, next) => {
-    if (opts.rateLimit) {
-      const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
-      if (!(await opts.rateLimit(c, ip))) throw new AppError('RATE_LIMITED', 'Too many requests. Please wait a moment.');
-    }
-    return next();
+  /** Per-IP rate limit, namespaced per scope (BE-17: payment page, claim, sign-in). */
+  const rateLimited =
+    (scope: string): MiddlewareHandler<AppEnv> =>
+    async (c, next) => {
+      if (opts.rateLimit) {
+        const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
+        if (!(await opts.rateLimit(c, `${scope}:${ip}`))) throw new AppError('RATE_LIMITED', 'Too many requests. Please wait a moment.');
+      }
+      return next();
+    };
+  const publicRateLimit = rateLimited('public');
+  const signInRateLimit = rateLimited('signin');
+  const requireAdmin = (c: Context<AppEnv>) => {
+    const secret = c.get('deps').config.adminSecret;
+    if (!secret || c.req.header('x-admin-secret') !== secret) throw new AppError('FORBIDDEN', 'Admin secret required');
   };
 
   const pid = (c: Context<AppEnv>) => c.get('provider').id;
@@ -165,18 +184,23 @@ export function createApp(opts: AppOptions) {
   });
 
   // --- auth --------------------------------------------------------------------------------
-  app.post('/api/auth/exchange', validate('json', z.object({ token: z.string().min(10) })), async (c) => {
+  app.post('/api/auth/exchange', signInRateLimit, validate('json', z.object({ token: z.string().min(10) })), async (c) => {
     const res = await auth.exchangeLoginToken(d(c), c.req.valid('json').token);
     setSessionCookie(c, res.sessionToken);
     return c.json(res);
   });
-  app.post('/api/auth/dev-login', validate('json', z.object({ businessName: z.string().trim().min(2).max(80) })), async (c) => {
+  app.post('/api/auth/dev-login', signInRateLimit, validate('json', z.object({ businessName: z.string().trim().min(2).max(80) })), async (c) => {
     const res = await auth.devLogin(d(c), c.req.valid('json').businessName);
     setSessionCookie(c, res.sessionToken);
     return c.json(res);
   });
   app.post('/api/auth/logout', async (c) => {
     await auth.logout(d(c), c.get('sessionToken'));
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.body(null, 204);
+  });
+  app.post('/api/auth/logout-all', async (c) => {
+    await account.logoutEverywhere(d(c), pid(c));
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return c.body(null, 204);
   });
@@ -191,6 +215,8 @@ export function createApp(opts: AppOptions) {
         businessName: z.string().trim().min(2).max(80).optional(),
         defaultReadyRule: readyRule.optional(),
         digestTime: hhmm.nullable().optional(),
+        phone: phone.nullable().optional(),
+        onboardedAt: isoDate.nullable().optional(),
       }),
     ),
     async (c) => {
@@ -201,11 +227,23 @@ export function createApp(opts: AppOptions) {
           ...(body.businessName !== undefined ? { businessName: body.businessName } : {}),
           ...(body.defaultReadyRule !== undefined ? { defaultReadyRule: body.defaultReadyRule } : {}),
           ...(body.digestTime !== undefined ? { digestMinuteOfDay: body.digestTime === null ? null : parseHHMM(body.digestTime) } : {}),
+          ...(body.phone !== undefined ? { phoneE164: body.phone === null ? null : normalizeNigerianPhone(body.phone) } : {}),
+          ...(body.onboardedAt !== undefined ? { onboardedAt: body.onboardedAt } : {}),
         },
       });
       return c.json(toProvider(updated));
     },
   );
+  app.get('/api/me/export', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    c.header('Content-Disposition', `attachment; filename="paidar-export-${d(c).now().toISOString().slice(0, 10)}.json"`);
+    return c.json(await account.exportAccount(d(c), pid(c)));
+  });
+  app.post('/api/me/delete', validate('json', z.object({ confirmBusinessName: z.string().min(1).max(120) })), async (c) => {
+    await account.deleteAccount(d(c), pid(c), c.req.valid('json').confirmBusinessName);
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.body(null, 204);
+  });
   app.post('/api/me/telegram-link', async (c) => {
     if (!d(c).config.telegramBotUsername) throw new AppError('FORBIDDEN', 'Telegram is not configured on this server');
     return c.json(await createTelegramLink(d(c), pid(c)));
@@ -220,7 +258,10 @@ export function createApp(opts: AppOptions) {
   );
   app.post(
     '/api/customers',
-    validate('json', z.object({ name: z.string().trim().min(1).max(100), phone, messageConsent: z.boolean().optional() })),
+    validate(
+      'json',
+      z.object({ name: z.string().trim().min(1).max(100), phone, messageConsent: z.boolean().optional(), messageLanguage: messageLanguage.nullable().optional() }),
+    ),
     async (c) => c.json(await customers.createCustomer(d(c), pid(c), c.req.valid('json')), 201),
   );
   app.post('/api/customers/import', validate('json', z.object({ csv: z.string().min(1).max(1_000_000) })), async (c) =>
@@ -229,7 +270,15 @@ export function createApp(opts: AppOptions) {
   app.get('/api/customers/:id', async (c) => c.json(await customers.getCustomerPage(d(c), pid(c), c.req.param('id'))));
   app.patch(
     '/api/customers/:id',
-    validate('json', z.object({ name: z.string().trim().min(1).max(100).optional(), phone: phone.optional(), messageConsent: z.boolean().optional() })),
+    validate(
+      'json',
+      z.object({
+        name: z.string().trim().min(1).max(100).optional(),
+        phone: phone.optional(),
+        messageConsent: z.boolean().optional(), // deprecated, ignored
+        messageLanguage: messageLanguage.nullable().optional(),
+      }),
+    ),
     async (c) => c.json(await customers.updateCustomer(d(c), pid(c), c.req.param('id'), c.req.valid('json'))),
   );
 
@@ -237,7 +286,9 @@ export function createApp(opts: AppOptions) {
   const createJobSchema = z
     .object({
       customerId: z.string().min(1).optional(),
-      customer: z.object({ name: z.string().trim().min(1).max(100), phone, messageConsent: z.boolean().optional() }).optional(),
+      customer: z
+        .object({ name: z.string().trim().min(1).max(100), phone, messageConsent: z.boolean().optional(), messageLanguage: messageLanguage.nullable().optional() })
+        .optional(),
       service: z.string().trim().min(1).max(120),
       totalKobo: positiveKobo,
       plan: paymentPlan,
@@ -247,11 +298,12 @@ export function createApp(opts: AppOptions) {
       notes: z.string().max(2000).optional(),
     })
     .refine((v) => Boolean(v.customerId) !== Boolean(v.customer), { message: 'Provide either customerId or customer', path: ['customerId'] });
-  app.post('/api/jobs', validate('json', createJobSchema), async (c) => c.json(await jobs.createJob(d(c), pid(c), c.req.valid('json')), 201));
+  app.post('/api/jobs', idempotent, validate('json', createJobSchema), async (c) => c.json(await jobs.createJob(d(c), pid(c), c.req.valid('json')), 201));
   app.get('/api/jobs', validate('query', pageQuery.extend({ status: jobStatus.optional() })), async (c) =>
     c.json(await jobs.listJobs(d(c), pid(c), c.req.valid('query'))),
   );
   app.get('/api/jobs/:id', async (c) => c.json(await jobs.getJobDetail(d(c), pid(c), c.req.param('id'))));
+  app.get('/api/jobs/:id/start-message', async (c) => c.json(await jobs.getStartMessage(d(c), pid(c), c.req.param('id'))));
   app.patch(
     '/api/jobs/:id',
     validate(
@@ -266,23 +318,27 @@ export function createApp(opts: AppOptions) {
     async (c) => c.json(await jobs.updateJob(d(c), pid(c), c.req.param('id'), c.req.valid('json'))),
   );
   app.post('/api/jobs/:id/cancel', async (c) => c.json(await jobs.cancelJob(d(c), pid(c), c.req.param('id'))));
-  app.post('/api/jobs/:id/requests/balance', validate('json', z.object({ send: z.boolean().optional() }).default({})), async (c) =>
+  app.post('/api/jobs/:id/requests/balance', idempotent, validate('json', z.object({ send: z.boolean().optional() }).default({})), async (c) =>
     c.json(await requests.createBalanceRequest(d(c), pid(c), c.req.param('id'), { send: c.req.valid('json').send ?? false }), 201),
   );
   app.post(
     '/api/jobs/:id/payments/manual',
+    idempotent,
     validate('json', z.object({ amountKobo: positiveKobo, note: z.string().max(500).optional(), receivedAt: isoDate.optional() })),
     async (c) => c.json(await recordManualPayment(d(c), pid(c), c.req.param('id'), c.req.valid('json')), 201),
   );
 
   // --- requests ----------------------------------------------------------------------------
-  app.post('/api/requests/:id/send', async (c) => c.json(await requests.sendRequest(d(c), pid(c), c.req.param('id'))));
+  app.post('/api/requests/:id/send', idempotent, async (c) => c.json(await requests.sendRequest(d(c), pid(c), c.req.param('id'))));
   app.post('/api/requests/:id/schedule', validate('json', z.object({ scheduledFor: isoDate })), async (c) =>
     c.json(await requests.scheduleRequest(d(c), pid(c), c.req.param('id'), c.req.valid('json').scheduledFor)),
   );
   app.post('/api/requests/:id/cancel', async (c) => c.json(await requests.cancelRequest(d(c), pid(c), c.req.param('id'))));
-  app.post('/api/requests/:id/resend', async (c) => c.json(await requests.resendRequest(d(c), pid(c), c.req.param('id'))));
+  app.post('/api/requests/:id/resend', idempotent, async (c) => c.json(await requests.resendRequest(d(c), pid(c), c.req.param('id'))));
   app.get('/api/requests/:id/message', async (c) => c.json(await requests.getRequestMessage(d(c), pid(c), c.req.param('id'))));
+  app.get('/api/requests/:id/nudge-message', async (c) => c.json(await requests.getNudgeMessage(d(c), pid(c), c.req.param('id'))));
+  app.post('/api/requests/:id/copied', async (c) => c.json(await requests.markDetailsCopied(d(c), pid(c), c.req.param('id'))));
+  app.post('/api/requests/:id/recheck', async (c) => c.json(await requests.recheckRequest(d(c), pid(c), c.req.param('id'))));
   app.get('/api/payments/:id/receipt-message', async (c) => c.json(await requests.getReceiptMessage(d(c), pid(c), c.req.param('id'))));
 
   // --- search, review, export --------------------------------------------------------------
@@ -316,7 +372,7 @@ export function createApp(opts: AppOptions) {
     const csv = await exportPaymentsCsv(d(c), pid(c), c.req.valid('query'));
     return c.body(csv, 200, {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="kobo-exact-payments-${d(c).now().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': `attachment; filename="paidar-payments-${d(c).now().toISOString().slice(0, 10)}.csv"`,
     });
   });
 
@@ -329,24 +385,15 @@ export function createApp(opts: AppOptions) {
 
   // --- admin -------------------------------------------------------------------------------
   app.get('/api/admin/health', async (c) => {
-    const secret = d(c).config.adminSecret;
-    if (!secret || c.req.header('x-admin-secret') !== secret) throw new AppError('FORBIDDEN', 'Admin secret required');
-    const db = d(c).db;
-    const [unprocessedWebhooks, oldest, unsentNotifications, openReviewItems, unattributedReviewItems] = await Promise.all([
-      db.webhookEvent.count({ where: { processedAt: null, signatureOk: true } }),
-      db.webhookEvent.findFirst({ where: { processedAt: null, signatureOk: true }, orderBy: { receivedAt: 'asc' }, select: { receivedAt: true } }),
-      db.notification.count({ where: { sentAt: null, failedAt: null } }),
-      db.reviewItem.count({ where: { resolvedAt: null } }),
-      db.reviewItem.count({ where: { resolvedAt: null, providerId: null } }),
-    ]);
-    return c.json({
-      deadLetterHint: 'Check the kobo-exact-dlq queue depth in the Cloudflare dashboard',
-      unprocessedWebhooks,
-      unsentNotifications,
-      openReviewItems,
-      unattributedReviewItems,
-      oldestUnprocessedWebhookAt: oldest?.receivedAt.toISOString() ?? null,
-    });
+    requireAdmin(c);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await getHealthReport(d(c)));
+  });
+  // BE-18: read-only support lookup by Kora reference, request id or receipt number.
+  app.get('/api/admin/support/requests/:reference', async (c) => {
+    requireAdmin(c);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await supportLookup(d(c), c.req.param('reference')));
   });
 
   // --- public: customer payment page ------------------------------------------------------
@@ -354,18 +401,29 @@ export function createApp(opts: AppOptions) {
     const t = c.req.param('token') ?? '';
     return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : null;
   };
-  const publicJson = async (c: Context<AppEnv>) => {
+  const requireToken = (c: Context<AppEnv>) => {
     const t = tokenParam(c);
     if (!t) throw new AppError('NOT_FOUND', 'Payment request not found');
     c.header('Cache-Control', 'no-store');
-    return c.json(await getPublicRequest(d(c), t));
+    c.header('X-Robots-Tag', 'noindex');
+    return t;
   };
-  app.get('/p/:token/status', publicRateLimit, publicJson);
-  app.get('/api/public/requests/:token', publicRateLimit, publicJson);
+  app.get('/p/:token/status', publicRateLimit, async (c) => c.json(await getPublicStatus(d(c), requireToken(c))));
+  app.get('/api/public/requests/:token', publicRateLimit, async (c) => c.json(await getPublicRequest(d(c), requireToken(c))));
+  // BE-06: "I've paid". Same-origin fetch from the pay page only (custom header blocks cross-site posts).
+  app.post('/p/:token/claim-paid', rateLimited('claim'), async (c) => {
+    const t = requireToken(c);
+    if (c.req.header('x-requested-with') !== CSRF_HEADER_VALUE) {
+      throw new AppError('CSRF_HEADER_MISSING', `Send the header "X-Requested-With: ${CSRF_HEADER_VALUE}"`);
+    }
+    const res = await claimPaid(d(c), t, { ip: c.req.header('cf-connecting-ip') ?? null, userAgent: c.req.header('user-agent') ?? null });
+    return c.json(res, 202);
+  });
   app.get('/p/:token', publicRateLimit, async (c) => {
     c.header('Cache-Control', 'no-store');
     c.header('X-Frame-Options', 'DENY');
-    c.header('Referrer-Policy', 'no-referrer');
+    c.header('X-Robots-Tag', 'noindex');
+    c.header('Content-Security-Policy', PAY_PAGE_CSP);
     const t = tokenParam(c);
     if (!t) return c.html(renderNotFoundPage(), 404);
     try {

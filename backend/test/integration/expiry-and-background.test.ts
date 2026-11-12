@@ -85,7 +85,9 @@ describe('expiry', () => {
     const r = await h.db.paymentRequest.findUniqueOrThrow({ where: { id: reqId } });
     h.clock.advance(61 * MIN);
     const page = await json(await h.app.request(`/p/${r.publicToken}/status`));
-    expect(page).toMatchObject({ status: 'EXPIRED', accountNumber: null });
+    expect(page).toMatchObject({ state: 'expired' });
+    const full = await json(await h.app.request(`/api/public/requests/${r.publicToken}`));
+    expect(full).toMatchObject({ status: 'EXPIRED', accountNumber: null });
   });
 });
 

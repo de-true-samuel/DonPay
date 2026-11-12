@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const queueMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('kora.verify'), reference: z.string(), webhookEventId: z.string().nullable() }),
   z.object({ type: z.literal('request.checkExpiry'), requestId: z.string() }),
+  // BE-06 claim and BE-14 background reconciliation: ask Kora about one request.
+  z.object({ type: z.literal('request.recheck'), requestId: z.string() }),
   z.object({ type: z.literal('notify.send'), notificationId: z.string() }),
   z.object({ type: z.literal('digest.build'), providerId: z.string(), date: z.string() }),
 ]);

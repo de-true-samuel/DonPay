@@ -29,6 +29,8 @@ export const testConfig: AppConfig = {
   devLoginEnabled: true,
   telegramBotToken: null,
   telegramBotUsername: 'KoboExactTestBot',
+  telegramApiBase: 'https://api.telegram.org',
+  reminderFollowUpMinute: null,
   telegramWebhookSecret: 'tg-secret',
   adminSecret: 'admin-secret',
 };

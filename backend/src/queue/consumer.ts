@@ -8,6 +8,7 @@ import { KoraError } from '../integrations/kora/types';
 import { buildDigest, checkExpiry } from '../services/background';
 import { sendNotification } from '../services/notifications';
 import { verifyReference } from '../services/payments';
+import { reconcileRequest } from '../services/reconcile';
 import { queueMessageSchema, type QueueMessage } from './messages';
 
 export interface QueueMessageLike {
@@ -25,6 +26,9 @@ export async function handleMessage(deps: Deps, msg: QueueMessage): Promise<void
       return;
     case 'request.checkExpiry':
       await checkExpiry(deps, msg.requestId);
+      return;
+    case 'request.recheck':
+      await reconcileRequest(deps, msg.requestId);
       return;
     case 'notify.send':
       await sendNotification(deps, msg.notificationId);

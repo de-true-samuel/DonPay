@@ -31,7 +31,7 @@ export function buildDeps(env: Env, logFields: Record<string, unknown> = {}): De
           sandbox: config.koraMode === 'sandbox',
           now,
         });
-  const telegram = config.telegramBotToken ? new TelegramHttpSender(config.telegramBotToken) : new ConsoleTelegramSender();
+  const telegram = config.telegramBotToken ? new TelegramHttpSender(config.telegramBotToken, config.telegramApiBase) : new ConsoleTelegramSender();
   return {
     db: createDb(env.HYPERDRIVE.connectionString),
     kora,

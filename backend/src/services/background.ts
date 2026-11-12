@@ -6,26 +6,41 @@ import type { Deps } from '../deps';
 import { computeJobFinancials } from '../domain/job';
 import { balanceDuePrompt, dailyDigest, scheduledSendPrompt } from '../domain/messages';
 import { addDays, lagosDateString, lagosMinuteOfDay, lagosStartOfDay } from '../domain/time';
+import { getHealthReport } from './health';
 import { createNotification, enqueueNotifications } from './notifications';
 import { recordVerifiedCharge } from './payments';
+import { RECONCILE_GRACE_MS, RECONCILE_INTERVAL_MS } from './reconcile';
 
 const EXPIRY_GRACE_MS = 2 * 60 * 1000;
 const OUTBOX_STALE_MS = 2 * 60 * 1000;
-const WEBHOOK_STALE_MS = 5 * 60 * 1000;
+const WEBHOOK_STALE_MS = 2 * 60 * 1000;
 const BATCH = 100;
 
 export interface SweepReport {
   expiryChecks: number;
   scheduledPrompts: number;
+  followUpPrompts: number;
   balancePrompts: number;
   digests: number;
   outboxRetries: number;
   webhookRetries: number;
+  reconciliations: number;
+  idempotencyKeysPurged: number;
 }
 
 export async function runSweep(deps: Deps): Promise<SweepReport> {
   const now = deps.now();
-  const report: SweepReport = { expiryChecks: 0, scheduledPrompts: 0, balancePrompts: 0, digests: 0, outboxRetries: 0, webhookRetries: 0 };
+  const report: SweepReport = {
+    expiryChecks: 0,
+    scheduledPrompts: 0,
+    followUpPrompts: 0,
+    balancePrompts: 0,
+    digests: 0,
+    outboxRetries: 0,
+    webhookRetries: 0,
+    reconciliations: 0,
+    idempotencyKeysPurged: 0,
+  };
 
   // 1. Requests past expiry (+ grace): ask Kora before marking EXPIRED.
   const expiring = await deps.db.paymentRequest.findMany({
@@ -36,7 +51,9 @@ export async function runSweep(deps: Deps): Promise<SweepReport> {
   for (const r of expiring) await deps.queue.send({ type: 'request.checkExpiry', requestId: r.id });
   report.expiryChecks = expiring.length;
 
-  // 2. Scheduled requests now due → remind the provider (the account is created only when they tap Send).
+  // 2. Scheduled requests now due → remind the provider (BE-04). No account is created here: it is
+  //    created only when the provider taps "Get payment details". The request also shows in
+  //    Today → dueReminders until then.
   const due = await deps.db.paymentRequest.findMany({
     where: { status: 'SCHEDULED', scheduledFor: { lte: now }, promptedAt: null },
     include: { job: { include: { customer: { select: { name: true } } } } },
@@ -53,7 +70,7 @@ export async function runSweep(deps: Deps): Promise<SweepReport> {
         dedupeKey: `SCHEDULED_SEND_PROMPT:${r.id}:${r.scheduledFor?.toISOString()}`,
         payload: {
           text: scheduledSendPrompt({ customerName: r.job.customer.name, service: r.job.service, kind: r.kind, amountKobo: r.amountKobo }),
-          buttons: [[{ text: 'Open and send', url: `${deps.config.frontendUrl}/jobs/${r.jobId}?send=${r.id}` }]],
+          buttons: [[{ text: 'Open job', url: `${deps.config.frontendUrl}/jobs/${r.jobId}` }]],
         },
       });
       return n.created ? n.id : null;
@@ -61,6 +78,35 @@ export async function runSweep(deps: Deps): Promise<SweepReport> {
     if (id) notificationIds.push(id);
   }
   report.scheduledPrompts = due.length;
+
+  // 2b. Optional next-morning follow-up for reminders still not acted on (BE-04, off by default).
+  const followUpMinute = deps.config.reminderFollowUpMinute;
+  const startOfToday = lagosStartOfDay(now);
+  if (followUpMinute != null && lagosMinuteOfDay(now) >= followUpMinute) {
+    const stillDue = await deps.db.paymentRequest.findMany({
+      where: { status: 'SCHEDULED', promptedAt: { lt: startOfToday }, followUpPromptedAt: null, job: { cancelledAt: null } },
+      include: { job: { include: { customer: { select: { name: true } } } } },
+      take: BATCH,
+    });
+    for (const r of stillDue) {
+      const id = await deps.db.$transaction(async (tx) => {
+        const { count } = await tx.paymentRequest.updateMany({ where: { id: r.id, followUpPromptedAt: null }, data: { followUpPromptedAt: now } });
+        if (!count) return null;
+        const n = await createNotification(tx, {
+          providerId: r.providerId,
+          kind: 'SCHEDULED_SEND_PROMPT',
+          dedupeKey: `SCHEDULED_SEND_FOLLOW_UP:${r.id}`,
+          payload: {
+            text: scheduledSendPrompt({ customerName: r.job.customer.name, service: r.job.service, kind: r.kind, amountKobo: r.amountKobo, followUp: true }),
+            buttons: [[{ text: 'Open job', url: `${deps.config.frontendUrl}/jobs/${r.jobId}` }]],
+          },
+        });
+        return n.created ? n.id : null;
+      });
+      if (id) notificationIds.push(id);
+    }
+    report.followUpPrompts = stillDue.length;
+  }
 
   // 3. Balance due today (Lagos), no open request, still owed, not yet prompted.
   const startToday = lagosStartOfDay(now);
@@ -85,7 +131,7 @@ export async function runSweep(deps: Deps): Promise<SweepReport> {
         dedupeKey: `BALANCE_DUE_PROMPT:${j.id}:${lagosDateString(now)}`,
         payload: {
           text: balanceDuePrompt({ customerName: j.customer.name, service: j.service, balanceKobo: f.balanceKobo, dueAt: j.balanceDueAt!, now }),
-          buttons: [[{ text: 'Send balance request', url: `${deps.config.frontendUrl}/jobs/${j.id}?balance=1` }]],
+          buttons: [[{ text: 'Open job', url: `${deps.config.frontendUrl}/jobs/${j.id}?balance=1` }]],
         },
       });
       return n.created ? n.id : null;
@@ -128,6 +174,37 @@ export async function runSweep(deps: Deps): Promise<SweepReport> {
   });
   for (const w of stuck) await deps.queue.send({ type: 'kora.verify', reference: w.reference!, webhookEventId: w.id });
   report.webhookRetries = stuck.length;
+
+  // 7. Background reconciliation (BE-14): every waiting request, and every request until 30 minutes
+  //    after its expiry, is re-queried with Kora at most every 2 minutes. Catches lost or delayed
+  //    webhooks. lastCheckedAt is stamped here so the next tick doesn't enqueue the same rows.
+  const checkBefore = new Date(now.getTime() - RECONCILE_INTERVAL_MS);
+  const toReconcile = await deps.db.paymentRequest.findMany({
+    where: {
+      status: { in: ['SENT', 'EXPIRED'] },
+      koraReference: { not: null },
+      expiresAt: { gt: new Date(now.getTime() - RECONCILE_GRACE_MS) },
+      sentAt: { lt: checkBefore },
+      OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: checkBefore } }],
+    },
+    orderBy: [{ lastCheckedAt: { sort: 'asc', nulls: 'first' } }],
+    select: { id: true },
+    take: BATCH,
+  });
+  if (toReconcile.length) {
+    await deps.db.paymentRequest.updateMany({ where: { id: { in: toReconcile.map((r) => r.id) } }, data: { lastCheckedAt: now } });
+    for (const r of toReconcile) await deps.queue.send({ type: 'request.recheck', requestId: r.id });
+  }
+  report.reconciliations = toReconcile.length;
+
+  // 8. Idempotency keys older than 24 hours (BE-09).
+  report.idempotencyKeysPurged = (await deps.db.idempotencyKey.deleteMany({ where: { expiresAt: { lt: now } } })).count;
+
+  // 9. Monitoring: every 5 minutes, log an error-level event when a backlog builds (BE-14, BE-17).
+  if (lagosMinuteOfDay(now) % 5 === 0) {
+    const health = await getHealthReport(deps);
+    if (!health.ok) deps.log.error('monitor.alert', { ...health, deadLetterHint: undefined });
+  }
 
   if (Object.values(report).some((v) => v > 0)) deps.log.info('cron.sweep', { ...report });
   return report;

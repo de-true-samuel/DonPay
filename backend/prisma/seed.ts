@@ -43,6 +43,8 @@ async function main() {
       devLoginEnabled: true,
       telegramBotToken: null,
       telegramBotUsername: null,
+      telegramApiBase: 'https://api.telegram.org',
+      reminderFollowUpMinute: null,
       telegramWebhookSecret: null,
       adminSecret: null,
     },

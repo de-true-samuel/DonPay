@@ -94,3 +94,21 @@ export function formatDueDay(due: Date, now: Date): string {
   }
   return formatLagosDay(due);
 }
+
+/** "4:10 PM today", "9:00 AM tomorrow", "4:10 PM, Thu 5 Nov". Lagos time. */
+export function formatLagosExpiry(d: Date, now: Date): string {
+  const days = Math.round((lagosStartOfDay(d).getTime() - lagosStartOfDay(now).getTime()) / DAY_MS);
+  if (days === 0) return `${formatLagosClock(d)} today`;
+  if (days === 1) return `${formatLagosClock(d)} tomorrow`;
+  return formatLagosDateTime(d);
+}
+
+/** Whole minutes left, rounded up, rendered "10 minutes", "1 minute", "1 hour 5 minutes". */
+export function formatMinutesLeft(ms: number): string {
+  const total = Math.max(1, Math.ceil(ms / 60_000));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  const unit = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (!h) return unit(m, 'minute');
+  return m ? `${unit(h, 'hour')} ${unit(m, 'minute')}` : unit(h, 'hour');
+}

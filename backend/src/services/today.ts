@@ -11,7 +11,7 @@ export async function getToday(deps: Deps, providerId: string): Promise<C.TodayR
   const weekAgo = addDays(now, -7);
   const cfg = deps.config;
 
-  const [paid, waiting, dueJobs, expired, reviews] = await Promise.all([
+  const [paid, waiting, dueJobs, expired, reviews, reminders] = await Promise.all([
     deps.db.payment.findMany({
       where: { providerId, receivedAt: { gte: startToday } },
       include: { job: { include: jobInclude } },
@@ -47,6 +47,14 @@ export async function getToday(deps: Deps, providerId: string): Promise<C.TodayR
       take: 200,
     }),
     deps.db.reviewItem.findMany({ where: { providerId, resolvedAt: null }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    // BE-03: scheduled, reminder time passed, no account yet, not cancelled. Stays until the provider
+    // gets payment details (status leaves SCHEDULED) or cancels.
+    deps.db.paymentRequest.findMany({
+      where: { providerId, status: 'SCHEDULED', scheduledFor: { lte: now }, accountNumber: null, job: { cancelledAt: null } },
+      include: { job: { include: jobInclude } },
+      orderBy: { scheduledFor: 'asc' },
+      take: 200,
+    }),
   ]);
 
   const balancesDue = dueJobs.filter((j) => financialsOf(j).balanceKobo > 0n).map((j) => toJobSummary(cfg, j));
@@ -67,7 +75,8 @@ export async function getToday(deps: Deps, providerId: string): Promise<C.TodayR
     balancesDue,
     expired: expiredItems,
     needsReview: reviews.map(toReviewItem),
-    counts: { justPaid: 0, waiting: 0, balancesDue: 0, expired: 0, needsReview: 0 },
+    dueReminders: reminders.map((r) => ({ request: toRequest(cfg, r), job: toJobSummary(cfg, r.job) })),
+    counts: { justPaid: 0, waiting: 0, balancesDue: 0, expired: 0, needsReview: 0, dueReminders: 0 },
   };
   result.counts = {
     justPaid: result.justPaid.length,
@@ -75,6 +84,7 @@ export async function getToday(deps: Deps, providerId: string): Promise<C.TodayR
     balancesDue: result.balancesDue.length,
     expired: result.expired.length,
     needsReview: result.needsReview.length,
+    dueReminders: result.dueReminders.length,
   };
   return result;
 }

@@ -1,5 +1,5 @@
 /**
- * Response types of the backend ↔ frontend contract. Mirrors /contract.md (v1.0.0).
+ * Response types of the backend ↔ frontend contract. Mirrors /contract.md (v1.1.0).
  * The frontend may copy this file verbatim; it has no imports.
  */
 
@@ -21,6 +21,10 @@ export type ReviewKind =
   | 'VERIFICATION_FAILED';
 export type SearchStatus = 'paid' | 'waiting' | 'balance_due' | 'expired' | 'needs_review';
 export type SavedView = 'unpaid_balances' | 'this_week' | 'needs_follow_up';
+/** Wording template for messages copied to a customer. null on a customer means 'en'. */
+export type MessageLanguage = 'en' | 'pcm';
+
+export const CONTRACT_VERSION = '1.1.0';
 
 export type ErrorCode =
   | 'VALIDATION_ERROR'
@@ -34,6 +38,11 @@ export type ErrorCode =
   | 'NOTHING_OWED'
   | 'RATE_LIMITED'
   | 'KORA_UNAVAILABLE'
+  | 'REQUEST_NOT_WAITING'
+  | 'REQUEST_EXPIRED'
+  | 'JOB_NOT_READY'
+  | 'IDEMPOTENCY_KEY_REUSED'
+  | 'IDEMPOTENCY_IN_PROGRESS'
   | 'INTERNAL';
 
 export interface ApiError {
@@ -51,6 +60,9 @@ export interface Provider {
   telegramLinked: boolean;
   defaultReadyRule: ReadyRule;
   digestTime: string | null;
+  /** Business phone (E.164) shown to customers on expired/cancelled pages. */
+  phone: string | null;
+  onboardedAt: string | null;
   createdAt: string;
 }
 
@@ -58,7 +70,9 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  /** @deprecated 1.1.0: accepted on input, ignored, always false. Removed in 2.0. */
   messageConsent: boolean;
+  messageLanguage: MessageLanguage | null;
   createdAt: string;
 }
 
@@ -88,6 +102,8 @@ export interface PaymentRequest {
   scheduledFor: string | null;
   sentAt: string | null;
   paidAt: string | null;
+  detailsCopiedAt: string | null;
+  customerClaimedPaidAt: string | null;
   createdAt: string;
 }
 
@@ -146,11 +162,27 @@ export interface JobDetail extends JobSummary {
   openReviewItems: ReviewItem[];
 }
 
+/** Exactly the values embedded in PreparedMessage.text, for copy buttons. */
+export interface PaymentDetails {
+  bankName: string;
+  /** String: keeps leading zeros. */
+  accountNumber: string;
+  accountName: string;
+  /** Integer kobo as a JSON number, e.g. 2500000. */
+  amountKobo: number;
+  /** Digits, two decimals, no ₦ and no commas: "25000.00". Pastes cleanly into a bank app. */
+  amountPlain: string;
+  expiresAt: string;
+}
+
 export interface PreparedMessage {
   text: string;
   whatsappUrl: string;
   telegramUrl: string;
   payLink: string;
+  /** Set when the message carries account details (payment details, nudge); null otherwise. */
+  details: PaymentDetails | null;
+  language: MessageLanguage;
 }
 
 export interface RequestWithMessage {
@@ -196,7 +228,9 @@ export interface TodayResponse {
   balancesDue: JobSummary[];
   expired: { request: PaymentRequest; job: JobSummary }[];
   needsReview: ReviewItem[];
-  counts: { justPaid: number; waiting: number; balancesDue: number; expired: number; needsReview: number };
+  /** Scheduled requests whose reminder time has passed and that have no account yet. */
+  dueReminders: { request: PaymentRequest; job: JobSummary }[];
+  counts: { justPaid: number; waiting: number; balancesDue: number; expired: number; needsReview: number; dueReminders: number };
 }
 
 export interface SearchResponse extends Page<JobSummary> {
@@ -210,6 +244,8 @@ export interface AuthResponse {
 
 export interface PublicRequest {
   status: RequestStatus;
+  serverNow: string;
+  businessPhone: string | null;
   businessName: string;
   customerFirstName: string;
   service: string;
@@ -218,6 +254,7 @@ export interface PublicRequest {
   bankName: string | null;
   accountNumber: string | null;
   accountName: string | null;
+  amountPlain: string;
   expiresAt: string | null;
   paidAt: string | null;
   receipt: null | {
@@ -227,5 +264,44 @@ export interface PublicRequest {
     jobTotalKobo: KoboString;
     jobPaidKobo: KoboString;
     jobBalanceKobo: KoboString;
+    balanceDueAt: string | null;
   };
+}
+
+export type PublicState = 'waiting' | 'paid' | 'expired' | 'cancelled' | 'not_ready';
+
+/** GET /p/:token/status. Small on purpose: polled every few seconds on weak connections. */
+export interface PublicStatus {
+  state: PublicState;
+  /** Server clock, so the page can correct a wrong phone clock. */
+  serverNow: string;
+  expiresAt: string | null;
+  receipt?: {
+    amountKobo: number;
+    reference: string;
+    paidAt: string;
+    balanceKobo?: number;
+    balanceDueDate?: string;
+  };
+}
+
+/** GET /api/me/export */
+export interface AccountExport {
+  exportedAt: string;
+  contractVersion: string;
+  provider: Provider;
+  customers: Customer[];
+  jobs: JobDetail[];
+}
+
+/** GET /api/admin/support/requests/:reference (read-only support view). */
+export interface SupportRequestView {
+  request: PaymentRequest & { koraReference: string | null; providerId: string; publicToken?: never };
+  businessName: string;
+  job: { id: string; service: string; totalKobo: KoboString; cancelledAt: string | null };
+  payment: Payment | null;
+  webhookEvents: { id: string; eventType: string; signatureOk: boolean; receivedAt: string; processedAt: string | null; error: string | null }[];
+  reviewItems: ReviewItem[];
+  claims: { at: string }[];
+  notifications: { kind: string; createdAt: string; sentAt: string | null; failedAt: string | null; attempts: number; lastError: string | null }[];
 }

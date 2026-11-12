@@ -1,4 +1,4 @@
-// Kobo-Exact data model. See ARCHITECTURE.md §4.
+// Paidar (formerly Kobo-Exact) data model. See ARCHITECTURE.md §4.
 // Money is always whole kobo in BigInt columns. Balances are derived from Payment rows, never stored.
 // Constraints Prisma can't express (partial unique index, CHECKs, pg_trgm) live in hand-written
 // migration SQL: prisma/migrations/*_constraints/migration.sql
@@ -68,6 +68,13 @@ enum NotificationKind {
   BALANCE_DUE_PROMPT
   SCHEDULED_SEND_PROMPT
   DIGEST
+  CUSTOMER_CLAIMED_PAID
+}
+
+/// Wording template for messages the provider copies to a customer (BE-12).
+enum MessageLanguage {
+  en
+  pcm
 }
 
 model Provider {
@@ -79,6 +86,10 @@ model Provider {
   defaultReadyRule  ReadyRule @default(AFTER_DEPOSIT)
   digestMinuteOfDay Int?
   lastDigestOn      DateTime? @db.Date
+  /// Business phone (E.164) for the "message the business" button on the customer page (BE-16).
+  phoneE164         String?
+  /// When the provider finished onboarding (BE-10). Replaces per-device memory in the frontend.
+  onboardedAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -90,6 +101,7 @@ model Provider {
   notifications Notification[]
   sessions      Session[]
   loginTokens   LoginToken[]
+  idempotencyKeys IdempotencyKey[]
 }
 
 model Customer {
@@ -97,7 +109,9 @@ model Customer {
   providerId     String
   name           String
   phoneE164      String
+  /// DEPRECATED in contract 1.1.0 (BE-15): accepted by the API, never read or written. Drop in 2.0.
   messageConsent Boolean  @default(false)
+  messageLanguage MessageLanguage?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -155,6 +169,14 @@ model PaymentRequest {
   expiredAt       DateTime?
   cancelledAt     DateTime?
   replacesId      String?
+  /// Provider copied the payment details (BE-05). Set once.
+  detailsCopiedAt DateTime?
+  /// Customer tapped "I've paid" on the payment page (BE-06). Never changes status.
+  customerClaimedPaidAt DateTime?
+  /// Next-morning follow-up reminder sent (BE-04).
+  followUpPromptedAt DateTime?
+  /// Last time background reconciliation asked Kora about this request (BE-14).
+  lastCheckedAt   DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -162,11 +184,46 @@ model PaymentRequest {
   job         Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
   payment     Payment?
   reviewItems ReviewItem[]
+  claimEvents ClaimEvent[]
 
   @@index([providerId, status])
   @@index([status, expiresAt])
   @@index([status, scheduledFor])
+  @@index([status, lastCheckedAt])
   @@index([jobId])
+}
+
+/// One "I've paid" tap on the customer page (BE-06). The IP is stored only as a salted hash.
+model ClaimEvent {
+  id        String   @id @default(cuid())
+  requestId String
+  ipHash    String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  request PaymentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+}
+
+/// Stored results for the Idempotency-Key header (BE-09). Rows expire after 24 hours.
+/// status = null means the first call is still running.
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  providerId   String
+  key          String
+  method       String
+  path         String
+  bodyHash     String
+  status       Int?
+  responseBody Json?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, key])
+  @@index([expiresAt])
 }
 
 model Payment {

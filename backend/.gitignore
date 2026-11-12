@@ -7,4 +7,5 @@ worker-configuration.d.ts
 .env
 dist/
 coverage/
+e2e/last-run.md
 *.log

@@ -1,4 +1,6 @@
-# Kobo-Exact backend
+# Paidar backend (formerly Kobo-Exact)
+
+Implements **contract 1.1.0** ([`../Paidar_Backend_Implementation_Spec.md`](../Paidar_Backend_Implementation_Spec.md)). Operations, monitoring, backups, rollback and the live Kora cutover: [`OPERATIONS.md`](OPERATIONS.md).
 
 One Cloudflare Worker (Hono + TypeScript) with three entry points (HTTP, queue consumer, per-minute cron), backed by Postgres through Hyperdrive and Prisma. Design: [`../ARCHITECTURE.md`](../ARCHITECTURE.md). API: [`../contract.md`](../contract.md). The frontend lives in `../frontend` and talks to this backend only through the contract.
 
@@ -35,6 +37,7 @@ Locally `KORA_MODE=fake`: sending a request allocates a fake account, and `POST 
 | `npm run dev` | `wrangler dev` on port 8790 (Hyperdrive → local Postgres, queues and cron simulated locally) |
 | `npm test` | Unit and integration tests (Vitest, real Postgres from `TEST_DATABASE_URL`; migrations applied automatically) |
 | `npm run test:unit` | Pure domain tests only, no database |
+| `npm run test:e2e` | End-to-end: starts mock Kora + Telegram (real API formats), runs the real Worker in `wrangler dev` with `KORA_MODE=live` pointed at them, and drives the whole product flow over HTTP. Every response is validated against `contract.md`. Uses its own `kobo_exact_e2e` database and writes `e2e/last-run.md`. Needs `npm run db:up` first. |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:migrate` | Create a new migration in development (`prisma migrate dev`) |
 | `npm run db:deploy` | Apply migrations (`prisma migrate deploy`) to `DATABASE_URL` |
@@ -71,6 +74,7 @@ test/unit, test/integration
 3. The queue consumer **queries Kora itself**. Only on `success` does it record the payment with Kora's *amount accepted*, in one transaction that also sets the request to PAID, flags anything odd for review, and writes the provider alert to the outbox.
 4. The alert is sent from the outbox. If an enqueue is lost, the cron sweep resends it. If a webhook is never processed, the sweep re-verifies it.
 5. Expiry: the cron asks Kora before marking a request EXPIRED. A verified payment always wins, even after expiry.
+6. Reconciliation (1.1.0): every waiting request, and every request until 30 minutes after its expiry, is re-queried with Kora at most every 2 minutes (`request.recheck` queue messages). The provider's "Recheck" button and the customer's "I've paid" button use the same path (`src/services/reconcile.ts`). A late webhook, or one that never arrives, is still caught, and a payment is never credited twice.
 
 Integration tests cover each of these steps, including concurrent duplicate deliveries and the expiry race.
 
@@ -120,6 +124,24 @@ CI: [`../.github/workflows/backend.yml`](../.github/workflows/backend.yml) runs 
 - **The frontend is a separate app** (`../frontend`), not Workers Static Assets. That means CORS with credentials and `COOKIE_SAMESITE=None` when it is on a different site. A Bearer token is also accepted.
 - **Today and search derive balances in application code** over indexed candidate sets (at most 1,000 jobs for search), rather than one hand-written SQL query. That is plenty at provider scale. Move it to SQL if a provider ever outgrows it.
 - **Customer receipts**: the payment link turns into the receipt, and the provider's alert includes a one-tap "Send receipt on WhatsApp" button. We never message customers directly.
+
+## Contract 1.1.0 at a glance
+
+| Spec item | Where |
+|---|---|
+| BE-01/02/07/08/12: short template, `details`, nudge, start message, Pidgin | `src/domain/messages.ts` |
+| BE-03/04: `dueReminders`, reminders link to the job page, optional next-morning follow-up (`REMINDER_FOLLOW_UP_TIME`) | `src/services/today.ts`, `src/services/background.ts` |
+| BE-05/06: copied marker, "I've paid" claim, recheck | `src/services/requests.ts`, `src/services/public.ts`, `src/services/reconcile.ts` |
+| BE-09: `Idempotency-Key` | `src/http/idempotency.ts` |
+| BE-10/11/16: `onboardedAt`, `phone`, export, delete, sign out everywhere | `src/http/app.ts`, `src/services/account.ts` |
+| BE-13: customer payment page | `src/http/pay-page.ts` |
+| BE-14/17: reconciliation, backlog alerts, rate limits, security headers | `src/services/background.ts`, `src/services/health.ts`, `src/http/app.ts` |
+| BE-15: `messageConsent` deprecated (accepted, ignored) | `src/services/customers.ts`, `serialize.ts` |
+| BE-18: support view | `src/services/support.ts` |
+| BE-20: contract tests | `e2e/contract-schemas.ts`, run in CI |
+| Duplicate-account guard (spec 5.3) | partial unique index `one_live_request_per_account` in the `v1_1_paidar` migration |
+
+Tests: `test/integration/v1-1.test.ts` maps to the spec's acceptance tests T6, T7, T9, T10, T11, T14–T17.
 
 ## Still to confirm with Kora (⚠ in the code)
 

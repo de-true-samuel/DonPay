@@ -47,7 +47,8 @@ describe('job creation and send', () => {
     expect(sent.request).toMatchObject({ status: 'SENT', bankName: 'Wema Bank', amountKobo: '2500000' });
     expect(sent.request.accountNumber).toMatch(/^78\d{8}$/);
     expect(sent.job.openRequest.id).toBe(sent.request.id);
-    expect(sent.message.text).toContain('Amount: ₦25,000.00 (pay this exact amount)');
+    expect(sent.message.text.split('\n')[1]).toBe('Pay ₦25,000 for Bridal makeup (deposit)');
+    expect(sent.message.details).toMatchObject({ accountNumber: sent.request.accountNumber, amountKobo: 2500000, amountPlain: '25000.00' });
     expect(sent.message.text).toContain(sent.request.accountNumber);
     expect(sent.message.whatsappUrl).toMatch(/^https:\/\/wa\.me\/2348031234567\?text=/);
     expect(reference).toBe(`KE-${sent.request.id}-1`);
@@ -236,20 +237,23 @@ describe('deposit then balance', () => {
     const { token } = await h.login();
     const { sent, reference } = await sendFirstRequest(token);
     const pageToken = sent.request.payLink.split('/p/')[1];
-    const before = await json(await h.app.request(`/p/${pageToken}/status`));
+    const before = await json(await h.app.request(`/api/public/requests/${pageToken}`));
     expect(before).toMatchObject({ status: 'SENT', accountNumber: sent.request.accountNumber, customerFirstName: 'Tolu', receipt: null });
+    expect(await json(await h.app.request(`/p/${pageToken}/status`))).toMatchObject({ state: 'waiting', expiresAt: sent.request.expiresAt });
     expect(JSON.stringify(before)).not.toContain('803123'); // no phone numbers on the public page
 
     h.kora.pay(reference, 2_500_000n);
     await deliverWebhook(reference);
     await h.drain();
-    const after = await json(await h.app.request(`/p/${pageToken}/status`));
+    const after = await json(await h.app.request(`/api/public/requests/${pageToken}`));
     expect(after).toMatchObject({ status: 'PAID', accountNumber: null, receipt: { amountKobo: '2500000', jobBalanceKobo: '2500000' } });
     expect(after.receipt.reference).toMatch(/^KE-[A-Z0-9]{6}$/);
+    const status = await json(await h.app.request(`/p/${pageToken}/status`));
+    expect(status).toMatchObject({ state: 'paid', receipt: { amountKobo: 2500000, balanceKobo: 2500000, reference: after.receipt.reference } });
 
     const html = await (await h.app.request(`/p/${pageToken}`)).text();
     expect(html).toContain('<title>');
-    expect(html).toContain('Paid ✔');
+    expect(html).toContain('Payment received');
     expect((await h.app.request('/p/doesnotexistdoesnotexist')).status).toBe(404);
   });
 });

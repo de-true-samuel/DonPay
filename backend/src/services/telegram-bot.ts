@@ -1,5 +1,7 @@
 /**
- * Telegram bot: login links, linking an existing account, and a quick /today summary.
+ * Telegram bot. Provider only (spec 4.7): sign-in, payment pings, reminders, the evening summary
+ * and the "customer says paid" alert. The bot never messages customers; there is no customer flow.
+ * Commands: login links, linking an existing account, and a quick /today summary.
  * Updates arrive at POST /webhooks/telegram (secret-token verified in the route).
  */
 import { z } from 'zod';
@@ -34,7 +36,7 @@ export async function createTelegramLink(deps: Deps, providerId: string): Promis
 }
 
 const HELP = [
-  'Kobo-Exact commands:',
+  'Paidar commands:',
   '/login: get a link to open your dashboard',
   '/today: who paid, who is waiting, what needs attention',
   '/help: this message',
@@ -65,9 +67,9 @@ export async function handleTelegramUpdate(deps: Deps, rawUpdate: unknown): Prom
     }
     const link = await issueLoginLink(deps, provider.id);
     const intro = isNew
-      ? `Welcome to Kobo-Exact! Your account "${provider.businessName}" is ready. You can change the business name in Settings.\n\nPaid alerts will arrive in this chat.`
+      ? `Welcome to Paidar! Your account "${provider.businessName}" is ready. You can change the business name in Settings.\n\nPaid alerts will arrive in this chat.`
       : 'Here is your login link.';
-    return reply(`${intro}\n\nThis link works once and expires in 10 minutes.`, [[{ text: 'Open Kobo-Exact', url: link }]]);
+    return reply(`${intro}\n\nThis link works once and expires in 10 minutes.`, [[{ text: 'Open Paidar', url: link }]]);
   }
 
   if (cmd === '/today') {
@@ -79,6 +81,7 @@ export async function handleTelegramUpdate(deps: Deps, rawUpdate: unknown): Prom
       `✔ Paid today: ${t.counts.justPaid}${t.counts.justPaid ? ` (${formatNairaShort(paidTotal)})` : ''}`,
       `⏳ Waiting: ${t.counts.waiting}`,
       `📅 Balances due: ${t.counts.balancesDue}`,
+      `⏰ Reminders due: ${t.counts.dueReminders}`,
       `↻ Expired, send again: ${t.counts.expired}`,
       `⚠ Needs review: ${t.counts.needsReview}`,
     ];
@@ -102,7 +105,7 @@ async function linkExistingAccount(
   const token = await deps.db.loginToken.findUniqueOrThrow({ where: { tokenHash } });
   const holder = await deps.db.provider.findUnique({ where: { telegramChatId: chatId }, select: { id: true } });
   if (holder && holder.id !== token.providerId) {
-    return reply('This Telegram account is already connected to another Kobo-Exact business.');
+    return reply('This Telegram account is already connected to another Paidar business.');
   }
   await deps.db.provider.update({ where: { id: token.providerId }, data: { telegramChatId: chatId, telegramUsername: username } });
   deps.log.info('provider.telegram_linked', { providerId: token.providerId });

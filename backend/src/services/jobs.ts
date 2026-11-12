@@ -1,15 +1,17 @@
 import type { Deps } from '../deps';
-import { firstRequestFor, validateJobAmounts, type PaymentPlan, type ReadyRule } from '../domain/job';
+import { computeJobFinancials, firstRequestFor, validateJobAmounts, type PaymentPlan, type ReadyRule } from '../domain/job';
+import { languageOf, startMessage, type MessageLanguage, type PreparedMessage } from '../domain/messages';
 import { normalizeNigerianPhone } from '../domain/phone';
 import { randomToken } from '../domain/tokens';
 import { AppError, notFound, validation } from '../errors';
 import type { Tx } from '../db/client';
-import { jobInclude, toJobSummary, toPayment, toRequest, toReviewItem } from './serialize';
+import { jobInclude, payLink, toJobSummary, toPayment, toRequest, toReviewItem } from './serialize';
 import type * as C from '../shared/contract';
 
 export interface CreateJobInput {
   customerId?: string;
-  customer?: { name: string; phone: string; messageConsent?: boolean };
+  /** messageConsent is accepted for compatibility and ignored (deprecated, BE-15). */
+  customer?: { name: string; phone: string; messageConsent?: boolean; messageLanguage?: MessageLanguage | null };
   service: string;
   totalKobo: bigint;
   plan: PaymentPlan;
@@ -23,7 +25,7 @@ export interface CreateJobInput {
 export async function resolveCustomer(
   tx: Tx,
   providerId: string,
-  input: { customerId?: string; customer?: { name: string; phone: string; messageConsent?: boolean } },
+  input: { customerId?: string; customer?: { name: string; phone: string; messageLanguage?: MessageLanguage | null } },
 ): Promise<string> {
   if (input.customerId) {
     const c = await tx.customer.findFirst({ where: { id: input.customerId, providerId }, select: { id: true } });
@@ -36,7 +38,7 @@ export async function resolveCustomer(
   const existing = await tx.customer.findUnique({ where: { providerId_phoneE164: { providerId, phoneE164: phone } }, select: { id: true } });
   if (existing) return existing.id;
   const created = await tx.customer.create({
-    data: { providerId, name: input.customer.name.trim(), phoneE164: phone, messageConsent: input.customer.messageConsent ?? false },
+    data: { providerId, name: input.customer.name.trim(), phoneE164: phone, messageLanguage: input.customer.messageLanguage ?? null },
   });
   return created.id;
 }
@@ -160,4 +162,30 @@ export async function cancelJob(deps: Deps, providerId: string, jobId: string): 
 
 export function assertJobOpen(job: { cancelledAt: Date | null }) {
   if (job.cancelledAt) throw new AppError('INVALID_STATE', 'This job has been cancelled');
+}
+
+/** BE-08: "Payment received. We're starting." Only once the job is ready to start. Read-only. */
+export async function getStartMessage(deps: Deps, providerId: string, jobId: string): Promise<PreparedMessage> {
+  const job = await deps.db.job.findFirst({
+    where: { id: jobId, providerId },
+    include: {
+      provider: { select: { businessName: true } },
+      customer: true,
+      payments: { select: { amountKobo: true, source: true } },
+      requests: { where: { status: 'PAID' }, orderBy: { paidAt: 'desc' }, take: 1, select: { publicToken: true } },
+    },
+  });
+  if (!job) throw notFound('Job');
+  const f = computeJobFinancials({ ...job, payments: job.payments });
+  if (!f.readyToStart) throw new AppError('JOB_NOT_READY', "This job isn't ready to start yet. Wait for a verified payment.");
+  const paid = job.requests[0];
+  return startMessage({
+    businessName: job.provider.businessName,
+    customerName: job.customer.name,
+    customerPhone: job.customer.phoneE164,
+    service: job.service,
+    // The receipt page of the payment that made the job ready.
+    payLink: paid ? payLink(deps.config, paid.publicToken) : deps.config.publicBaseUrl,
+    language: languageOf(job.customer.messageLanguage),
+  });
 }

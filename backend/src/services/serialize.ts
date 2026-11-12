@@ -33,12 +33,15 @@ export function toProvider(p: ProviderRow): C.Provider {
     telegramLinked: p.telegramChatId != null,
     defaultReadyRule: p.defaultReadyRule,
     digestTime: p.digestMinuteOfDay == null ? null : formatHHMM(p.digestMinuteOfDay),
+    phone: p.phoneE164,
+    onboardedAt: isoOrNull(p.onboardedAt),
     createdAt: iso(p.createdAt),
   };
 }
 
 export function toCustomer(c: CustomerRow): C.Customer {
-  return { id: c.id, name: c.name, phone: c.phoneE164, messageConsent: c.messageConsent, createdAt: iso(c.createdAt) };
+  // messageConsent is deprecated (BE-15): never read from the row, always reported as false.
+  return { id: c.id, name: c.name, phone: c.phoneE164, messageConsent: false, messageLanguage: c.messageLanguage, createdAt: iso(c.createdAt) };
 }
 
 export function toRequest(config: AppConfig, r: RequestRow): C.PaymentRequest {
@@ -56,6 +59,8 @@ export function toRequest(config: AppConfig, r: RequestRow): C.PaymentRequest {
     scheduledFor: isoOrNull(r.scheduledFor),
     sentAt: isoOrNull(r.sentAt),
     paidAt: isoOrNull(r.paidAt),
+    detailsCopiedAt: isoOrNull(r.detailsCopiedAt),
+    customerClaimedPaidAt: isoOrNull(r.customerClaimedPaidAt),
     createdAt: iso(r.createdAt),
   };
 }

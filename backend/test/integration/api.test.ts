@@ -149,7 +149,8 @@ describe('customers', () => {
     });
     const list = await json(await h.api('GET', '/api/customers?q=bola', { token }));
     expect(list.items).toHaveLength(1);
-    expect(list.items[0].messageConsent).toBe(true);
+    // BE-15: the consent column is ignored; the deprecated field always reads false.
+    expect(list.items[0].messageConsent).toBe(false);
   });
 });
 

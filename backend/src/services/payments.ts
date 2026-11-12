@@ -7,7 +7,7 @@
  */
 import type { Deps } from '../deps';
 import { computeJobFinancials } from '../domain/job';
-import { paidAlert, receiptMessage, type PreparedMessage } from '../domain/messages';
+import { languageOf, paidAlert, receiptMessage, type PreparedMessage } from '../domain/messages';
 import { comparePayerName } from '../domain/names';
 import { canTransition } from '../domain/request-state';
 import { AppError, notFound } from '../errors';
@@ -216,6 +216,7 @@ export async function buildReceipt(db: Tx | Deps['db'], deps: Deps, paymentId: s
     balanceDueAt: p.job.balanceDueAt,
     paidAt: p.receivedAt,
     payLink: p.request ? payLink(deps.config, p.request.publicToken) : `${deps.config.publicBaseUrl}`,
+    language: languageOf(p.job.customer.messageLanguage),
     now: deps.now(),
   });
 }
