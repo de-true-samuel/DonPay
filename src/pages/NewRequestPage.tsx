@@ -7,7 +7,6 @@ import type { CreateJobBody, CustomerSummary, RequestWithMessage } from '../cont
 import { useShare } from '../features/share/ShareProvider';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira, parseNairaInput } from '../lib/money';
-import { getSavedPresets, type ServicePreset } from '../lib/presets';
 import { isValidNgPhone, parseQuickEntry } from '../lib/quickEntry';
 import type { QuickEntry } from '../lib/quickEntry';
 import { formatPhone } from '../lib/phone';
@@ -71,7 +70,6 @@ export function NewRequestPage() {
   const [submitted, setSubmitted] = useState(false);
   const [server, setServer] = useState<Errors>({});
   const touched = useRef(new Set<keyof Form>());
-  const [servicePresets] = useState<ServicePreset[]>(() => getSavedPresets());
 
   const customerQuery = useQuery({
     queryKey: ['customers', 'autocomplete', form.name.trim()],
@@ -84,15 +82,6 @@ export function NewRequestPage() {
   function selectCustomer(c: CustomerSummary) {
     edit('name', c.name);
     edit('phone', c.phone);
-  }
-
-  function applyPreset(p: ServicePreset) {
-    edit('service', p.service);
-    edit('plan', p.plan);
-    edit('total', p.total);
-    if (p.plan === 'DEPOSIT_BALANCE' && p.deposit) {
-      edit('deposit', p.deposit);
-    }
   }
 
   function onText(value: string) {
@@ -201,27 +190,7 @@ export function NewRequestPage() {
               error={err('phone')} hint="Any Nigerian format works." autoComplete="off" />
           </>
         )}
-        <div>
-          {servicePresets.length > 0 && (
-            <div style={{ marginBottom: 6 }}>
-              <span className="pd-hint" style={{ fontSize: 13, marginBottom: 4, display: 'block' }}>Presets:</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {servicePresets.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="pd-chip"
-                    style={{ fontSize: 13, padding: '4px 10px', cursor: 'pointer' }}
-                    onClick={() => applyPreset(p)}
-                  >
-                    {p.service} (₦{p.total})
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <TextField label="Service" value={form.service} onChange={(e) => edit('service', e.target.value)} error={err('service')} maxLength={120} />
-        </div>
+        <TextField label="Service" value={form.service} onChange={(e) => edit('service', e.target.value)} error={err('service')} maxLength={120} />
         <Segmented<Plan> legend="How will they pay?" value={form.plan} onChange={(p) => edit('plan', p)}
           options={[{ value: 'FULL', label: 'In full' }, { value: 'DEPOSIT_BALANCE', label: 'Deposit + balance' }]} />
         <TextField label={dep ? 'Total price (₦)' : 'Amount (₦)'} inputMode="decimal" value={form.total}

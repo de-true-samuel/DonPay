@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { playPaidChime } from '../../lib/sound';
 import { Icon } from '../../ui/Icon';
 import { Money } from '../../ui/Money';
 import { useToday } from '../today/useToday';
@@ -31,7 +30,6 @@ export function PaidPingLayer() {
       ...p,
     ].slice(0, 3));
     navigator.vibrate?.(80);
-    playPaidChime();
   }, [data]);
 
   const dismiss = (id: string) => setPings((p) => p.filter((x) => x.id !== id));

@@ -8,7 +8,6 @@ import { CancelJobDialog, EditJobDialog, ManualPaymentDialog } from '../features
 import { JobTimeline } from '../features/jobs/JobTimeline';
 import { RequestCard } from '../features/requests/RequestCard';
 import { useRequestActions } from '../features/requests/useRequestActions';
-import { useShare } from '../features/share/ShareProvider';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
 import { formatDate } from '../lib/time';
@@ -23,7 +22,6 @@ type Dlg = 'edit' | 'manual' | 'cancel' | null;
 export function JobPage() {
   const { id = '' } = useParams();
   const a = useRequestActions();
-  const share = useShare();
   const [dlg, setDlg] = useState<Dlg>(null);
   const q = useQuery({
     queryKey: ['job', id],
@@ -62,21 +60,6 @@ export function JobPage() {
             <div className="pd-actions">
               <Button variant="line" icon="pencil" onClick={() => setDlg('edit')}>Edit</Button>
               <Button variant="line" onClick={() => setDlg('manual')}>Record a payment</Button>
-              {j.readyToStart && (
-                <Button
-                  variant="line"
-                  onClick={() => {
-                    const firstName = j.customer.name.trim().split(' ')[0];
-                    const startMsg = `Hi ${firstName}, we’ve received your payment for ${j.service}. We’re starting on your job now!`;
-                    share.open({
-                      title: `Message for ${firstName}`,
-                      message: startMsg,
-                    });
-                  }}
-                >
-                  Copy “We’re starting”
-                </Button>
-              )}
             </div>
           )}
         </header>

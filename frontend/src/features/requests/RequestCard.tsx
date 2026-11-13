@@ -11,7 +11,6 @@ import { Button, TextField } from '../../ui/primitives';
 import { StatusPill } from '../../ui/Trust';
 import { TicketCard } from '../../ui/TicketCard';
 import { useToast } from '../../ui/Toast';
-import { useShare } from '../share/ShareProvider';
 import { useCopiedAt } from './copyTracker';
 import { useRequestActions } from './useRequestActions';
 
@@ -36,7 +35,6 @@ function statusLine(r: PaymentRequest, copiedAt: string | null): string {
 export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRequest; job: JobSummary; linkToJob?: boolean }) {
   const a = useRequestActions();
   const qc = useQueryClient();
-  const share = useShare();
   const toast = useToast();
   const copiedAt = useCopiedAt(r.id);
   const [remindOpen, setRemindOpen] = useState(false);
@@ -81,22 +79,6 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
             {r.status === 'SENT' && (
               <Button variant="line" busy={a.shareAgain.isPending && a.shareAgain.variables?.request.id === r.id}
                 onClick={() => a.shareAgain.mutate({ request: r, job })}>Show payment details</Button>
-            )}
-            {r.status === 'SENT' && (
-              <Button
-                variant="line"
-                onClick={() => {
-                  const firstName = job.customer.name.trim().split(' ')[0];
-                  const nudge = `Hi ${firstName}, just a gentle reminder that the payment account for ${job.service} (${r.bankName ?? 'Wema Bank'} ${r.accountNumber ?? ''}) expires soon. You can view payment details and pay here: ${r.payLink}`;
-                  share.open({
-                    title: `Reminder for ${firstName}`,
-                    message: nudge,
-                    request: r,
-                  });
-                }}
-              >
-                Copy reminder
-              </Button>
             )}
             {r.status === 'SENT' && r.customerClaimedPaidAt && (
               <Button

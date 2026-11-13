@@ -350,27 +350,9 @@ export function PublicPayPage() {
           }}
         >
           <h2 style={{ fontSize: 18, color: '#B4233A', margin: '0 0 8px' }}>This payment account has expired</h2>
-          <p style={{ color: '#6E6689', fontSize: 15, margin: '0 0 16px' }}>
+          <p style={{ color: '#6E6689', fontSize: 15, margin: 0 }}>
             To prevent lost transfers, this one-time virtual account closed. Please ask {req.businessName} to generate a fresh payment link for you.
           </p>
-          {req.businessPhone && (
-            <a
-              href={`https://wa.me/${req.businessPhone.replace(/\+/g, '')}?text=${encodeURIComponent(`Hi ${req.businessName}, my payment link for ${req.service} expired. Could you generate a new one?`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-block',
-                padding: '12px 20px',
-                borderRadius: 10,
-                background: '#6D28D9',
-                color: '#fff',
-                textDecoration: 'none',
-                fontWeight: 600,
-              }}
-            >
-              Message {req.businessName} on WhatsApp
-            </a>
-          )}
         </section>
       )}
 
