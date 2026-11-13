@@ -67,26 +67,20 @@ export function SettingsPage() {
         </section>
 
         <section className="pd-section" aria-labelledby="s-alerts">
-          <h2 id="s-alerts">Alerts</h2>
+          <h2 id="s-alerts">Payment Alerts & Webhooks</h2>
           <div className="pd-row">
             <div>
-              <p className="pd-row__title">Telegram</p>
+              <p className="pd-row__title">Automated Bank Confirmation</p>
               <p className="pd-hint">
-                {provider.telegramLinked
-                  ? 'Connected. Payment pings arrive here (alerts to you only; Paidar never messages customers).'
-                  : 'Not connected. You won’t get payment alerts.'}
+                Real-time transfer notifications via Kora verified credit events. Alerts arrive instantly in your dashboard and on your device.
               </p>
             </div>
-            {provider.telegramLinked
-              ? <span className="pd-trust pd-trust--verified"><Icon name="check" size={14} />Connected</span>
-              : <Button type="button" variant="line" icon="send" busy={link.isPending || waitingTg} onClick={() => link.mutate()}>
-                  {waitingTg ? 'Waiting for you…' : 'Connect'}
-                </Button>}
+            <span className="pd-trust pd-trust--verified"><Icon name="check" size={14} />Active</span>
           </div>
           <div className="pd-row">
             <div>
               <p className="pd-row__title">Evening summary</p>
-              <p className="pd-hint">Who paid, who’s waiting, who to follow up.</p>
+              <p className="pd-hint">Daily recap of who paid, who’s waiting, and who to follow up.</p>
             </div>
             <Switch checked={digestOn} onChange={(v) => { setDigestOn(v); setSaved(false); }} label="Evening summary" />
           </div>

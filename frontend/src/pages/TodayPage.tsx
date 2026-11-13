@@ -1,37 +1,37 @@
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { describeError } from '../api/errors';
-import { RequestCard } from '../features/requests/RequestCard';
-import { BalanceRow, ExpiredRow, PaidItem, ReminderRow, ReviewRow } from '../features/today/TodayRows';
+import { jobsApi } from '../api/endpoints';
+import {
+  ActivePaymentRow,
+  BalanceRow,
+  ExpiredRow,
+  ReminderRow,
+  ReviewRow,
+  SettledPaymentRow,
+} from '../features/today/TodayRows';
 import { useToday } from '../features/today/useToday';
 import { useDocumentTitle, useNow } from '../lib/hooks';
+import { formatNaira } from '../lib/money';
 import { timeAgo } from '../lib/time';
-import { CountdownRing } from '../ui/CountdownRing';
+import { Icon } from '../ui/Icon';
 import { Banner, Button, EmptyState, LinkButton, Skeleton } from '../ui/primitives';
-import { StatusPill } from '../ui/Trust';
-import { TicketCard } from '../ui/TicketCard';
 
 function Section({ title, count, to, children }: { title: string; count: number; to?: string; children: ReactNode }) {
   if (!count) return null;
   return (
-    <section className="pd-qsection">
-      <h2 className="pd-qsection__h">{title}<span className="pd-count">{count}</span>{to && <Link to={to} className="pd-qsection__more">See all</Link>}</h2>
+    <section className="pd-qsection" style={{ marginTop: 24 }}>
+      <h2 className="pd-qsection__h">
+        {title}
+        <span className="pd-count">{count}</span>
+        {to && <Link to={to} className="pd-qsection__more">See all</Link>}
+      </h2>
       <div className="pd-qsection__list">{children}</div>
     </section>
   );
-}
-
-function summaryLine(c: { justPaid: number; waiting: number; balancesDue: number; expired: number; needsReview: number; remindersDue?: number }): string {
-  const parts = [
-    c.needsReview && `${c.needsReview} to review`,
-    c.remindersDue && `${c.remindersDue} ${c.remindersDue === 1 ? 'reminder' : 'reminders'} due`,
-    c.justPaid && `${c.justPaid} paid today`,
-    c.waiting && `${c.waiting} waiting`,
-    c.balancesDue + c.expired && `${c.balancesDue + c.expired} to follow up`,
-  ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : 'Nothing needs you right now.';
 }
 
 export function TodayPage() {
@@ -39,31 +39,61 @@ export function TodayPage() {
   const { provider } = useAuth();
   const q = useToday();
   const now = useNow(5000);
-  const sample = useMemo(() => {
-    const t = Date.now();
-    return { sentAt: new Date(t - 27 * 60_000).toISOString(), expiresAt: new Date(t + 33 * 60_000).toISOString() };
-  }, []);
+
+  // Fetch all jobs for dashboard-wide financial metrics
+  const allJobs = useQuery({
+    queryKey: ['jobs', 'dashboard-metrics'],
+    queryFn: () => jobsApi.list({ limit: 100 }),
+    staleTime: 10_000,
+  });
 
   const t = q.data;
-  const empty = t && Object.values(t.counts).every((n) => n === 0);
+
+  // Total Verified Revenue: sum across jobs + today's justPaid
+  const totalRevenueKobo = useMemo(() => {
+    const fromJobs = allJobs.data?.items?.reduce((acc, j) => acc + BigInt(j.paidKobo), 0n) ?? 0n;
+    const fromJustPaid = t?.justPaid?.reduce((acc, x) => acc + BigInt(x.payment.amountKobo), 0n) ?? 0n;
+    return (fromJobs > fromJustPaid ? fromJobs : fromJustPaid).toString();
+  }, [allJobs.data, t]);
+
+  // Active in-flight funds on open 60-min virtual accounts
+  const inFlightKobo = useMemo(() => {
+    return (t?.waiting?.reduce((acc, x) => acc + BigInt(x.request.amountKobo), 0n) ?? 0n).toString();
+  }, [t]);
+
+  // Outstanding balances due on milestone jobs
+  const balancesDueKobo = useMemo(() => {
+    return (t?.balancesDue?.reduce((acc, j) => acc + BigInt(j.balanceKobo), 0n) ?? 0n).toString();
+  }, [t]);
+
+  const empty = t && Object.values(t.counts).every((n) => n === 0) && (!allJobs.data || allJobs.data.items.length === 0);
 
   return (
     <>
-      <header className="pd-pagehead">
-        <h1>Today</h1>
-        <p className="pd-sub">{t ? summaryLine(t.counts) : (q.isPending ? <Skeleton h={16} w={180} /> : ' ')}</p>
-        {t && <p className="pd-live" aria-live="off">Live · updated {timeAgo(new Date(q.dataUpdatedAt).toISOString(), now)}</p>}
+      <header className="pd-dash-header">
+        <div>
+          <h1 className="pd-dash-title">
+            {provider?.businessName ? `Hello, ${provider.businessName}` : 'Dashboard'}
+          </h1>
+          <p className="pd-sub" style={{ margin: '4px 0 0' }}>
+            Live payment verification and transfer monitoring.
+          </p>
+        </div>
+        {t && (
+          <div className="pd-dash-live" aria-live="off">
+            <span className="pd-auth-pulse-dot" style={{ width: 6, height: 6 }} />
+            <span>Live · updated {timeAgo(new Date(q.dataUpdatedAt).toISOString(), now)}</span>
+          </div>
+        )}
       </header>
 
-      {provider && !provider.telegramLinked && (
-        <Banner tone="warn" action={<LinkButton to="/settings" variant="line">Connect</LinkButton>}>
-          Connect Telegram to get a ping the moment someone pays.
-        </Banner>
-      )}
-
       {q.isPending && (
-        <div className="pd-qsection__list" aria-busy="true" aria-label="Loading Today">
-          <Skeleton h={132} /><Skeleton h={132} /><Skeleton h={64} />
+        <div style={{ display: 'grid', gap: 16, marginBottom: 24 }}>
+          <Skeleton h={100} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Skeleton h={220} />
+            <Skeleton h={220} />
+          </div>
         </div>
       )}
 
@@ -73,42 +103,155 @@ export function TodayPage() {
         </Banner>
       )}
 
-      {t && !empty && (
+      {t && (
         <>
-          <Section title="Needs review" count={t.needsReview.length} to="/review">
-            {t.needsReview.map((r) => <ReviewRow key={r.id} item={r} />)}
-          </Section>
+          {/* Balance Overview Divs */}
+          <div className="pd-balance-grid">
+            <div className="pd-balance-card pd-balance-card--emerald">
+              <div className="pd-balance-card__top">
+                <span className="pd-balance-card__label">Verified Revenue</span>
+                <span className="pd-balance-card__badge pd-balance-card__badge--emerald">
+                  ✓ Settled via Kora
+                </span>
+              </div>
+              <div className="pd-balance-card__amount">
+                {formatNaira(totalRevenueKobo, 'auto')}
+              </div>
+              <p className="pd-balance-card__sub">
+                Bank-verified credits across all customer orders
+              </p>
+            </div>
+
+            <div className="pd-balance-card pd-balance-card--amber">
+              <div className="pd-balance-card__top">
+                <span className="pd-balance-card__label">Active In-Flight</span>
+                <span className="pd-balance-card__badge pd-balance-card__badge--amber">
+                  {t.waiting.length} active {t.waiting.length === 1 ? 'account' : 'accounts'}
+                </span>
+              </div>
+              <div className="pd-balance-card__amount">
+                {formatNaira(inFlightKobo, 'auto')}
+              </div>
+              <p className="pd-balance-card__sub">
+                Awaiting customer transfer in 60-min window
+              </p>
+            </div>
+
+            <div className="pd-balance-card pd-balance-card--violet">
+              <div className="pd-balance-card__top">
+                <span className="pd-balance-card__label">Balances to Collect</span>
+                <span className="pd-balance-card__badge pd-balance-card__badge--violet">
+                  {t.balancesDue.length} milestone {t.balancesDue.length === 1 ? 'job' : 'jobs'}
+                </span>
+              </div>
+              <div className="pd-balance-card__amount">
+                {formatNaira(balancesDueKobo, 'auto')}
+              </div>
+              <p className="pd-balance-card__sub">
+                Outstanding second payments due
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Action Toolbar */}
+          <div className="pd-quick-bar">
+            <span>Quick Actions:</span>
+            <LinkButton to="/new" icon="plus">Create Payment Details</LinkButton>
+            <LinkButton to="/jobs" variant="line">All Jobs & Ledgers</LinkButton>
+            <LinkButton to="/people" variant="line">Customer Directory</LinkButton>
+          </div>
+
+          {/* Critical Needs Review section if any anomaly exists */}
+          {t.needsReview.length > 0 && (
+            <Section title="Needs Review" count={t.needsReview.length} to="/review">
+              {t.needsReview.map((r) => <ReviewRow key={r.id} item={r} />)}
+            </Section>
+          )}
+
+          {/* Side-by-Side Panes for Settled Credits vs Registered Payments */}
+          <div className="pd-dash-panes">
+            {/* Pane 1: People Who Sent Money */}
+            <div className="pd-pane">
+              <div className="pd-pane__head">
+                <div className="pd-pane__titlewrap">
+                  <h3 className="pd-pane__title">People Who Sent Money</h3>
+                  <span className="pd-pane__count">{t.justPaid.length}</span>
+                </div>
+                {t.justPaid.length > 0 && (
+                  <span style={{ fontSize: 13, color: '#059669', fontWeight: 600 }}>
+                    ● Real-time settled
+                  </span>
+                )}
+              </div>
+
+              <div className="pd-pane__list">
+                {t.justPaid.length > 0 ? (
+                  t.justPaid.map((x) => (
+                    <SettledPaymentRow key={x.payment.id} payment={x.payment} job={x.job} />
+                  ))
+                ) : (
+                  <div className="pd-pane-empty">
+                    <Icon name="check" size={32} />
+                    <p>No transfers recorded today yet. When customer bank payments land, they appear here instantly.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pane 2: Registered Payments (Awaiting Transfer) */}
+            <div className="pd-pane">
+              <div className="pd-pane__head">
+                <div className="pd-pane__titlewrap">
+                  <h3 className="pd-pane__title">Registered Payments</h3>
+                  <span className="pd-pane__count">{t.waiting.length}</span>
+                </div>
+                {t.waiting.length > 0 && (
+                  <span style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>
+                    Active 60m pipeline
+                  </span>
+                )}
+              </div>
+
+              <div className="pd-pane__list">
+                {t.waiting.length > 0 ? (
+                  t.waiting.map((x) => (
+                    <ActivePaymentRow key={x.request.id} request={x.request} job={x.job} />
+                  ))
+                ) : (
+                  <div className="pd-pane-empty">
+                    <Icon name="today" size={32} />
+                    <p>No open payment requests. Tap “Create Payment Details” to allocate a 60-minute virtual account.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Queues */}
           {t.remindersDue && t.remindersDue.length > 0 && (
             <Section title="Reminders due" count={t.remindersDue.length}>
               {t.remindersDue.map((x) => <ReminderRow key={x.request.id} request={x.request} job={x.job} />)}
             </Section>
           )}
-          <Section title="Just paid" count={t.justPaid.length}>
-            {t.justPaid.map((x) => <PaidItem key={x.payment.id} payment={x.payment} job={x.job} />)}
-          </Section>
-          <Section title="Balances due" count={t.balancesDue.length}>
-            {t.balancesDue.map((j) => <BalanceRow key={j.id} job={j} />)}
-          </Section>
-          <Section title="Expired, get new details" count={t.expired.length}>
-            {t.expired.map((x) => <ExpiredRow key={x.request.id} request={x.request} job={x.job} />)}
-          </Section>
-          <Section title="Waiting for payment" count={t.waiting.length}>
-            {t.waiting.map((x) => <RequestCard key={x.request.id} request={x.request} job={x.job} linkToJob />)}
-          </Section>
+
+          {t.balancesDue.length > 0 && (
+            <Section title="Balances due" count={t.balancesDue.length}>
+              {t.balancesDue.map((j) => <BalanceRow key={j.id} job={j} />)}
+            </Section>
+          )}
+
+          {t.expired.length > 0 && (
+            <Section title="Expired, get new details" count={t.expired.length}>
+              {t.expired.map((x) => <ExpiredRow key={x.request.id} request={x.request} job={x.job} />)}
+            </Section>
+          )}
         </>
       )}
 
       {empty && (
-        <>
-          <EmptyState title="Your day is clear" action={<LinkButton to="/new" icon="plus">Create payment details</LinkButton>}>
-            Create payment details for a job and they wait here with a countdown. When the bank confirms the payment, it moves up as paid.
-          </EmptyState>
-          <section className="pd-example" aria-hidden="true">
-            <p className="pd-eg-label">What a waiting request will look like</p>
-            <TicketCard ghost title="Tolu · Bridal makeup" subtitle="Deposit · created 27 minutes ago · not copied yet" amountKobo="2500000"
-              status={<StatusPill status="SENT" />} aside={<CountdownRing sentAt={sample.sentAt} expiresAt={sample.expiresAt} />} />
-          </section>
-        </>
+        <EmptyState title="Your dashboard is ready" action={<LinkButton to="/new" icon="plus">Create payment details</LinkButton>}>
+          Create payment details for a customer and they appear in your Registered Payments pane with an active 60-minute countdown.
+        </EmptyState>
       )}
     </>
   );

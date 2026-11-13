@@ -13,6 +13,7 @@ import './styles/phase3.css';
 import './styles/phase4.css';
 import './styles/dark.css';
 import './styles/phase5.css';
+import './styles/dashboard.css';
 
 initTheme();
 registerServiceWorker();

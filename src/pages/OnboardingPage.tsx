@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { describeError } from '../api/errors';
@@ -8,12 +8,11 @@ import type { ReadyRule } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { READY_RULE } from '../lib/labels';
 import { markOnboarded } from '../lib/onboarding';
-import { Icon } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
 import { Banner, Button, ChoiceCards, Switch, TextField } from '../ui/primitives';
 
 export function OnboardingPage() {
-  useDocumentTitle('Set up');
+  useDocumentTitle('Set up your business');
   const { provider } = useAuth();
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -22,23 +21,11 @@ export function OnboardingPage() {
   const [rule, setRule] = useState<ReadyRule>(provider?.defaultReadyRule ?? 'AFTER_DEPOSIT');
   const [digestOn, setDigestOn] = useState(true);
   const [digestTime, setDigestTime] = useState('19:30');
-  const [waitingTg, setWaitingTg] = useState(false);
 
   const save = useMutation({
     mutationFn: meApi.update,
     onSuccess: (p) => qc.setQueryData(ME_KEY, p),
   });
-  const link = useMutation({
-    mutationFn: meApi.telegramLink,
-    onSuccess: (r) => { window.open(r.url, '_blank', 'noopener'); setWaitingTg(true); },
-  });
-
-  useEffect(() => {
-    if (!waitingTg || provider?.telegramLinked) return;
-    const t = setInterval(() => qc.invalidateQueries({ queryKey: ME_KEY }), 3000);
-    const stop = setTimeout(() => setWaitingTg(false), 90_000);
-    return () => { clearInterval(t); clearTimeout(stop); };
-  }, [waitingTg, provider?.telegramLinked, qc]);
 
   if (!provider) return null;
   const err = describeError(save.error);
@@ -52,8 +39,11 @@ export function OnboardingPage() {
   }
 
   function finish() {
-    save.mutate({ digestTime: digestOn ? digestTime : null }, {
-      onSuccess: () => { markOnboarded(provider!.id); nav('/today', { replace: true }); },
+    save.mutate({ defaultReadyRule: rule, digestTime: digestOn ? digestTime : null }, {
+      onSuccess: () => {
+        markOnboarded(provider!.id);
+        nav('/today', { replace: true });
+      },
     });
   }
 
@@ -61,7 +51,7 @@ export function OnboardingPage() {
     <div className="pd-onboard">
       <header className="pd-onboard__head">
         <LogoMark size={32} />
-        <p aria-live="polite">Step {step} of 4</p>
+        <p aria-live="polite">Step {step} of 3</p>
       </header>
 
       {step === 1 && (
@@ -86,15 +76,15 @@ export function OnboardingPage() {
           <div className="pd-stack pd-gap">
             <div className="pd-card">
               <strong>1. One-time bank account</strong>
-              <p className="pd-hint">For each payment, Paidar creates a unique virtual account via Kora, valid for 60 minutes. You never have to share your personal account.</p>
+              <p className="pd-hint">For each payment, Paidar creates a unique virtual account via Wema Bank, valid for 60 minutes. You never share your personal account details.</p>
             </div>
             <div className="pd-card">
               <strong>2. You send the details</strong>
-              <p className="pd-hint">Paidar never contacts your customer. You copy the message or account details and send them yourself in chat.</p>
+              <p className="pd-hint">Paidar never contacts your customer directly. You copy the payment link or account numbers and paste them into WhatsApp or Instagram DM.</p>
             </div>
             <div className="pd-card">
               <strong>3. Instant bank confirmation</strong>
-              <p className="pd-hint">When the customer pays, Kora verifies it instantly. You get a Telegram alert and your dashboard marks it paid.</p>
+              <p className="pd-hint">When the customer pays, Kora verifies it instantly. Your dashboard marks it paid in real-time with an official digital receipt.</p>
             </div>
           </div>
 
@@ -104,45 +94,27 @@ export function OnboardingPage() {
 
       {step === 3 && (
         <div className="pd-onboard__body">
-          <h1>When can you start work?</h1>
-          <p className="pd-lede">Paidar shows a “Ready to start” badge once this is met. You can still set it per job.</p>
-          <ChoiceCards legend="Ready to start" value={rule} onChange={setRule}
+          <h1>Operating Rules & Summary</h1>
+          <p className="pd-lede">Configure when your jobs are marked ready to start and your daily recap.</p>
+
+          <ChoiceCards legend="Ready to start policy" value={rule} onChange={setRule}
             options={(Object.keys(READY_RULE) as ReadyRule[]).map((v) => ({ value: v, ...READY_RULE[v] }))} />
-          {save.isError && <Banner tone="bad">{err.message}</Banner>}
-          <Button busy={save.isPending} onClick={() => next({ defaultReadyRule: rule })} block>Continue</Button>
-        </div>
-      )}
 
-      {step === 4 && (
-        <div className="pd-onboard__body">
-          <h1>Hear it the moment it lands</h1>
-          <p className="pd-lede">Paidar pings you on Telegram when a payment is confirmed — alerts to you only. Paidar never contacts your customers.</p>
-
-          <div className="pd-row">
-            <div>
-              <h2 className="pd-row__title">Telegram</h2>
-              <p className="pd-hint">{provider.telegramLinked ? 'Connected. You’ll get payment pings there.' : 'Not connected yet.'}</p>
-            </div>
-            {provider.telegramLinked
-              ? <span className="pd-trust pd-trust--verified"><Icon name="check" size={14} />Connected</span>
-              : <Button variant="line" icon="send" busy={link.isPending || waitingTg} onClick={() => link.mutate()}>
-                  {waitingTg ? 'Waiting for you…' : 'Connect'}
-                </Button>}
-          </div>
-
-          <div className="pd-row">
+          <div className="pd-row" style={{ marginTop: 12 }}>
             <div>
               <h2 className="pd-row__title">Evening summary</h2>
-              <p className="pd-hint">Who paid, who’s waiting, who to follow up.</p>
+              <p className="pd-hint">Daily recap of who paid, who’s waiting, and who to follow up.</p>
             </div>
             <Switch checked={digestOn} onChange={setDigestOn} label="Evening summary" />
           </div>
-          {digestOn && <TextField label="Send it at" type="time" value={digestTime} onChange={(e) => setDigestTime(e.target.value)}
-            error={err.fieldErrors?.digestTime?.[0]} />}
 
-          {save.isError && !err.fieldErrors && <Banner tone="bad">{err.message}</Banner>}
-          <Button busy={save.isPending} onClick={finish} block>Finish setup</Button>
-          <p className="pd-hint pd-center">You can connect Telegram later in Settings.</p>
+          {digestOn && (
+            <TextField label="Send it at" type="time" value={digestTime} onChange={(e) => setDigestTime(e.target.value)}
+              error={err.fieldErrors?.digestTime?.[0]} />
+          )}
+
+          {save.isError && <Banner tone="bad">{err.message}</Banner>}
+          <Button busy={save.isPending} onClick={finish} block>Finish setup and launch dashboard</Button>
         </div>
       )}
     </div>

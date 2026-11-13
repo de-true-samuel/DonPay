@@ -26,7 +26,7 @@ export function AppShell() {
   const { pathname } = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
-  const wide = /^\/(jobs|people)(\/|$)/.test(pathname);
+  const wide = /^\/(today|jobs|people)(\/|$)/.test(pathname);
   const initial = (provider?.businessName ?? '?').trim().charAt(0).toUpperCase();
 
   // New screen: start at the top and move focus into the page, so keyboard and screen-reader users aren't left behind.
