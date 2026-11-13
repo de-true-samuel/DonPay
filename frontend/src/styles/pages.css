@@ -1,43 +1,164 @@
-/* ---------- app shell ---------- */
-.pd-app { min-height: 100dvh; display: flex; flex-direction: column; }
+/* ---------- app shell (Spec Section 5.3 & 6) ---------- */
+.pd-app { min-height: 100dvh; display: flex; flex-direction: column; position: relative; }
+
 .pd-header {
-  position: sticky; top: 0; z-index: 20;
+  position: sticky; top: 0; z-index: 40;
   height: calc(var(--header-h) + var(--safe-t)); padding-top: var(--safe-t);
-  padding-inline: max(16px, calc((100vw - var(--content-w)) / 2 + 16px));
+  padding-inline: max(20px, calc((100vw - var(--content-w)) / 2 + 20px));
   display: flex; align-items: center; justify-content: space-between;
-  background: var(--paper-glass); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+  background: transparent;
+  transition: transform var(--ease-small), opacity var(--ease-small);
 }
-.pd-brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); font: 650 22px var(--font-display); letter-spacing: -0.02em; }
+.pd-header.is-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.pd-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  text-decoration: none; color: var(--paper);
+  font-family: var(--font-display); font-weight: 800; font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.pd-brand svg { color: var(--paper); }
 .pd-avatar {
-  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; text-decoration: none;
-  background: var(--violet-soft); color: var(--violet-ink); font: 650 17px var(--font-display); border: 1.5px solid var(--line-strong);
+  width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; text-decoration: none;
+  background: var(--paper); color: var(--paper-ink);
+  font-family: var(--font-display); font-weight: 800; font-size: 16px;
+  box-shadow: 0 4px 12px rgba(16, 21, 77, 0.25);
+  transition: transform var(--ease-micro);
 }
-.pd-avatar.active { border-color: var(--violet); }
-.pd-main { width: 100%; max-width: var(--content-w); margin: 0 auto; padding: 22px 16px calc(var(--tabbar-h) + 104px + var(--safe-b)); }
-.pd-pagehead { display: grid; gap: 4px; margin-bottom: 18px; }
-.pd-sub { color: var(--ink-2); }
-.pd-lede { color: var(--ink-2); max-width: 48ch; }
+.pd-avatar:hover { transform: scale(1.05); }
 
-.pd-fab {
-  position: fixed; z-index: 30; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
-  right: max(16px, calc((100vw - var(--content-w)) / 2 + 16px));
-  bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px);
-  padding: 0 20px; min-height: 52px; border-radius: 999px; background: var(--fab-bg); color: var(--fab-fg); font-weight: 650;
-  box-shadow: 0 8px 24px rgba(20, 11, 43, 0.28);
+.pd-main {
+  width: 100%; max-width: var(--content-w); margin: 0 auto;
+  padding: 12px 20px calc(var(--tabbar-h) + 64px + var(--safe-b));
+  box-sizing: border-box;
 }
-.pd-fab:hover { background: var(--violet-ink); }
+.pd-main--wide {
+  max-width: 1080px;
+}
+.pd-pagehead { display: grid; gap: 4px; margin-bottom: 22px; color: var(--ink-on-ground); }
+.pd-pagehead h1 { font-family: var(--font-display); font-weight: 800; font-size: 28px; }
+.pd-sub { color: var(--muted-on-ground); font-size: 15px; }
+.pd-lede { color: var(--muted-on-ground); max-width: 48ch; font-size: 15px; }
 
-.pd-tabbar {
-  position: fixed; z-index: 25; left: 0; right: 0; bottom: 0; padding-bottom: var(--safe-b);
-  background: var(--surface); border-top: 1px solid var(--line);
+/* ---------- Floating Pill Dock (Spec Section 5.3 & 6) ---------- */
+.pd-dock {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(18px + var(--safe-b));
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.pd-tabbar__in { max-width: var(--content-w); margin: 0 auto; height: var(--tabbar-h); display: grid; grid-template-columns: repeat(4, 1fr); }
-.pd-tab {
-  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  text-decoration: none; color: var(--ink-3); font-size: 12px; font-weight: 650;
+
+.pd-dock__in {
+  background: var(--paper);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 16px 36px rgba(16, 21, 77, 0.45), 0 0 0 1px rgba(20, 24, 63, 0.12);
 }
-.pd-tab.is-active { color: var(--violet); }
-.pd-tab.is-active::before { content: ''; position: absolute; top: 0; width: 28px; height: 3px; border-radius: 0 0 3px 3px; background: var(--violet); }
+
+.pd-dock__tab {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--paper-muted);
+  transition: all var(--ease-micro);
+  position: relative;
+}
+.pd-dock__tab:hover {
+  color: var(--paper-ink);
+  background: rgba(20, 24, 63, 0.06);
+}
+.pd-dock__tab.is-active {
+  background: var(--paper-ink);
+  color: var(--paper);
+}
+.pd-dock__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Raised Marigold '+' in the Centre */
+.pd-dock__plus {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--cta);
+  color: var(--paper-ink);
+  display: grid;
+  place-items: center;
+  margin: -8px 2px;
+  box-shadow: 0 6px 16px rgba(255, 184, 28, 0.55), 0 3px 0 var(--cta-edge);
+  text-decoration: none;
+  transition: transform var(--ease-micro), box-shadow var(--ease-micro);
+}
+.pd-dock__plus:hover {
+  background: #FFC033;
+}
+.pd-dock__plus:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 8px rgba(255, 184, 28, 0.4), 0 1px 0 var(--cta-edge);
+}
+
+.pd-dock__desktop-new {
+  display: none;
+}
+
+/* Wide screen adjustments for Floating Dock (Spec Section 6) */
+@media (min-width: 1024px) {
+  .pd-dock {
+    bottom: auto;
+    top: 20px;
+  }
+  .pd-dock__desktop-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--cta);
+    color: var(--paper-ink);
+    padding: 0 20px;
+    height: 52px;
+    border-radius: var(--r-button);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 15px;
+    box-shadow: 0 4px 0 var(--cta-edge);
+    text-decoration: none;
+    transition: transform var(--ease-micro), box-shadow var(--ease-micro);
+  }
+  .pd-dock__desktop-new:hover {
+    background: #FFC033;
+  }
+  .pd-dock__desktop-new:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--cta-edge);
+  }
+  .pd-header {
+    display: none; /* Dock is at top-centre on desktop */
+  }
+  .pd-main {
+    padding-top: 96px;
+    padding-bottom: 60px;
+  }
+}
 
 .pd-splash { min-height: 100dvh; display: grid; place-items: center; }
 .pd-example { margin-top: 26px; display: grid; gap: 10px; }

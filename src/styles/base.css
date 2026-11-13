@@ -2,12 +2,29 @@
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 400 16px/1.5 var(--font-body);
+  background-color: var(--ground);
+  color: var(--ink-on-ground);
+  font: 400 16px/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums lining-nums;
   -webkit-font-smoothing: antialiased;
 }
+/* Adire ring pattern — two offset concentric ring layers on a 56px grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle, transparent 24px, var(--ground-pattern) 25px, var(--ground-pattern) 26px, transparent 27px),
+    radial-gradient(circle, transparent 11px, var(--ground-pattern) 12px, var(--ground-pattern) 13px, transparent 14px),
+    radial-gradient(circle at 28px 28px, transparent 24px, var(--ground-pattern) 25px, var(--ground-pattern) 26px, transparent 27px),
+    radial-gradient(circle at 28px 28px, transparent 11px, var(--ground-pattern) 12px, var(--ground-pattern) 13px, transparent 14px);
+  background-size: 56px 56px;
+  background-position: 0 0, 0 0, 28px 28px, 28px 28px;
+}
+/* Ensure content sits above the pattern */
+#root { position: relative; z-index: 1; }
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 650; letter-spacing: -0.01em; line-height: 1.15; }
 h1 { font-size: 30px; }

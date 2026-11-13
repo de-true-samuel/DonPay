@@ -78,7 +78,7 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
             {r.status === 'DRAFT' && <Button variant="line" onClick={() => setRemindOpen(true)}>Remind me later</Button>}
             {r.status === 'SENT' && (
               <Button variant="line" busy={a.shareAgain.isPending && a.shareAgain.variables?.request.id === r.id}
-                onClick={() => a.shareAgain.mutate({ request: r, job })}>Show payment details</Button>
+                onClick={() => a.shareAgain.mutate({ request: r, job })}>Copy details again</Button>
             )}
             {r.status === 'SENT' && r.customerClaimedPaidAt && (
               <Button

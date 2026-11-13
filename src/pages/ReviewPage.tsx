@@ -46,18 +46,27 @@ export function ReviewPage() {
 function ReviewCard({ item }: { item: ReviewItem }) {
   const [open, setOpen] = useState(false);
   return (
-    <article className="pd-rcard">
-      <h2>{REVIEW_LABEL[item.kind]}</h2>
-      <p>{item.message}</p>
+    <article className="pd-ticket pd-ticket--review" style={{ padding: '20px 22px', borderLeft: '6px solid var(--urgent)' }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--urgent)', margin: '0 0 6px' }}>
+        {REVIEW_LABEL[item.kind]}
+      </h2>
+      <p style={{ margin: '0 0 8px', fontSize: 15 }}>{item.message}</p>
       <p className="pd-hint">{formatDateTime(item.createdAt)}</p>
       {item.resolvedAt ? (
-        <p className="pd-rcard__done"><strong>Dealt with</strong> {formatDateTime(item.resolvedAt)}{item.resolution ? `: ${item.resolution}` : ''}</p>
+        <p className="pd-rcard__done" style={{ marginTop: 8 }}>
+          <strong>Resolved</strong> {formatDateTime(item.resolvedAt)}
+          {item.resolution ? `: ${item.resolution}` : ''}
+        </p>
       ) : (
-        <div className="pd-actions">
+        <div className="pd-actions" style={{ marginTop: 12, display: 'flex', gap: 8 }}>
           <Button onClick={() => setOpen(true)}>Resolve</Button>
+          {item.jobId && (
+            <Link className="pd-btn pd-btn--line" to={`/jobs/${item.jobId}`}>
+              <span>Open the job</span>
+            </Link>
+          )}
         </div>
       )}
-      {item.jobId && <p className="pd-hint"><Link to={`/jobs/${item.jobId}`}>Open the job</Link></p>}
       {!item.resolvedAt && <ResolveDialog item={item} open={open} onClose={() => setOpen(false)} />}
     </article>
   );

@@ -1,54 +1,86 @@
 :root {
-  /* text and surfaces: cool lavender-tinted light theme, readable in bright sun */
-  --ink: #140B2B;
-  --ink-2: #4B4266;
-  --ink-3: #6E6689;
-  --paper: #F6F4FB;
-  --surface: #FFFFFF;
-  --line: #E1DBF0;
-  --line-strong: #C9BFE3;
-
-  /* brand */
-  --violet: #6D28D9;
-  --violet-ink: #4C1D95;
-  --violet-soft: #EDE7FB;
-  --lavender: #C9B8FF;
-  --night: #0B0714;
-  --night-2: #1B0B3A;
-
-  /* meaning: mint = verified, amber = waiting, red = problem */
-  --mint: #2EE6A6;
-  --mint-ink: #0B7A55;
-  --mint-soft: #DDF8EE;
-  --amber-ink: #9A4A06;
-  --amber-soft: #FCEBD0;
-  --red-ink: #B4233A;
-  --red-soft: #FBE4E8;
-
-  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
-  --font-body: 'Figtree', 'Segoe UI', system-ui, sans-serif;
-
-  --r-s: 8px;
-  --r-m: 14px;
-  --r-l: 22px;
-
-  --tabbar-h: 64px;
+  --ground: #2330A6;
+  --ground-pattern: rgba(255,255,255,.08);
+  --ink-on-ground: #F3F1FF;
+  --muted-on-ground: #BBC1F7;
+  --paper: #F5F4EF;
+  --paper-ink: #14183F;
+  --paper-muted: #5E6285;
+  --cta: #FFB81C;
+  --cta-edge: #B97F00;
+  --calm: #2330A6;
+  --warn: #E58A00;
+  --urgent: #E5392D;
+  --ok: #0E9F57;
+  --off-tick: rgba(20,24,63,.14);
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-ui: "Figtree", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, Menlo, monospace;
+  --r-ticket: 30px;
+  --r-button: 22px;
+  --r-chip: 12px;
+  --r-sheet: 28px;
+  --r-slip: 18px;
+  /* spacing */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  /* layout */
+  --content-w: 460px;
+  --tabbar-h: 72px;
   --header-h: 56px;
-  --content-w: 640px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
+  /* easing */
+  --ease-micro: 120ms ease-out;
+  --ease-small: 200ms cubic-bezier(.2,.8,.2,1);
+  --ease-medium: 350ms cubic-bezier(.2,.8,.2,1);
+  --ease-slam: 500ms cubic-bezier(.2,.9,.3,1.2);
+  /* tag pairs on paper */
+  --tag-warn-bg: #FFE3A6; --tag-warn-ink: #6A4200;
+  --tag-copied-bg: #DFE3FF; --tag-copied-ink: #1B2480;
+  --tag-paid-bg: #CDF3DE; --tag-paid-ink: #0A6636;
+  --tag-urgent-bg: #FFD9D5; --tag-urgent-ink: #8A1409;
+  /* legacy aliases so old code doesn't break */
+  --ink: var(--paper-ink);
+  --ink-2: var(--paper-muted);
+  --ink-3: #8A91B8;
+  --surface: var(--paper);
+  --line: rgba(20,24,63,.12);
+  --line-strong: rgba(20,24,63,.22);
+  --violet: var(--ground);
+  --violet-soft: var(--tag-copied-bg);
+  --violet-ink: var(--tag-copied-ink);
+  --mint: var(--ok);
+  --mint-soft: var(--tag-paid-bg);
+  --mint-ink: var(--tag-paid-ink);
+  --amber-soft: var(--tag-warn-bg);
+  --amber-ink: var(--tag-warn-ink);
+  --red-soft: var(--tag-urgent-bg);
+  --red-ink: var(--tag-urgent-ink);
+  --font-body: "Figtree", system-ui, sans-serif;
+  --r-s: var(--r-chip);
+  --r-m: var(--r-slip);
+  --r-l: var(--r-button);
+  --paper-glass: rgba(245,244,239,0.92);
+  --skel-hi: rgba(20,24,63,.06);
+  --amber-line: var(--warn);
+  --red-line: var(--urgent);
+  --solid-ok: var(--ok);
+  --solid-bad: var(--urgent);
+  --fab-bg: var(--cta);
+  --fab-fg: var(--paper-ink);
+  --toast-bg: #14183F;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-
-  /* tokens that change between light and dark (see dark.css) */
-  --on-violet: #FFFFFF;
-  --fab-bg: #140B2B;
-  --fab-fg: #FFFFFF;
-  --toast-bg: #140B2B;
-  --solid-ok: #0B7A55;
-  --solid-bad: #B4233A;
-  --paper-glass: rgba(246, 244, 251, 0.92);
-  --skel-hi: #EFEAF8;
-  --amber-line: #E8B877;
-  --red-line: #E7A1AD;
-  color-scheme: light;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #10154D;
+    --ground-pattern: rgba(255,255,255,.05);
+    --muted-on-ground: #9EA5E6;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #10154D;
+  --ground-pattern: rgba(255,255,255,.05);
+  --muted-on-ground: #9EA5E6;
 }

@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { describeError } from '../api/errors';
-import { jobsApi } from '../api/endpoints';
 import {
   ActivePaymentRow,
   BalanceRow,
@@ -14,20 +13,39 @@ import {
   SettledPaymentRow,
 } from '../features/today/TodayRows';
 import { useToday } from '../features/today/useToday';
+import { useCopiedAt } from '../features/requests/copyTracker';
+import { useRequestActions } from '../features/requests/useRequestActions';
 import { useDocumentTitle, useNow } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
 import { timeAgo } from '../lib/time';
-import { Icon } from '../ui/Icon';
-import { Banner, Button, EmptyState, LinkButton, Skeleton } from '../ui/primitives';
+import { CountdownRing } from '../ui/CountdownRing';
+import { Banner, Button, LinkButton, Skeleton } from '../ui/primitives';
+import { useToast } from '../ui/Toast';
 
-function Section({ title, count, to, children }: { title: string; count: number; to?: string; children: ReactNode }) {
+function Section({
+  title,
+  count,
+  to,
+  children,
+}: {
+  title: string;
+  count: number;
+  to?: string;
+  children: ReactNode;
+}) {
   if (!count) return null;
   return (
-    <section className="pd-qsection" style={{ marginTop: 24 }}>
+    <section className="pd-qsection">
       <h2 className="pd-qsection__h">
-        {title}
-        <span className="pd-count">{count}</span>
-        {to && <Link to={to} className="pd-qsection__more">See all</Link>}
+        <span>
+          {title}
+          <span className="pd-count">{count}</span>
+        </span>
+        {to && (
+          <Link to={to} className="pd-qsection__more">
+            See all
+          </Link>
+        )}
       </h2>
       <div className="pd-qsection__list">{children}</div>
     </section>
@@ -39,219 +57,313 @@ export function TodayPage() {
   const { provider } = useAuth();
   const q = useToday();
   const now = useNow(5000);
-
-  // Fetch all jobs for dashboard-wide financial metrics
-  const allJobs = useQuery({
-    queryKey: ['jobs', 'dashboard-metrics'],
-    queryFn: () => jobsApi.list({ limit: 100 }),
-    staleTime: 10_000,
-  });
+  const actions = useRequestActions();
+  const qc = useQueryClient();
+  const toast = useToast();
 
   const t = q.data;
 
-  // Total Verified Revenue: sum across jobs + today's justPaid
-  const totalRevenueKobo = useMemo(() => {
-    const fromJobs = allJobs.data?.items?.reduce((acc, j) => acc + BigInt(j.paidKobo), 0n) ?? 0n;
-    const fromJustPaid = t?.justPaid?.reduce((acc, x) => acc + BigInt(x.payment.amountKobo), 0n) ?? 0n;
-    return (fromJobs > fromJustPaid ? fromJobs : fromJustPaid).toString();
-  }, [allJobs.data, t]);
+  // Formatted Lagos date
+  const todayDateString = useMemo(() => {
+    return new Intl.DateTimeFormat('en-NG', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Africa/Lagos',
+    }).format(now);
+  }, [now]);
 
-  // Active in-flight funds on open 60-min virtual accounts
-  const inFlightKobo = useMemo(() => {
-    return (t?.waiting?.reduce((acc, x) => acc + BigInt(x.request.amountKobo), 0n) ?? 0n).toString();
+  // Landing soon: sum of waiting tickets
+  const landingSoonKobo = useMemo(() => {
+    return (
+      t?.waiting?.reduce((acc, x) => acc + BigInt(x.request.amountKobo), 0n) ?? 0n
+    ).toString();
   }, [t]);
 
-  // Outstanding balances due on milestone jobs
-  const balancesDueKobo = useMemo(() => {
-    return (t?.balancesDue?.reduce((acc, j) => acc + BigInt(j.balanceKobo), 0n) ?? 0n).toString();
+  // Landed today: sum of verified payments today
+  const landedTodayKobo = useMemo(() => {
+    return (
+      t?.justPaid?.reduce((acc, x) => acc + BigInt(x.payment.amountKobo), 0n) ?? 0n
+    ).toString();
   }, [t]);
 
-  const empty = t && Object.values(t.counts).every((n) => n === 0) && (!allJobs.data || allJobs.data.items.length === 0);
+  // Sort waiting requests by urgency: customer-claimed-paid first, then least time remaining
+  const sortedWaiting = useMemo(() => {
+    if (!t?.waiting) return [];
+    return [...t.waiting].sort((a, b) => {
+      if (a.request.customerClaimedPaidAt && !b.request.customerClaimedPaidAt) return -1;
+      if (!a.request.customerClaimedPaidAt && b.request.customerClaimedPaidAt) return 1;
+      const expA = a.request.expiresAt ? Date.parse(a.request.expiresAt) : Infinity;
+      const expB = b.request.expiresAt ? Date.parse(b.request.expiresAt) : Infinity;
+      return expA - expB;
+    });
+  }, [t?.waiting]);
+
+  const heroItem = sortedWaiting[0] ?? null;
+  const otherWaiting = sortedWaiting.slice(1);
+
+  // Copied state of hero item
+  const heroCopiedAt = useCopiedAt(heroItem?.request.id ?? '');
+
+  // Attention rail items count
+  const claimsCount = useMemo(() => {
+    return t?.waiting.filter((x) => !!x.request.customerClaimedPaidAt).length ?? 0;
+  }, [t?.waiting]);
+
+  const isEmpty =
+    t &&
+    Object.values(t.counts).every((n) => n === 0) &&
+    t.waiting.length === 0 &&
+    t.justPaid.length === 0;
 
   return (
     <>
-      <header className="pd-dash-header">
-        <div>
-          <h1 className="pd-dash-title">
-            {provider?.businessName ? `Hello, ${provider.businessName}` : 'Dashboard'}
-          </h1>
-          <p className="pd-sub" style={{ margin: '4px 0 0' }}>
-            Live payment verification and transfer monitoring.
-          </p>
-        </div>
+      {/* 1. Header on the ground (Spec Section 5.6) */}
+      <header className="pd-today-head">
+        <p className="pd-today-date">{todayDateString}</p>
+        <h1 className="pd-today-greeting">
+          Good afternoon, {provider?.businessName || 'Provider'}
+        </h1>
         {t && (
-          <div className="pd-dash-live" aria-live="off">
-            <span className="pd-auth-pulse-dot" style={{ width: 6, height: 6 }} />
+          <div className="pd-today-live" aria-live="off">
+            <span className="pd-today-live-dot" />
             <span>Live · updated {timeAgo(new Date(q.dataUpdatedAt).toISOString(), now)}</span>
           </div>
         )}
       </header>
 
+      {/* 2. The Money Line (Spec Section 5.6 & Proposed P4) */}
+      <div className="pd-money-line">
+        <div className="pd-money-cell">
+          <p className="pd-money-label">Landing soon</p>
+          <div className="pd-money-val">{formatNaira(landingSoonKobo, 'auto')}</div>
+        </div>
+        <div className="pd-money-divider" />
+        <div className="pd-money-cell">
+          <p className="pd-money-label">Landed today</p>
+          <div className="pd-money-val">{formatNaira(landedTodayKobo, 'auto')}</div>
+        </div>
+      </div>
+
       {q.isPending && (
         <div style={{ display: 'grid', gap: 16, marginBottom: 24 }}>
-          <Skeleton h={100} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Skeleton h={220} />
-            <Skeleton h={220} />
-          </div>
+          <Skeleton h={220} />
+          <Skeleton h={80} />
+          <Skeleton h={80} />
         </div>
       )}
 
       {q.isError && !t && (
-        <Banner tone="bad" action={<Button variant="line" onClick={() => void q.refetch()}>Try again</Button>}>
+        <Banner
+          tone="bad"
+          action={
+            <Button variant="line" onClick={() => void q.refetch()}>
+              Try again
+            </Button>
+          }
+        >
           {describeError(q.error).message}
         </Banner>
       )}
 
       {t && (
         <>
-          {/* Balance Overview Divs */}
-          <div className="pd-balance-grid">
-            <div className="pd-balance-card pd-balance-card--emerald">
-              <div className="pd-balance-card__top">
-                <span className="pd-balance-card__label">Verified Revenue</span>
-                <span className="pd-balance-card__badge pd-balance-card__badge--emerald">
-                  ✓ Settled via Kora
-                </span>
-              </div>
-              <div className="pd-balance-card__amount">
-                {formatNaira(totalRevenueKobo, 'auto')}
-              </div>
-              <p className="pd-balance-card__sub">
-                Bank-verified credits across all customer orders
-              </p>
+          {/* 3. Attention Rail (Spec Section 5.6) */}
+          {(t.needsReview.length > 0 || claimsCount > 0) && (
+            <div className="pd-rail-chips">
+              {t.needsReview.length > 0 && (
+                <Link to="/review" className="pd-rail-chip pd-rail-chip--urgent">
+                  <span>⚠ {t.needsReview.length} needs review</span>
+                </Link>
+              )}
+              {claimsCount > 0 && (
+                <a href="#hero-stage" className="pd-rail-chip pd-rail-chip--claims">
+                  <span className="pd-tag-pulse-dot" />
+                  <span>
+                    {claimsCount} {claimsCount === 1 ? 'customer says' : 'customers say'} paid
+                  </span>
+                </a>
+              )}
             </div>
-
-            <div className="pd-balance-card pd-balance-card--amber">
-              <div className="pd-balance-card__top">
-                <span className="pd-balance-card__label">Active In-Flight</span>
-                <span className="pd-balance-card__badge pd-balance-card__badge--amber">
-                  {t.waiting.length} active {t.waiting.length === 1 ? 'account' : 'accounts'}
-                </span>
-              </div>
-              <div className="pd-balance-card__amount">
-                {formatNaira(inFlightKobo, 'auto')}
-              </div>
-              <p className="pd-balance-card__sub">
-                Awaiting customer transfer in 60-min window
-              </p>
-            </div>
-
-            <div className="pd-balance-card pd-balance-card--violet">
-              <div className="pd-balance-card__top">
-                <span className="pd-balance-card__label">Balances to Collect</span>
-                <span className="pd-balance-card__badge pd-balance-card__badge--violet">
-                  {t.balancesDue.length} milestone {t.balancesDue.length === 1 ? 'job' : 'jobs'}
-                </span>
-              </div>
-              <div className="pd-balance-card__amount">
-                {formatNaira(balancesDueKobo, 'auto')}
-              </div>
-              <p className="pd-balance-card__sub">
-                Outstanding second payments due
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Action Toolbar */}
-          <div className="pd-quick-bar">
-            <span>Quick Actions:</span>
-            <LinkButton to="/new" icon="plus">Create Payment Details</LinkButton>
-            <LinkButton to="/jobs" variant="line">All Jobs & Ledgers</LinkButton>
-            <LinkButton to="/people" variant="line">Customer Directory</LinkButton>
-          </div>
-
-          {/* Critical Needs Review section if any anomaly exists */}
-          {t.needsReview.length > 0 && (
-            <Section title="Needs Review" count={t.needsReview.length} to="/review">
-              {t.needsReview.map((r) => <ReviewRow key={r.id} item={r} />)}
-            </Section>
           )}
 
-          {/* Side-by-Side Panes for Settled Credits vs Registered Payments */}
-          <div className="pd-dash-panes">
-            {/* Pane 1: People Who Sent Money */}
-            <div className="pd-pane">
-              <div className="pd-pane__head">
-                <div className="pd-pane__titlewrap">
-                  <h3 className="pd-pane__title">People Who Sent Money</h3>
-                  <span className="pd-pane__count">{t.justPaid.length}</span>
-                </div>
-                {t.justPaid.length > 0 && (
-                  <span style={{ fontSize: 13, color: '#059669', fontWeight: 600 }}>
-                    ● Real-time settled
-                  </span>
-                )}
-              </div>
-
-              <div className="pd-pane__list">
-                {t.justPaid.length > 0 ? (
-                  t.justPaid.map((x) => (
-                    <SettledPaymentRow key={x.payment.id} payment={x.payment} job={x.job} />
-                  ))
-                ) : (
-                  <div className="pd-pane-empty">
-                    <Icon name="check" size={32} />
-                    <p>No transfers recorded today yet. When customer bank payments land, they appear here instantly.</p>
+          {/* 4. Hero Ticket: The most urgent waiting ticket (Spec Section 5.6) */}
+          {heroItem && (
+            <div className="pd-hero-stage" id="hero-stage">
+              <article className="pd-hero-ticket">
+                <div className="pd-ticket__top">
+                  <div className="pd-ticket__who">
+                    <h3>
+                      <Link to={`/jobs/${heroItem.job.id}`} className="pd-plainlink">
+                        {heroItem.job.customer.name}
+                      </Link>
+                    </h3>
+                    <p>{heroItem.job.service}</p>
                   </div>
-                )}
+                  <div>
+                    {heroItem.request.customerClaimedPaidAt ? (
+                      <span className="pd-tag pd-tag--claims">
+                        <span className="pd-tag-pulse-dot" />
+                        <span>Customer says paid</span>
+                      </span>
+                    ) : heroCopiedAt ? (
+                      <span className="pd-tag pd-tag--copied">
+                        Copied {timeAgo(heroCopiedAt)}
+                      </span>
+                    ) : (
+                      <span className="pd-tag pd-tag--waiting">Not copied yet</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Big Countdown Dial */}
+                <div className="pd-hero-dial-wrap">
+                  {heroItem.request.sentAt && heroItem.request.expiresAt && (
+                    <div className="pd-ring pd-ring--hero">
+                      <CountdownRing
+                        sentAt={heroItem.request.sentAt}
+                        expiresAt={heroItem.request.expiresAt}
+                      />
+                    </div>
+                  )}
+                  <p className="pd-hero-dial-sub">left on this dynamic account</p>
+                </div>
+
+                {/* Notches + Tear line */}
+                <div className="pd-ticket__cut" aria-hidden="true">
+                  <i />
+                  <i />
+                </div>
+
+                {/* Stub: Amount + Bank + CTA */}
+                <div className="pd-ticket__bottom">
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32 }}>
+                      {formatNaira(heroItem.request.amountKobo)}
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
+                      {heroItem.request.bankName ?? 'Wema Bank'} ·{' '}
+                      {heroItem.request.accountNumber ?? 'Account allocated'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pd-hero-cta">
+                  {heroItem.request.customerClaimedPaidAt ? (
+                    <button
+                      type="button"
+                      className="pd-btn-primary pd-btn--block"
+                      onClick={() => {
+                        void qc.invalidateQueries({ queryKey: ['today'] });
+                        void qc.invalidateQueries({ queryKey: ['jobs'] });
+                        toast.info('Checking with bank for payments…');
+                      }}
+                    >
+                      Check now
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="pd-btn-primary pd-btn--block"
+                      disabled={actions.shareAgain.isPending}
+                      onClick={() =>
+                        actions.shareAgain.mutate({
+                          request: heroItem.request,
+                          job: heroItem.job,
+                        })
+                      }
+                    >
+                      {heroCopiedAt ? 'Copy details again' : 'Copy message'}
+                    </button>
+                  )}
+                </div>
+              </article>
+            </div>
+          )}
+
+          {/* 5. Other Waiting Tickets (Horizontal Carousel, Spec Section 5.6) */}
+          {otherWaiting.length > 0 && (
+            <div className="pd-carousel-wrap">
+              <h3 className="pd-carousel-title">
+                Other waiting tickets ({otherWaiting.length})
+              </h3>
+              <div className="pd-carousel">
+                {otherWaiting.map((item) => (
+                  <div key={item.request.id} className="pd-carousel__item">
+                    <ActivePaymentRow request={item.request} job={item.job} />
+                  </div>
+                ))}
               </div>
             </div>
+          )}
 
-            {/* Pane 2: Registered Payments (Awaiting Transfer) */}
-            <div className="pd-pane">
-              <div className="pd-pane__head">
-                <div className="pd-pane__titlewrap">
-                  <h3 className="pd-pane__title">Registered Payments</h3>
-                  <span className="pd-pane__count">{t.waiting.length}</span>
-                </div>
-                {t.waiting.length > 0 && (
-                  <span style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>
-                    Active 60m pipeline
-                  </span>
-                )}
+          {/* 6. Queues (Spec Section 5.6) */}
+          {/* Just Paid (Mini Receipts Strip) */}
+          {t.justPaid.length > 0 && (
+            <section className="pd-qsection">
+              <h2 className="pd-qsection__h">
+                <span>
+                  Just paid <span className="pd-count">{t.justPaid.length}</span>
+                </span>
+              </h2>
+              <div className="pd-receipt-strip">
+                {t.justPaid.map((x) => (
+                  <SettledPaymentRow key={x.payment.id} payment={x.payment} job={x.job} />
+                ))}
               </div>
+            </section>
+          )}
 
-              <div className="pd-pane__list">
-                {t.waiting.length > 0 ? (
-                  t.waiting.map((x) => (
-                    <ActivePaymentRow key={x.request.id} request={x.request} job={x.job} />
-                  ))
-                ) : (
-                  <div className="pd-pane-empty">
-                    <Icon name="today" size={32} />
-                    <p>No open payment requests. Tap “Create Payment Details” to allocate a 60-minute virtual account.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Secondary Queues */}
+          {/* Reminders due */}
           {t.remindersDue && t.remindersDue.length > 0 && (
             <Section title="Reminders due" count={t.remindersDue.length}>
-              {t.remindersDue.map((x) => <ReminderRow key={x.request.id} request={x.request} job={x.job} />)}
+              {t.remindersDue.map((x) => (
+                <ReminderRow key={x.request.id} request={x.request} job={x.job} />
+              ))}
             </Section>
           )}
 
+          {/* Balances due */}
           {t.balancesDue.length > 0 && (
             <Section title="Balances due" count={t.balancesDue.length}>
-              {t.balancesDue.map((j) => <BalanceRow key={j.id} job={j} />)}
+              {t.balancesDue.map((j) => (
+                <BalanceRow key={j.id} job={j} />
+              ))}
             </Section>
           )}
 
+          {/* Expired */}
           {t.expired.length > 0 && (
-            <Section title="Expired, get new details" count={t.expired.length}>
-              {t.expired.map((x) => <ExpiredRow key={x.request.id} request={x.request} job={x.job} />)}
+            <Section title="Expired" count={t.expired.length}>
+              {t.expired.map((x) => (
+                <ExpiredRow key={x.request.id} request={x.request} job={x.job} />
+              ))}
+            </Section>
+          )}
+
+          {/* Needs Review */}
+          {t.needsReview.length > 0 && (
+            <Section title="Needs review" count={t.needsReview.length} to="/review">
+              {t.needsReview.map((r) => (
+                <ReviewRow key={r.id} item={r} />
+              ))}
             </Section>
           )}
         </>
       )}
 
-      {empty && (
-        <EmptyState title="Your dashboard is ready" action={<LinkButton to="/new" icon="plus">Create payment details</LinkButton>}>
-          Create payment details for a customer and they appear in your Registered Payments pane with an active 60-minute countdown.
-        </EmptyState>
+      {/* 7. Empty State: Your day is clear (Spec Section 5.6) */}
+      {isEmpty && (
+        <div className="pd-today-empty">
+          <h2>Your day is clear</h2>
+          <p>
+            Get payment details for a job. It waits here with a clock. When the bank confirms, it
+            moves to Just paid.
+          </p>
+          <LinkButton to="/new" icon="plus">
+            Create payment details
+          </LinkButton>
+        </div>
       )}
     </>
   );

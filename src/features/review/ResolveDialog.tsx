@@ -67,10 +67,10 @@ function ResolveForm({ item, onDone }: { item: ReviewItem; onDone: () => void })
           <span>Cancel the open {formatNaira(replacement.amountKobo)} request too, since this one was paid</span>
         </label>
       )}
-      <p className="pd-hint">Paidar only records what you did. It doesn’t move any money.</p>
+      <p className="pd-hint">Paidar records payments and creates accounts. It never moves money out of your bank accounts.</p>
       {resolve.isError && <Banner tone="bad">{describeError(resolve.error).message}</Banner>}
       <div className="pd-actions">
-        <Button type="submit" busy={resolve.isPending} disabled={needsNote && !note.trim()}>Mark as dealt with</Button>
+        <Button type="submit" busy={resolve.isPending} disabled={needsNote && !note.trim()}>Resolve</Button>
         <Button type="button" variant="quiet" onClick={onDone}>Not now</Button>
       </div>
     </form>
