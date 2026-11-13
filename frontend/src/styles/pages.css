@@ -33,15 +33,15 @@
 
 .pd-main {
   width: 100%; max-width: var(--content-w); margin: 0 auto;
-  padding: 12px 20px calc(var(--tabbar-h) + 64px + var(--safe-b));
+  padding: 16px 20px calc(var(--tabbar-h) + 96px + var(--safe-b));
   box-sizing: border-box;
 }
 .pd-main--wide {
   max-width: 1080px;
 }
-.pd-pagehead { display: grid; gap: 4px; margin-bottom: 22px; color: var(--ink-on-ground); }
-.pd-pagehead h1 { font-family: var(--font-display); font-weight: 800; font-size: 28px; }
-.pd-sub { color: var(--muted-on-ground); font-size: 15px; }
+.pd-pagehead { display: grid; gap: 6px; margin-bottom: 20px; color: var(--ink-on-ground); }
+.pd-pagehead h1 { font-family: var(--font-display); font-weight: 800; font-size: 28px; letter-spacing: -0.02em; }
+.pd-sub { color: var(--muted-on-ground); font-size: 15px; line-height: 1.45; }
 .pd-lede { color: var(--muted-on-ground); max-width: 48ch; font-size: 15px; }
 
 /* ---------- Floating Pill Dock (Spec Section 5.3 & 6) ---------- */

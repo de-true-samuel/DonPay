@@ -7,11 +7,41 @@
 }
 .pd-chip:hover { border-color: var(--violet); }
 .pd-chip.is-on { background: var(--fab-bg); border-color: var(--fab-bg); color: var(--fab-fg); }
-.pd-searchbox { position: relative; }
-.pd-searchbox svg { position: absolute; left: 14px; top: 15px; color: var(--ink-3); pointer-events: none; }
-.pd-searchbox .pd-input { padding-left: 42px; }
-.pd-gap { margin-top: 14px; }
-.pd-more { display: flex; justify-content: center; margin-top: 18px; }
+.pd-searchbox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.pd-searchbox svg {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--paper-muted);
+  pointer-events: none;
+  z-index: 2;
+}
+.pd-searchbox .pd-input {
+  padding-left: 48px;
+  min-height: 50px;
+  font-size: 15px;
+  border-radius: var(--r-slip);
+  background: var(--paper);
+  border: 1.5px solid rgba(20, 24, 63, 0.12);
+  color: var(--paper-ink);
+  box-shadow: 0 4px 16px rgba(16, 21, 77, 0.18);
+}
+.pd-searchbox .pd-input::placeholder {
+  color: var(--paper-muted);
+  opacity: 0.85;
+}
+.pd-searchbox .pd-input:focus {
+  border-color: var(--cta);
+  box-shadow: 0 0 0 3px rgba(255, 184, 28, 0.35);
+}
+.pd-gap { margin-top: 16px; }
+.pd-more { display: flex; justify-content: center; margin-top: 20px; }
 
 /* ---------- timeline: the dot repeats the trust grammar ---------- */
 .pd-tl { list-style: none; margin: 0; padding: 0; position: relative; display: grid; gap: 0; }

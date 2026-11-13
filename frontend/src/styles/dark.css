@@ -3,7 +3,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --ground: #10154D;
-    --ground-pattern: rgba(255, 255, 255, 0.05);
+    --ground-pattern: rgba(255, 255, 255, 0.018);
     --ink-on-ground: #F3F1FF;
     --muted-on-ground: #9EA5E6;
     color-scheme: dark;
@@ -12,7 +12,7 @@
 
 :root[data-theme='dark'] {
   --ground: #10154D;
-  --ground-pattern: rgba(255, 255, 255, 0.05);
+  --ground-pattern: rgba(255, 255, 255, 0.018);
   --ink-on-ground: #F3F1FF;
   --muted-on-ground: #9EA5E6;
   color-scheme: dark;

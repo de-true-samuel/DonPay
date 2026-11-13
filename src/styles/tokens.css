@@ -1,6 +1,6 @@
 :root {
   --ground: #2330A6;
-  --ground-pattern: rgba(255,255,255,.08);
+  --ground-pattern: rgba(255, 255, 255, 0.025);
   --ink-on-ground: #F3F1FF;
   --muted-on-ground: #BBC1F7;
   --paper: #F5F4EF;
@@ -75,12 +75,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground: #10154D;
-    --ground-pattern: rgba(255,255,255,.05);
+    --ground-pattern: rgba(255, 255, 255, 0.02);
     --muted-on-ground: #9EA5E6;
   }
 }
 :root[data-theme="dark"] {
   --ground: #10154D;
-  --ground-pattern: rgba(255,255,255,.05);
+  --ground-pattern: rgba(255, 255, 255, 0.02);
   --muted-on-ground: #9EA5E6;
 }

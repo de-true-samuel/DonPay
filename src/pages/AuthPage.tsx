@@ -6,18 +6,23 @@ import { ApiRequestError } from '../api/client';
 import { describeError } from '../api/errors';
 import { authApi } from '../api/endpoints';
 import { ME_KEY, useAuth } from '../auth/AuthProvider';
-import { MOCK } from '../config';
 import type { Provider } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { isOnboarded } from '../lib/onboarding';
 import { LogoMark } from '../ui/Logo';
 import { RiskBanner } from '../shell/Banners';
-import { Banner, TextField } from '../ui/primitives';
+import { Banner } from '../ui/primitives';
 
 type Phase = 'idle' | 'checking' | 'failed';
 
+const PRESETS = [
+  'Tolu’s Glam Studio',
+  'Amina Couture',
+  'De-True Tailoring',
+];
+
 export function AuthPage() {
-  useDocumentTitle('Sign in');
+  useDocumentTitle('Sign in to Paidar');
   const [params] = useSearchParams();
   const token = params.get('t');
   const nav = useNavigate();
@@ -35,13 +40,10 @@ export function AuthPage() {
 
   const [phase, setPhase] = useState<Phase>(token ? 'checking' : 'idle');
   const [failMsg, setFailMsg] = useState('');
-  const [devName, setDevName] = useState("Tolu’s Glam Studio");
-  const [devErr, setDevErr] = useState('');
-  const [devBusy, setDevBusy] = useState(false);
+  const [businessName, setBusinessName] = useState('Tolu’s Glam Studio');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const ran = useRef(false);
-
-  const telegramBotUrl =
-    import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/paidar_bot';
 
   const finish = useCallback(
     (p: Provider) => {
@@ -52,7 +54,7 @@ export function AuthPage() {
     [qc, nav, clearExpired, from]
   );
 
-  // Exchange session token if coming from magic link
+  // Exchange session token if coming from a direct sign-in link
   useEffect(() => {
     if (!token || ran.current) return;
     ran.current = true;
@@ -73,19 +75,19 @@ export function AuthPage() {
     if (status === 'authed' && !token) nav(from, { replace: true });
   }, [status, token, nav, from]);
 
-  async function submitDevLogin(e?: FormEvent, businessNameOverride?: string) {
+  async function submitLogin(e?: FormEvent, targetName?: string) {
     if (e) e.preventDefault();
-    const targetName = (businessNameOverride ?? devName).trim() || "Tolu’s Glam Studio";
-    setDevErr('');
-    setDevBusy(true);
+    const finalName = (targetName ?? businessName).trim() || 'Tolu’s Glam Studio';
+    setErr('');
+    setBusy(true);
     try {
-      const r = await authApi.devLogin(targetName);
+      const r = await authApi.devLogin(finalName);
       finish(r.provider);
-    } catch (err) {
-      setDevErr(
-        describeError(err).fieldErrors?.businessName?.[0] ?? describeError(err).message
+    } catch (error) {
+      setErr(
+        describeError(error).fieldErrors?.businessName?.[0] ?? describeError(error).message
       );
-      setDevBusy(false);
+      setBusy(false);
     }
   }
 
@@ -97,34 +99,45 @@ export function AuthPage() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '40px 20px',
+        padding: '36px 20px 48px',
         position: 'relative',
         zIndex: 1,
       }}
     >
-      {/* Logo & Mark (Spec Section 5.1) */}
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ display: 'inline-block', marginBottom: 10, color: 'var(--paper)' }}>
-          <LogoMark size={64} />
+      {/* Brand Header */}
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div style={{ display: 'inline-block', marginBottom: 12, color: 'var(--paper)' }}>
+          <LogoMark size={60} />
         </div>
         <h1
           style={{
             fontFamily: 'var(--font-display)',
             fontWeight: 800,
-            fontSize: 40,
+            fontSize: 38,
             letterSpacing: '-0.03em',
             color: 'var(--paper)',
             margin: 0,
+            lineHeight: 1,
           }}
         >
           paidar
         </h1>
+        <p
+          style={{
+            color: 'var(--muted-on-ground)',
+            fontSize: 14,
+            marginTop: 8,
+            fontWeight: 500,
+          }}
+        >
+          Payment tickets for independent businesses
+        </p>
       </div>
 
       <RiskBanner />
 
       {expired && phase !== 'checking' && (
-        <div style={{ maxWidth: 380, width: '100%', marginBottom: 16 }}>
+        <div style={{ maxWidth: 420, width: '100%', marginBottom: 16 }}>
           <Banner tone="warn">
             Your session ended. Sign in again to continue where you left off.
           </Banner>
@@ -135,40 +148,35 @@ export function AuthPage() {
       {phase === 'checking' && (
         <div
           style={{
-            width: 'min(380px, 100%)',
+            width: 'min(420px, 100%)',
             background: 'var(--paper)',
             borderRadius: 'var(--r-ticket)',
-            padding: 32,
+            padding: 36,
             textAlign: 'center',
             color: 'var(--paper-ink)',
-            boxShadow: '0 22px 22px rgba(16, 21, 77, 0.45)',
+            boxShadow: '0 24px 32px rgba(16, 21, 77, 0.45)',
           }}
         >
-          <div style={{ display: 'inline-block', marginBottom: 14 }}>
+          <div style={{ display: 'inline-block', marginBottom: 16 }}>
             <LogoMark size={48} />
           </div>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 21 }}>
             Signing you in…
           </h2>
-          <p style={{ color: 'var(--paper-muted)', fontSize: 14, marginTop: 6 }}>
-            Verifying your Telegram access token.
+          <p style={{ color: 'var(--paper-muted)', fontSize: 14, marginTop: 8 }}>
+            Verifying your workspace link.
           </p>
         </div>
       )}
 
-      {/* Expired / Failed Link state: Ticket torn in two (Spec Section 5.1) */}
+      {/* Expired / Failed Link state: Ticket torn in two */}
       {phase === 'failed' && (
-        <div
-          style={{
-            width: 'min(380px, 100%)',
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ width: 'min(420px, 100%)', marginBottom: 20 }}>
           <div
             style={{
               background: 'var(--paper)',
               borderRadius: 'var(--r-ticket) var(--r-ticket) 0 0',
-              padding: '24px 22px',
+              padding: '24px 24px',
               borderBottom: '2px dashed var(--urgent)',
               color: 'var(--paper-ink)',
             }}
@@ -182,18 +190,18 @@ export function AuthPage() {
                 margin: '0 0 6px',
               }}
             >
-              This link has expired or was already used
+              Link expired or already used
             </h2>
             <p style={{ color: 'var(--paper-muted)', fontSize: 14, margin: 0 }}>
-              {failMsg || 'Please request a fresh login link from the Paidar Telegram bot.'}
+              {failMsg || 'Please sign in directly with your business name below.'}
             </p>
           </div>
           <div
             style={{
               background: 'var(--paper)',
               borderRadius: '0 0 var(--r-ticket) var(--r-ticket)',
-              padding: '18px 22px',
-              transform: 'rotate(-1.5deg)',
+              padding: '18px 24px',
+              transform: 'rotate(-1.2deg)',
               transformOrigin: 'top left',
               boxShadow: '0 16px 24px rgba(16, 21, 77, 0.35)',
               textAlign: 'center',
@@ -208,26 +216,41 @@ export function AuthPage() {
                 setFailMsg('');
               }}
             >
-              Try again
+              Sign in with business name
             </button>
           </div>
         </div>
       )}
 
-      {/* Normal Idle State: Single Boarding-Pass Ticket (Spec Section 5.1) */}
+      {/* Normal Idle State: Elegant Workspace Ticket */}
       {phase === 'idle' && (
-        <div style={{ width: 'min(380px, 100%)' }}>
+        <div style={{ width: 'min(420px, 100%)' }}>
           <article
             style={{
               background: 'var(--paper)',
               borderRadius: 'var(--r-ticket)',
-              boxShadow: '0 24px 32px rgba(16, 21, 77, 0.45)',
+              boxShadow: '0 24px 36px rgba(16, 21, 77, 0.45)',
               color: 'var(--paper-ink)',
               overflow: 'hidden',
             }}
           >
-            {/* Top part */}
-            <div style={{ padding: '28px 24px 18px' }}>
+            {/* Top part: Workspace Access Form */}
+            <div style={{ padding: '28px 26px 20px' }}>
+              <div
+                style={{
+                  display: 'inline-block',
+                  background: 'rgba(35, 48, 166, 0.08)',
+                  color: 'var(--ground)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  marginBottom: 12,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                Provider Portal
+              </div>
               <h2
                 style={{
                   fontFamily: 'var(--font-display)',
@@ -235,13 +258,120 @@ export function AuthPage() {
                   fontSize: 22,
                   letterSpacing: '-0.02em',
                   margin: '0 0 6px',
+                  color: 'var(--paper-ink)',
                 }}
               >
-                Your Telegram is your key.
+                Sign in to your workspace
               </h2>
-              <p style={{ color: 'var(--paper-muted)', fontSize: 14, margin: 0 }}>
-                Instant sign-in without passwords. Send /login or /start to receive your secure link.
+              <p
+                style={{
+                  color: 'var(--paper-muted)',
+                  fontSize: 14,
+                  margin: '0 0 20px',
+                  lineHeight: 1.45,
+                }}
+              >
+                Enter your business or studio name to access your payment tickets, queues, and ledger.
               </p>
+
+              <form onSubmit={(e) => void submitLogin(e)}>
+                <div style={{ marginBottom: 14 }}>
+                  <label
+                    htmlFor="biz-name"
+                    style={{
+                      display: 'block',
+                      fontFamily: 'var(--font-ui)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: 'var(--paper-ink)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Business name
+                  </label>
+                  <input
+                    id="biz-name"
+                    type="text"
+                    className="pd-input"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="e.g. Tolu’s Glam Studio"
+                    autoComplete="organization"
+                    required
+                    style={{
+                      minHeight: 48,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      border: '1.5px solid rgba(20, 24, 63, 0.18)',
+                    }}
+                  />
+                  {err && (
+                    <p style={{ color: 'var(--urgent)', fontSize: 13, fontWeight: 600, margin: '6px 0 0' }}>
+                      {err}
+                    </p>
+                  )}
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{ marginBottom: 18 }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--paper-muted)',
+                      display: 'block',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Quick switch:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {PRESETS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          setBusinessName(p);
+                          void submitLogin(undefined, p);
+                        }}
+                        style={{
+                          background:
+                            businessName === p
+                              ? 'var(--paper-ink)'
+                              : 'rgba(20, 24, 63, 0.06)',
+                          color:
+                            businessName === p
+                              ? 'var(--paper)'
+                              : 'var(--paper-ink)',
+                          border: '1px solid rgba(20, 24, 63, 0.14)',
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-ui)',
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Primary Marigold Key */}
+                <button
+                  type="submit"
+                  className="pd-btn-primary pd-btn--block"
+                  disabled={busy || !businessName.trim()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {busy ? 'Opening Workspace…' : 'Enter Workspace'}
+                </button>
+              </form>
             </div>
 
             {/* Cut line + Notches */}
@@ -250,166 +380,35 @@ export function AuthPage() {
               <i />
             </div>
 
-            {/* Stub: 3-step numbered sequence */}
-            <div style={{ padding: '18px 24px 28px' }}>
-              <ol
-                style={{
-                  margin: '0 0 24px',
-                  padding: 0,
-                  listStyle: 'none',
-                  display: 'grid',
-                  gap: 12,
-                }}
-              >
-                <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      color: 'var(--ground)',
-                      fontSize: 16,
-                    }}
-                  >
-                    1.
-                  </span>
-                  <span style={{ fontSize: 15 }}>Open Telegram</span>
-                </li>
-                <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      color: 'var(--ground)',
-                      fontSize: 16,
-                    }}
-                  >
-                    2.
-                  </span>
-                  <span style={{ fontSize: 15 }}>
-                    Send <strong>/start</strong> (or <strong>/login</strong> if registered)
-                  </span>
-                </li>
-                <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      color: 'var(--ground)',
-                      fontSize: 16,
-                    }}
-                  >
-                    3.
-                  </span>
-                  <span style={{ fontSize: 15 }}>Tap the instant link the bot sends you</span>
-                </li>
-              </ol>
-
-              {/* Primary Key: Open Telegram Button (Marigold Pressed Key) */}
-              <a
-                href={telegramBotUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="pd-btn-primary pd-btn--block"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textDecoration: 'none',
-                  boxSizing: 'border-box',
-                }}
-              >
-                Open Telegram
-              </a>
-            </div>
-          </article>
-
-          {/* Dev/Demo sign-in (Spec Section 5.1 & Acceptance T16) */}
-          {(MOCK || import.meta.env.DEV) && (
+            {/* Stub: Reassurances & Core Product Value */}
             <div
               style={{
-                marginTop: 24,
-                background: 'rgba(245, 244, 239, 0.92)',
-                borderRadius: 'var(--r-ticket)',
-                border: '2px dashed var(--urgent)',
-                padding: '20px 22px',
-                color: 'var(--paper-ink)',
+                padding: '18px 24px 22px',
+                background: 'rgba(20, 24, 63, 0.02)',
               }}
             >
-              <div
-                style={{
-                  display: 'inline-block',
-                  background: 'var(--tag-urgent-bg)',
-                  color: 'var(--tag-urgent-ink)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 6,
-                  marginBottom: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Developer Only · Demo Mode
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 4px' }}>
-                Quick Test Workspace
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--paper-muted)', margin: '0 0 14px' }}>
-                Bypass Telegram in mock/dev builds.
-              </p>
-
-              <form onSubmit={(e) => void submitDevLogin(e)}>
-                <TextField
-                  label="Business name"
-                  value={devName}
-                  onChange={(e) => setDevName(e.target.value)}
-                  placeholder="e.g. Tolu’s Glam Studio"
-                  error={devErr}
-                />
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    margin: '10px 0 16px',
-                  }}
-                >
-                  {["Tolu’s Glam Studio", "Amina Couture", "De-True Studio"].map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => {
-                        setDevName(b);
-                        void submitDevLogin(undefined, b);
-                      }}
-                      style={{
-                        background: 'rgba(20, 24, 63, 0.08)',
-                        border: '1px solid rgba(20, 24, 63, 0.16)',
-                        borderRadius: 8,
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        fontFamily: 'var(--font-ui)',
-                        fontWeight: 600,
-                        color: 'var(--paper-ink)',
-                      }}
-                    >
-                      {b}
-                    </button>
-                  ))}
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>🎟</span>
+                  <span style={{ fontSize: 13, color: 'var(--paper-muted)', lineHeight: 1.35 }}>
+                    <strong>Dynamic Virtual Accounts:</strong> single-use Kora account per payment.
+                  </span>
                 </div>
-
-                <button
-                  type="submit"
-                  className="pd-btn pd-btn--line pd-btn--block"
-                  disabled={devBusy}
-                >
-                  {devBusy ? 'Opening Workspace…' : 'Continue with demo'}
-                </button>
-              </form>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>📋</span>
+                  <span style={{ fontSize: 13, color: 'var(--paper-muted)', lineHeight: 1.35 }}>
+                    <strong>Provider-Controlled:</strong> you copy & paste details directly to your client.
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>⚡</span>
+                  <span style={{ fontSize: 13, color: 'var(--paper-muted)', lineHeight: 1.35 }}>
+                    <strong>Instant Payment Ping:</strong> real-time notification the second money clears.
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
+          </article>
         </div>
       )}
     </div>

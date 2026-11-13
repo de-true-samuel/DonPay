@@ -8,13 +8,14 @@ body {
   font-variant-numeric: tabular-nums lining-nums;
   -webkit-font-smoothing: antialiased;
 }
-/* Adire ring pattern — two offset concentric ring layers on a 56px grid */
+/* Adire ring pattern — subtle Yoruba textile watermark */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  opacity: 0.45;
   background-image:
     radial-gradient(circle, transparent 24px, var(--ground-pattern) 25px, var(--ground-pattern) 26px, transparent 27px),
     radial-gradient(circle, transparent 11px, var(--ground-pattern) 12px, var(--ground-pattern) 13px, transparent 14px),
