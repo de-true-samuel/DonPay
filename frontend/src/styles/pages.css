@@ -33,7 +33,7 @@
 
 .pd-main {
   width: 100%; max-width: var(--content-w); margin: 0 auto;
-  padding: 16px 20px calc(var(--tabbar-h) + 96px + var(--safe-b));
+  padding: 16px 20px calc(var(--tabbar-h) + 110px + var(--safe-b));
   box-sizing: border-box;
 }
 .pd-main--wide {

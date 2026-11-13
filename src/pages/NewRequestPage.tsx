@@ -7,8 +7,7 @@ import type { CreateJobBody, CustomerSummary, RequestWithMessage } from '../cont
 import { useShare } from '../features/share/ShareProvider';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira, parseNairaInput } from '../lib/money';
-import { isValidNgPhone, parseQuickEntry } from '../lib/quickEntry';
-import type { QuickEntry } from '../lib/quickEntry';
+import { isValidNgPhone } from '../lib/quickEntry';
 import { formatPhone } from '../lib/phone';
 import { lagosDateToIso } from '../lib/time';
 import { Banner, Segmented, TextField } from '../ui/primitives';
@@ -38,15 +37,15 @@ function validate(
     if (!f.phone.trim()) e.phone = 'Enter a phone number';
     else if (!isValidNgPhone(f.phone)) e.phone = 'Use a Nigerian number like 0803 123 4567';
   }
-  if (!f.service.trim()) e.service = 'Describe the service';
+  if (!f.service.trim()) e.service = 'Describe the service or item';
   else if (f.service.trim().length > 120) e.service = 'Keep it under 120 characters';
   const total = parseNairaInput(f.total);
   if (!total || BigInt(total) <= 0n) e.total = 'Enter an amount like 50,000 or 50k';
   const deposit = f.plan === 'DEPOSIT_BALANCE' ? parseNairaInput(f.deposit) : null;
   if (f.plan === 'DEPOSIT_BALANCE') {
-    if (!deposit || BigInt(deposit) <= 0n) e.deposit = 'Enter the deposit';
+    if (!deposit || BigInt(deposit) <= 0n) e.deposit = 'Enter the deposit amount';
     else if (total && BigInt(deposit) >= BigInt(total))
-      e.deposit = 'The deposit must be less than the total';
+      e.deposit = 'The deposit must be less than the total price';
   }
   return { e, total, deposit };
 }
@@ -62,7 +61,7 @@ const SERVER_KEYS: Record<string, keyof Form> = {
 };
 
 export function NewRequestPage() {
-  useDocumentTitle('New request');
+  useDocumentTitle('New payment request');
   const nav = useNavigate();
   const qc = useQueryClient();
   const share = useShare();
@@ -76,7 +75,6 @@ export function NewRequestPage() {
   });
   const known = preset.data?.customer;
 
-  const [text, setText] = useState('');
   const [form, setForm] = useState<Form>(() => ({
     name: '',
     phone: '',
@@ -86,12 +84,11 @@ export function NewRequestPage() {
     deposit: asField(params.get('deposit')),
     due: params.get('due') ?? '',
   }));
-  const [assumed, setAssumed] = useState<QuickEntry['assumed']>([]);
   const [submitted, setSubmitted] = useState(false);
   const [server, setServer] = useState<Errors>({});
   const touched = useRef(new Set<keyof Form>());
 
-  // Customer Autocomplete (FE-10 & Spec Section 5.4)
+  // Customer Autocomplete for existing clients
   const customerQuery = useQuery({
     queryKey: ['customers', 'autocomplete', form.name.trim()],
     queryFn: () => customersApi.list({ q: form.name.trim(), limit: 4 }),
@@ -105,26 +102,6 @@ export function NewRequestPage() {
     edit('phone', c.phone);
   }
 
-  function onText(value: string) {
-    setText(value);
-    const p = parseQuickEntry(value);
-    setAssumed(p.assumed);
-    setForm((f) => {
-      const n = { ...f };
-      const set = <K extends keyof Form>(k: K, v: Form[K]) => {
-        if (!touched.current.has(k)) n[k] = v;
-      };
-      set('name', p.name);
-      set('phone', p.phone);
-      set('service', p.service);
-      set('total', asField(p.totalKobo));
-      set('plan', p.plan);
-      set('deposit', asField(p.depositKobo));
-      set('due', p.balanceDueDate ?? '');
-      return n;
-    });
-  }
-
   function edit<K extends keyof Form>(k: K, v: Form[K]) {
     touched.current.add(k);
     setForm((f) => ({ ...f, [k]: v }));
@@ -136,7 +113,7 @@ export function NewRequestPage() {
 
   const firstName = useMemo(() => {
     const raw = (known?.name ?? form.name).trim();
-    return raw ? raw.split(' ')[0] : 'customer';
+    return raw ? raw.split(' ')[0] : 'your client';
   }, [known?.name, form.name]);
 
   // Balance calculation for preview
@@ -212,141 +189,16 @@ export function NewRequestPage() {
   const dep = form.plan === 'DEPOSIT_BALANCE';
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+    <div style={{ maxWidth: 520, margin: '0 auto', paddingBottom: 'calc(var(--tabbar-h) + 40px)' }}>
+      {/* Page Header */}
       <header className="pd-pagehead">
-        <h1>New request</h1>
-        <p className="pd-sub">Type it the way you’d say it in chat.</p>
+        <h1>New payment request</h1>
+        <p className="pd-sub">
+          Generate a secure, single-use payment account for your customer.
+        </p>
       </header>
 
-      {/* Quick Entry (Spec Section 5.4) */}
-      <div className="pd-field" style={{ marginBottom: 20 }}>
-        <label className="pd-label" htmlFor="pd-quick">
-          Paste what the customer said
-        </label>
-        <textarea
-          id="pd-quick"
-          className="pd-input pd-input--area"
-          rows={3}
-          value={text}
-          autoFocus={
-            !customerId &&
-            typeof window !== 'undefined' &&
-            !('ontouchstart' in window)
-          }
-          onChange={(e) => onText(e.target.value)}
-          placeholder="e.g. Fatima 0812 345 6789 bridal robe 45k, 20k deposit, balance friday"
-        />
-        <p className="pd-hint">
-          Paidar never messages your customer. You paste the details.
-        </p>
-
-        {/* Parsed Chips beneath */}
-        {text.trim().length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {form.name && (
-              <span className="pd-copy-chip" style={{ minHeight: 32, padding: '4px 10px', fontSize: 13 }}>
-                👤 {form.name}
-              </span>
-            )}
-            {form.phone && (
-              <span className="pd-copy-chip" style={{ minHeight: 32, padding: '4px 10px', fontSize: 13 }}>
-                📞 {form.phone}
-              </span>
-            )}
-            {form.service && (
-              <span className="pd-copy-chip" style={{ minHeight: 32, padding: '4px 10px', fontSize: 13 }}>
-                ✂ {form.service}
-              </span>
-            )}
-            {v.total && (
-              <span className="pd-copy-chip" style={{ minHeight: 32, padding: '4px 10px', fontSize: 13 }}>
-                💰 {formatNaira(v.total)}
-              </span>
-            )}
-            {dep && v.deposit && (
-              <span className="pd-copy-chip" style={{ minHeight: 32, padding: '4px 10px', fontSize: 13 }}>
-                ⏳ Deposit: {formatNaira(v.deposit)}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Draft Ticket Preview (Spec Section 5.4) */}
-      <div style={{ marginBottom: 24 }}>
-        <article
-          className="pd-ticket pd-ticket--draft"
-          style={{ padding: 0 }}
-        >
-          <div className="pd-ticket__top">
-            <div className="pd-ticket__who">
-              <h3>{form.name.trim() || 'Customer Name'}</h3>
-              <p>{form.service.trim() || 'Service description'}</p>
-            </div>
-            <span className="pd-tag pd-tag--draft">Draft Ticket Preview</span>
-          </div>
-
-          <div className="pd-ticket__cut" aria-hidden="true">
-            <i />
-            <i />
-          </div>
-
-          {/* Stubs Preview: In full (1 stub) or Deposit+balance (2 stubs side by side) */}
-          <div className="pd-ticket__bottom" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            {!dep ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontSize: 12, color: 'var(--paper-muted)', display: 'block' }}>
-                    Pay in full
-                  </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26 }}>
-                    {v.total ? formatNaira(v.total) : '₦0.00'}
-                  </div>
-                </div>
-                <span className="pd-tag pd-tag--waiting">Will issue dynamic account</span>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {/* Deposit Stub */}
-                <div
-                  style={{
-                    background: 'var(--tag-copied-bg)',
-                    borderRadius: 12,
-                    padding: '12px 14px',
-                    border: '1.5px solid var(--calm)',
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--calm)' }}>
-                    Deposit · Pay now
-                  </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, margin: '4px 0 0' }}>
-                    {v.deposit ? formatNaira(v.deposit) : '₦0.00'}
-                  </div>
-                </div>
-
-                {/* Balance Stub */}
-                <div
-                  style={{
-                    background: 'rgba(20, 24, 63, 0.04)',
-                    borderRadius: 12,
-                    padding: '12px 14px',
-                    border: '1.5px dashed var(--line-strong)',
-                  }}
-                >
-                  <span style={{ fontSize: 12, color: 'var(--paper-muted)' }}>
-                    Balance · {form.due ? `Due ${form.due}` : 'No account yet'}
-                  </span>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, margin: '4px 0 0', color: 'var(--paper-muted)' }}>
-                    {remainingBalanceKobo ? formatNaira(remainingBalanceKobo) : '₦0.00'}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </article>
-      </div>
-
-      {/* Form Fields */}
+      {/* Main Payment Form */}
       <form
         className="pd-stack pd-form"
         noValidate
@@ -356,15 +208,28 @@ export function NewRequestPage() {
         }}
         style={{
           background: 'var(--paper)',
-          padding: '24px 22px',
+          padding: '26px 24px 28px',
           borderRadius: 'var(--r-ticket)',
-          boxShadow: '0 8px 24px rgba(16, 21, 77, 0.25)',
+          boxShadow: '0 12px 32px rgba(16, 21, 77, 0.28)',
           color: 'var(--paper-ink)',
         }}
       >
-        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, margin: '0 0 14px' }}>
-          Details (edit if needed)
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 19,
+              color: 'var(--paper-ink)',
+              margin: 0,
+            }}
+          >
+            Job & Payment Details
+          </h2>
+          <span style={{ fontSize: 12, color: 'var(--paper-muted)', fontWeight: 600 }}>
+            Exact-amount collection
+          </span>
+        </div>
 
         {customerId ? (
           preset.isError ? (
@@ -379,17 +244,17 @@ export function NewRequestPage() {
               {describeError(preset.error).message}
             </Banner>
           ) : (
-            <div className="pd-presetcustomer" style={{ marginBottom: 12 }}>
-              <p>
+            <div className="pd-presetcustomer" style={{ marginBottom: 14 }}>
+              <p style={{ margin: 0, color: 'var(--paper-ink)' }}>
                 {known ? (
                   <>
                     For <strong>{known.name}</strong> · {formatPhone(known.phone)}
                   </>
                 ) : (
-                  'Loading customer…'
+                  'Loading customer details…'
                 )}
               </p>
-              <Link to="/new" style={{ color: 'var(--ground)' }}>
+              <Link to="/new" style={{ color: 'var(--ground)', fontWeight: 700, fontSize: 13 }}>
                 Someone else
               </Link>
             </div>
@@ -400,22 +265,23 @@ export function NewRequestPage() {
               label="Customer name"
               value={form.name}
               onChange={(e) => edit('name', e.target.value)}
+              placeholder="e.g. Fatima Bello"
               error={err('name')}
               autoComplete="off"
             />
 
-            {/* Customer Autocomplete Slips (Spec Section 5.4) */}
+            {/* Customer Autocomplete Suggestions */}
             {customerSuggestions.length > 0 && (
               <div
                 style={{
                   display: 'grid',
                   gap: 6,
                   marginTop: -6,
-                  marginBottom: 10,
+                  marginBottom: 12,
                 }}
               >
-                <span style={{ fontSize: 12, color: 'var(--paper-muted)' }}>
-                  Matching customers:
+                <span style={{ fontSize: 12, color: 'var(--paper-muted)', fontWeight: 600 }}>
+                  Saved client suggestions:
                 </span>
                 {customerSuggestions.map((c) => (
                   <button
@@ -433,6 +299,7 @@ export function NewRequestPage() {
                       cursor: 'pointer',
                       textAlign: 'left',
                       fontFamily: 'var(--font-ui)',
+                      color: 'var(--paper-ink)',
                     }}
                   >
                     <strong>{c.name}</strong>
@@ -445,72 +312,76 @@ export function NewRequestPage() {
             )}
 
             <TextField
-              label="Phone"
+              label="Phone number"
               type="tel"
               inputMode="tel"
               value={form.phone}
               onChange={(e) => edit('phone', e.target.value)}
+              placeholder="e.g. 0803 123 4567"
               error={err('phone')}
-              hint="Any Nigerian format works."
+              hint="Client’s Nigerian phone for ledger & receipt delivery"
               autoComplete="off"
             />
           </>
         )}
 
         <TextField
-          label="Service"
+          label="Service or item description"
           value={form.service}
           onChange={(e) => edit('service', e.target.value)}
+          placeholder="e.g. Bridal makeup, Custom bespoke robe, Catering"
           error={err('service')}
           maxLength={120}
         />
 
-        <Segmented<Plan>
-          legend="How will they pay?"
-          value={form.plan}
-          onChange={(p) => edit('plan', p)}
-          options={[
-            { value: 'FULL', label: 'In full' },
-            { value: 'DEPOSIT_BALANCE', label: 'Deposit + balance' },
-          ]}
-        />
+        <div style={{ marginTop: 4 }}>
+          <Segmented<Plan>
+            legend="How will they pay?"
+            value={form.plan}
+            onChange={(p) => edit('plan', p)}
+            options={[
+              { value: 'FULL', label: 'In full (100%)' },
+              { value: 'DEPOSIT_BALANCE', label: 'Deposit + balance' },
+            ]}
+          />
+        </div>
 
         <TextField
-          label={dep ? 'Total price (₦)' : 'Amount (₦)'}
+          label={dep ? 'Total price (₦)' : 'Amount to collect (₦)'}
           inputMode="decimal"
           value={form.total}
           onChange={(e) => edit('total', e.target.value)}
+          placeholder="e.g. 50,000 or 50k"
           error={err('total')}
           hint={
             v.total
-              ? `Customer pays ${formatNaira(v.total)}`
-              : 'Type 50000, 50,000 or 50k'
+              ? `Client will pay ${formatNaira(v.total)}`
+              : 'Enter figures like 50000, 50,000 or 50k'
           }
         />
 
         {dep && (
           <>
             <TextField
-              label="Deposit (₦)"
+              label="Deposit amount (₦)"
               inputMode="decimal"
               value={form.deposit}
               onChange={(e) => edit('deposit', e.target.value)}
+              placeholder="e.g. 20,000"
               error={err('deposit')}
               hint={
-                assumed.includes('deposit') && !touched.current.has('deposit')
-                  ? 'Two amounts found; assumed smaller is the deposit.'
-                  : v.deposit
-                    ? `Deposit ${formatNaira(v.deposit)}, balance ${v.total ? formatNaira((BigInt(v.total) - BigInt(v.deposit)).toString()) : '…'}`
-                    : undefined
+                v.deposit
+                  ? `Deposit: ${formatNaira(v.deposit)} · Remaining balance: ${v.total ? formatNaira((BigInt(v.total) - BigInt(v.deposit)).toString()) : '…'}`
+                  : 'Enter the initial deposit to collect now'
               }
             />
             <TextField
-              label="Balance due (optional)"
+              label="Balance due date (optional)"
               type="date"
               value={form.due}
               onChange={(e) => edit('due', e.target.value)}
               error={err('due')}
-              hint="Listed on Today when due."
+              hint="Tracked on your Today screen when due"
             />
           </>
         )}
@@ -519,14 +390,15 @@ export function NewRequestPage() {
           <Banner tone="bad">{describeError(create.error).message}</Banner>
         )}
 
-        {/* Primary Action Button: The Pressed Key (Spec Section 5.4 & 4.3) */}
-        <div style={{ marginTop: 10 }}>
+        {/* Primary Action Button */}
+        <div style={{ marginTop: 14 }}>
           <button
             type="submit"
             className="pd-btn-primary pd-btn--block"
             disabled={create.isPending}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            {create.isPending ? 'Generating details…' : 'Create and get payment details'}
+            {create.isPending ? 'Generating account…' : 'Create and get payment details'}
           </button>
           <p
             style={{
@@ -538,17 +410,16 @@ export function NewRequestPage() {
               marginBottom: 0,
             }}
           >
-            This starts the account’s 60-minute countdown. Have your chat with {firstName} open.
+            Starts the account’s 60-minute countdown. Have your chat with {firstName} open to paste details.
           </p>
         </div>
 
-        {/* Secondary & Tertiary Outcomes (Spec Reconciliation #7) */}
+        {/* Secondary Action */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 16,
             marginTop: 8,
           }}
         >
@@ -557,10 +428,195 @@ export function NewRequestPage() {
             className="pd-btn pd-btn--quiet"
             onClick={() => go(false)}
           >
-            Save as draft
+            Save as draft without generating account
           </button>
         </div>
       </form>
+
+      {/* Live Ticket Preview (PLACED UNDER THE FORM, UX-POLISHED) */}
+      <div style={{ marginTop: 28, marginBottom: 44 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+            padding: '0 4px',
+          }}
+        >
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 16,
+              color: 'var(--ink-on-ground)',
+              margin: 0,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Live Ticket Preview
+          </h3>
+          <span style={{ fontSize: 13, color: 'var(--muted-on-ground)' }}>
+            Updates in real-time
+          </span>
+        </div>
+
+        <article
+          className="pd-ticket pd-ticket--draft"
+          style={{
+            background: 'var(--paper)',
+            borderRadius: 'var(--r-ticket)',
+            color: 'var(--paper-ink)',
+            boxShadow: '0 16px 28px rgba(16, 21, 77, 0.35)',
+            border: '2px dashed rgba(20, 24, 63, 0.18)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Top section: Identity */}
+          <div style={{ padding: '20px 22px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h4
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 800,
+                    fontSize: 20,
+                    margin: 0,
+                    color: 'var(--paper-ink)',
+                  }}
+                >
+                  {form.name.trim() || 'Customer Name'}
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--paper-muted)' }}>
+                  {form.service.trim() || 'Service or item description'}
+                </p>
+              </div>
+              <span
+                className="pd-tag"
+                style={{
+                  background: 'rgba(35, 48, 166, 0.08)',
+                  color: 'var(--ground)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                One-time ticket
+              </span>
+            </div>
+          </div>
+
+          {/* Notches + Cut line */}
+          <div className="pd-ticket__cut" aria-hidden="true">
+            <i />
+            <i />
+          </div>
+
+          {/* Stub Preview */}
+          <div style={{ padding: '16px 22px 20px', background: 'rgba(20, 24, 63, 0.02)' }}>
+            {!dep ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: 12, color: 'var(--paper-muted)', fontWeight: 600, display: 'block' }}>
+                    Pay in full
+                  </span>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 800,
+                      fontSize: 26,
+                      color: 'var(--paper-ink)',
+                      marginTop: 2,
+                    }}
+                  >
+                    {v.total ? formatNaira(v.total) : '₦0.00'}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: 'var(--tag-warn-bg)',
+                    color: 'var(--tag-warn-ink)',
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                  }}
+                >
+                  Dynamic Kora account · 60m expiry
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {/* Deposit Stub */}
+                <div
+                  style={{
+                    background: 'var(--tag-copied-bg)',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    border: '1.5px solid var(--calm)',
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--calm)' }}>
+                    Deposit · Collect now
+                  </span>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 800,
+                      fontSize: 20,
+                      margin: '4px 0 0',
+                      color: 'var(--paper-ink)',
+                    }}
+                  >
+                    {v.deposit ? formatNaira(v.deposit) : '₦0.00'}
+                  </div>
+                </div>
+
+                {/* Balance Stub */}
+                <div
+                  style={{
+                    background: 'rgba(20, 24, 63, 0.04)',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    border: '1.5px dashed var(--line-strong)',
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: 'var(--paper-muted)', fontWeight: 600 }}>
+                    Remaining balance
+                  </span>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 700,
+                      fontSize: 18,
+                      margin: '4px 0 0',
+                      color: 'var(--paper-muted)',
+                    }}
+                  >
+                    {remainingBalanceKobo ? formatNaira(remainingBalanceKobo) : '₦0.00'}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--paper-muted)', display: 'block', marginTop: 2 }}>
+                    {form.due ? `Due ${form.due}` : 'Account issued when requested'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Honest Product Reassurance */}
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 10,
+                borderTop: '1px dashed rgba(20, 24, 63, 0.12)',
+                fontSize: 12.5,
+                color: 'var(--paper-muted)',
+                lineHeight: 1.4,
+              }}
+            >
+              🔒 <strong>Single-use Kora account:</strong> Allocated specifically for this agreement. Paidar never contacts your client; you copy and paste the details into your chat.
+            </div>
+          </div>
+        </article>
+      </div>
     </div>
   );
 }

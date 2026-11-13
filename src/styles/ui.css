@@ -155,10 +155,21 @@
 
 /* ---------- form fields (Spec Section 4.10) ---------- */
 .pd-field { display: grid; gap: 6px; }
-.pd-label { font-family: var(--font-ui); font-weight: 600; font-size: 14px; color: var(--paper-muted); padding: 0; }
+.pd-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--paper-ink);
+  padding: 0;
+}
+/* If field sits directly on the dark indigo ground */
+.pd-main > .pd-field .pd-label,
+.pd-ground-field .pd-label {
+  color: var(--ink-on-ground);
+}
 .pd-input {
   width: 100%; min-height: 52px; padding: 12px 16px; background: var(--paper);
-  border: 2px solid var(--line-strong); border-radius: 14px; font-size: 16px;
+  border: 1.5px solid rgba(20, 24, 63, 0.16); border-radius: 14px; font-size: 16px;
   color: var(--paper-ink); font-family: var(--font-ui);
   box-sizing: border-box;
 }
@@ -166,8 +177,12 @@
 .pd-input--bad { border-color: var(--urgent); }
 .pd-input--area { min-height: 96px; resize: vertical; line-height: 1.45; }
 .pd-input:disabled { background: rgba(20, 24, 63, 0.05); color: var(--paper-muted); cursor: not-allowed; }
-.pd-hint { font-size: 14px; color: var(--paper-muted); }
-.pd-error { font-size: 14px; color: var(--urgent); font-weight: 600; }
+.pd-hint { font-size: 13.5px; color: var(--paper-muted); }
+.pd-main > .pd-field .pd-hint,
+.pd-ground-field .pd-hint {
+  color: var(--muted-on-ground);
+}
+.pd-error { font-size: 13.5px; color: var(--urgent); font-weight: 600; }
 
 .pd-switch {
   width: 52px; height: 32px; border-radius: 999px; border: 0; padding: 3px; cursor: pointer;
@@ -241,6 +256,7 @@
   letter-spacing: -0.03em;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  color: inherit;
 }
 .pd-money--sm { font-size: 16px; font-weight: 600; }
 .pd-money--md { font-size: 22px; }
@@ -248,6 +264,43 @@
 .pd-money--xl { font-size: clamp(40px, 12.5vw, 54px); line-height: 1; }
 .pd-money__cur { font-weight: 600; margin-right: 2px; }
 .pd-money__frac { font-weight: 600; font-size: 0.42em; color: var(--paper-muted); margin-left: 1px; }
+
+/* Any money shown on paper surfaces must always be deep navy ink */
+.pd-jobrow .pd-money,
+.pd-slip .pd-money,
+.pd-ticket .pd-money,
+.pd-card .pd-money,
+.pd-sheet .pd-money,
+.pd-dialog .pd-money,
+.pd-receipt .pd-money,
+.pd-qrow .pd-money,
+.pd-list__item .pd-money,
+.pd-copyitem .pd-money,
+.pd-rcard .pd-money,
+.pd-form .pd-money,
+.pd-paper-box .pd-money {
+  color: var(--paper-ink) !important;
+}
+
+/* Ensure strong, headings, and titles on paper surfaces are always deep navy ink */
+.pd-jobrow strong,
+.pd-slip strong,
+.pd-ticket strong,
+.pd-card strong,
+.pd-sheet strong,
+.pd-dialog strong,
+.pd-qrow strong,
+.pd-list__item strong,
+.pd-rcard strong,
+.pd-form strong,
+.pd-paper-box strong,
+.pd-jobrow h1, .pd-jobrow h2, .pd-jobrow h3,
+.pd-slip h1, .pd-slip h2, .pd-slip h3,
+.pd-ticket h1, .pd-ticket h2, .pd-ticket h3,
+.pd-card h1, .pd-card h2, .pd-card h3,
+.pd-form h1, .pd-form h2, .pd-form h3 {
+  color: var(--paper-ink) !important;
+}
 
 /* ---------- status tags (Spec Section 4.5) ---------- */
 .pd-tag {
