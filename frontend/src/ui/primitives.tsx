@@ -103,12 +103,6 @@ export function EmptyState({ title, action, children }: { title: string; action?
   );
 }
 
-/** Development-only note about what a later phase fills in. Hidden in production builds. */
-export function PhaseNote({ phase, children }: { phase: number; children: ReactNode }) {
-  if (!import.meta.env.DEV) return null;
-  return <p className="pd-phase">Phase {phase}: {children}</p>;
-}
-
 export function Segmented<T extends string>({ legend, value, options, onChange }: {
   legend: string; value: T; onChange: (v: T) => void; options: Array<{ value: T; label: string }>;
 }) {

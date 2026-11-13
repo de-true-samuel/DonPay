@@ -42,7 +42,7 @@ export function PeoplePage() {
         q
           ? <EmptyState title={`No one matches “${q}”`} action={<Button variant="line" onClick={() => setAdding(true)}>Add them</Button>}>Check the spelling, or try part of the phone number.</EmptyState>
           : <EmptyState title="No customers yet" action={<Button onClick={() => setAdding(true)} icon="plus">Add your first customer</Button>}>
-              Customers are also saved automatically when you create a request. If you already keep a list, import it.
+              Customers are also saved automatically when you create payment details for a job. If you already keep a list, import it.
             </EmptyState>
       )}
 

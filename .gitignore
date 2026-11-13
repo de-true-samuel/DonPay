@@ -1,13 +1,9 @@
-<<<<<<< HEAD
-node_modules
-dist
+node_modules/
+dist/
 .env
 .env.local
-=======
-node_modules/
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
->>>>>>> 7e45b97980988f1b041f8e4fac00e05f992b6d49
 *.log

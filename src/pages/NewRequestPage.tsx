@@ -3,10 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { describeError } from '../api/errors';
 import { customersApi, jobsApi, requestsApi } from '../api/endpoints';
-import type { CreateJobBody, RequestWithMessage } from '../contract/contract';
+import type { CreateJobBody, CustomerSummary, RequestWithMessage } from '../contract/contract';
 import { useShare } from '../features/share/ShareProvider';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira, parseNairaInput } from '../lib/money';
+import { getSavedPresets, type ServicePreset } from '../lib/presets';
 import { isValidNgPhone, parseQuickEntry } from '../lib/quickEntry';
 import type { QuickEntry } from '../lib/quickEntry';
 import { formatPhone } from '../lib/phone';
@@ -51,17 +52,48 @@ export function NewRequestPage() {
   const qc = useQueryClient();
   const share = useShare();
   const toast = useToast();
-  const [text, setText] = useState('');
-  const [form, setForm] = useState<Form>(EMPTY);
-  const [assumed, setAssumed] = useState<QuickEntry['assumed']>([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [server, setServer] = useState<Errors>({});
-  const touched = useRef(new Set<keyof Form>());
-  // Arriving from a customer page: the customer is already known, so name and phone aren't asked for.
   const [params] = useSearchParams();
   const customerId = params.get('customerId');
   const preset = useQuery({ queryKey: ['customer', customerId], queryFn: () => customersApi.get(customerId!), enabled: !!customerId });
   const known = preset.data?.customer;
+
+  const [text, setText] = useState('');
+  const [form, setForm] = useState<Form>(() => ({
+    name: '',
+    phone: '',
+    service: params.get('service') ?? '',
+    total: asField(params.get('total')),
+    plan: (params.get('plan') as Plan) === 'DEPOSIT_BALANCE' ? 'DEPOSIT_BALANCE' : 'FULL',
+    deposit: asField(params.get('deposit')),
+    due: params.get('due') ?? '',
+  }));
+  const [assumed, setAssumed] = useState<QuickEntry['assumed']>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const [server, setServer] = useState<Errors>({});
+  const touched = useRef(new Set<keyof Form>());
+  const [servicePresets] = useState<ServicePreset[]>(() => getSavedPresets());
+
+  const customerQuery = useQuery({
+    queryKey: ['customers', 'autocomplete', form.name.trim()],
+    queryFn: () => customersApi.list({ q: form.name.trim(), limit: 4 }),
+    enabled: !customerId && form.name.trim().length >= 2,
+    staleTime: 10_000,
+  });
+  const customerSuggestions = customerQuery.data?.items ?? [];
+
+  function selectCustomer(c: CustomerSummary) {
+    edit('name', c.name);
+    edit('phone', c.phone);
+  }
+
+  function applyPreset(p: ServicePreset) {
+    edit('service', p.service);
+    edit('plan', p.plan);
+    edit('total', p.total);
+    if (p.plan === 'DEPOSIT_BALANCE' && p.deposit) {
+      edit('deposit', p.deposit);
+    }
+  }
 
   function onText(value: string) {
     setText(value);
@@ -104,8 +136,8 @@ export function NewRequestPage() {
       void qc.invalidateQueries({ queryKey: ['today'] });
       void qc.invalidateQueries({ queryKey: ['jobs'] });
       nav(`/jobs/${job.id}`);
-      if (sent?.message) share.open({ title: `Send to ${job.customer.name.split(' ')[0]}`, message: sent.message, request: sent.request });
-      else if (sendErr) toast.error(`Job saved, but ${describeError(sendErr).message} Tap “Send now” to retry.`);
+      if (sent?.message) share.open({ title: `Payment details for ${job.customer.name.split(' ')[0]}`, message: sent.message, request: sent.request });
+      else if (sendErr) toast.error(`Job saved, but ${describeError(sendErr).message} Tap “Get payment details” to retry.`);
     },
     onError: (e) => {
       const d = describeError(e);
@@ -131,9 +163,10 @@ export function NewRequestPage() {
 
       <div className="pd-field">
         <label className="pd-label" htmlFor="pd-quick">Quick entry</label>
-        <textarea id="pd-quick" className="pd-input pd-input--area" rows={3} value={text} autoFocus
+        <textarea id="pd-quick" className="pd-input pd-input--area" rows={3} value={text}
+          autoFocus={!customerId && typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches}
           onChange={(e) => onText(e.target.value)} placeholder="Tolu 0803 123 4567 bridal makeup 50k, 25k deposit, balance friday" />
-        <p className="pd-hint">Paidar fills in the details below. Nothing is sent until you say so.</p>
+        <p className="pd-hint">Paidar fills in the details below. Paidar never messages your customer. You send it.</p>
       </div>
 
       <form className="pd-stack pd-form" noValidate onSubmit={(e) => { e.preventDefault(); go(true); }}>
@@ -148,11 +181,47 @@ export function NewRequestPage() {
         ) : (
           <>
             <TextField label="Customer name" value={form.name} onChange={(e) => edit('name', e.target.value)} error={err('name')} autoComplete="off" />
+            {customerSuggestions.length > 0 && (
+              <div style={{ marginTop: -8, marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                <span className="pd-hint" style={{ width: '100%', margin: 0, fontSize: 13 }}>Known customers:</span>
+                {customerSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="pd-chip"
+                    style={{ fontSize: 13, padding: '4px 10px', cursor: 'pointer', textAlign: 'left' }}
+                    onClick={() => selectCustomer(c)}
+                  >
+                    <strong>{c.name}</strong> · {formatPhone(c.phone)}
+                  </button>
+                ))}
+              </div>
+            )}
             <TextField label="Phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => edit('phone', e.target.value)}
               error={err('phone')} hint="Any Nigerian format works." autoComplete="off" />
           </>
         )}
-        <TextField label="Service" value={form.service} onChange={(e) => edit('service', e.target.value)} error={err('service')} maxLength={120} />
+        <div>
+          {servicePresets.length > 0 && (
+            <div style={{ marginBottom: 6 }}>
+              <span className="pd-hint" style={{ fontSize: 13, marginBottom: 4, display: 'block' }}>Presets:</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {servicePresets.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="pd-chip"
+                    style={{ fontSize: 13, padding: '4px 10px', cursor: 'pointer' }}
+                    onClick={() => applyPreset(p)}
+                  >
+                    {p.service} (₦{p.total})
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <TextField label="Service" value={form.service} onChange={(e) => edit('service', e.target.value)} error={err('service')} maxLength={120} />
+        </div>
         <Segmented<Plan> legend="How will they pay?" value={form.plan} onChange={(p) => edit('plan', p)}
           options={[{ value: 'FULL', label: 'In full' }, { value: 'DEPOSIT_BALANCE', label: 'Deposit + balance' }]} />
         <TextField label={dep ? 'Total price (₦)' : 'Amount (₦)'} inputMode="decimal" value={form.total}
@@ -170,9 +239,10 @@ export function NewRequestPage() {
           </>
         )}
         {create.isError && !Object.keys(server).length && <Banner tone="bad">{describeError(create.error).message}</Banner>}
+        <p className="pd-hint">Getting payment details creates a dynamic virtual account and starts its 60-minute countdown.</p>
         <div className="pd-actions pd-actions--stack">
           <Button type="submit" block busy={create.isPending && create.variables === true}>Create and get payment details</Button>
-          <Button type="button" variant="line" block busy={create.isPending && create.variables === false} onClick={() => go(false)}>Save without sending</Button>
+          <Button type="button" variant="line" block busy={create.isPending && create.variables === false} onClick={() => go(false)}>Save without creating details</Button>
         </div>
       </form>
     </>

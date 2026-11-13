@@ -46,7 +46,7 @@ export function KitPage() {
       </section>
 
       <section className="pd-section"><h2>Tickets</h2>
-        <TicketCard title="Tolu · Bridal makeup" subtitle="Deposit · sent 20 minutes ago" amountKobo="2500000"
+        <TicketCard title="Tolu · Bridal makeup" subtitle="Deposit · created 20 minutes ago · not copied yet" amountKobo="2500000"
           status={<StatusPill status="SENT" />} aside={<CountdownRing sentAt={t.sent} expiresAt={t.ok} />} />
         <TicketCard title="Ada · Aso-ebi fitting" subtitle="Balance · paid 2h ago" amountKobo="1500000" trust="verified"
           status={<StatusPill status="PAID" />} footer={<TrustBadge kind="verified" />} />

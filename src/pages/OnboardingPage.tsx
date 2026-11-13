@@ -43,9 +43,14 @@ export function OnboardingPage() {
   if (!provider) return null;
   const err = describeError(save.error);
 
-  function next(body: Parameters<typeof meApi.update>[0]) {
-    save.mutate(body, { onSuccess: () => setStep((s) => s + 1) });
+  function next(body?: Parameters<typeof meApi.update>[0]) {
+    if (body) {
+      save.mutate(body, { onSuccess: () => setStep((s) => s + 1) });
+    } else {
+      setStep((s) => s + 1);
+    }
   }
+
   function finish() {
     save.mutate({ digestTime: digestOn ? digestTime : null }, {
       onSuccess: () => { markOnboarded(provider!.id); nav('/today', { replace: true }); },
@@ -56,7 +61,7 @@ export function OnboardingPage() {
     <div className="pd-onboard">
       <header className="pd-onboard__head">
         <LogoMark size={32} />
-        <p aria-live="polite">Step {step} of 3</p>
+        <p aria-live="polite">Step {step} of 4</p>
       </header>
 
       {step === 1 && (
@@ -65,6 +70,9 @@ export function OnboardingPage() {
           <p className="pd-lede">This name appears on every payment page and receipt, so make it the one they know you by.</p>
           <TextField label="Business name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80}
             error={err.fieldErrors?.businessName?.[0]} autoComplete="organization" />
+          <p className="pd-hint">
+            Customers will see: Pay ₦25,000 to <strong>{name.trim() || 'Your Business'}</strong>
+          </p>
           {save.isError && !err.fieldErrors && <Banner tone="bad">{err.message}</Banner>}
           <Button type="submit" busy={save.isPending} disabled={!name.trim()} block>Continue</Button>
         </form>
@@ -72,19 +80,43 @@ export function OnboardingPage() {
 
       {step === 2 && (
         <div className="pd-onboard__body">
+          <h1>How payments work</h1>
+          <p className="pd-lede">Paidar keeps you in full control of customer communication:</p>
+
+          <div className="pd-stack pd-gap">
+            <div className="pd-card">
+              <strong>1. One-time bank account</strong>
+              <p className="pd-hint">For each payment, Paidar creates a unique virtual account via Kora, valid for 60 minutes. You never have to share your personal account.</p>
+            </div>
+            <div className="pd-card">
+              <strong>2. You send the details</strong>
+              <p className="pd-hint">Paidar never contacts your customer. You copy the message or account details and send them yourself in chat.</p>
+            </div>
+            <div className="pd-card">
+              <strong>3. Instant bank confirmation</strong>
+              <p className="pd-hint">When the customer pays, Kora verifies it instantly. You get a Telegram alert and your dashboard marks it paid.</p>
+            </div>
+          </div>
+
+          <Button onClick={() => next()} block>Continue</Button>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="pd-onboard__body">
           <h1>When can you start work?</h1>
           <p className="pd-lede">Paidar shows a “Ready to start” badge once this is met. You can still set it per job.</p>
-          <ChoiceCards legend="Start work" value={rule} onChange={setRule}
+          <ChoiceCards legend="Ready to start" value={rule} onChange={setRule}
             options={(Object.keys(READY_RULE) as ReadyRule[]).map((v) => ({ value: v, ...READY_RULE[v] }))} />
           {save.isError && <Banner tone="bad">{err.message}</Banner>}
           <Button busy={save.isPending} onClick={() => next({ defaultReadyRule: rule })} block>Continue</Button>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="pd-onboard__body">
           <h1>Hear it the moment it lands</h1>
-          <p className="pd-lede">Paidar pings you on Telegram when a payment is confirmed, and can send a short summary each evening.</p>
+          <p className="pd-lede">Paidar pings you on Telegram when a payment is confirmed — alerts to you only. Paidar never contacts your customers.</p>
 
           <div className="pd-row">
             <div>

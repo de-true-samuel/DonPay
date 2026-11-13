@@ -1,6 +1,6 @@
 import { api, apiDownload } from './client';
 import {
-  AuthExchangeResponse, Customer, CustomerListPage, CustomerPage, ImportResult, JobDetail, JobPage, Payment, PreparedMessage, Provider, RequestWithMessage, ReviewItem, ReviewPage, SearchResponse,
+  AuthExchangeResponse, Customer, CustomerListPage, CustomerPage, ImportResult, JobDetail, JobPage, Payment, PreparedMessage, Provider, PublicRequest, PublicStatus, RequestWithMessage, ReviewItem, ReviewPage, SearchResponse,
   SimulateResult, TelegramLinkResponse, TodayResponse,
 } from '../contract/contract';
 import type {
@@ -83,4 +83,10 @@ export const reviewApi = {
 
 export const exportApi = {
   csv: (query: { from?: string; to?: string }) => apiDownload('/api/export.csv', query),
+};
+
+export const publicApi = {
+  getRequest: (token: string) => api(`/api/public/requests/${token}`, { schema: PublicRequest }),
+  getStatus: (token: string) => api(`/p/${token}/status`, { schema: PublicStatus }),
+  claimPaid: (token: string) => api<{ ok: boolean }>(`/p/${token}/claim-paid`, { method: 'POST' }),
 };

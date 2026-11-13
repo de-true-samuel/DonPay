@@ -17,7 +17,7 @@ export function ConnectionBanner() {
     was.current = online;
   }, [online, qc, toast]);
   if (online) return null;
-  return <Banner tone="warn">You’re offline. What’s on screen may be out of date, and nothing you do is sent until you reconnect.</Banner>;
+  return <Banner tone="warn">You’re offline. What’s on screen may be out of date. New actions won’t work until you reconnect.</Banner>;
 }
 
 export function UpdateBanner() {

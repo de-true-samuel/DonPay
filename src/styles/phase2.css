@@ -16,11 +16,19 @@
 .pd-iconbtn:hover { background: var(--violet-soft); }
 .pd-iconbtn--light:hover { background: rgba(255, 255, 255, 0.12); }
 
-/* ---------- share sheet ---------- */
+/* ---------- share sheet / copy panel ---------- */
 .pd-sharehead { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--violet-soft); border-radius: var(--r-m); }
+.pd-sharehead p { margin: 0; font-size: 15px; }
+.pd-copyitems { display: grid; gap: 8px; margin: 12px 0; }
+.pd-copyitem { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-m); }
+.pd-copyitem__main { min-width: 0; }
+.pd-copyitem__label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 2px; }
+.pd-copyitem__val { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; word-break: break-all; }
+.pd-copyitem .pd-btn { flex: none; }
 .pd-msg {
+  width: 100%; box-sizing: border-box; font-family: inherit;
   white-space: pre-wrap; background: var(--paper); border: 1.5px solid var(--line-strong); border-radius: 12px;
-  padding: 14px; font-size: 15px; line-height: 1.55; max-height: 34dvh; overflow: auto; user-select: text; word-break: break-word;
+  padding: 14px; font-size: 14px; line-height: 1.5; max-height: 24dvh; overflow: auto; user-select: text; word-break: break-word; resize: vertical;
 }
 .pd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pd-actions--stack { display: grid; gap: 10px; }

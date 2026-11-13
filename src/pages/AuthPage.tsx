@@ -89,14 +89,14 @@ export function AuthPage() {
       {phase === 'failed' && (
         <div className="pd-auth__block" role="alert">
           <h2>{failMsg}</h2>
-          <p>Open the Paidar bot in Telegram and send <code>/login</code> to get a fresh link.</p>
+          <p>Open the Paidar bot in Telegram and send <code>/login</code> to get a fresh link, or <code>/start</code> if you’re new.</p>
         </div>
       )}
 
       {phase === 'idle' && (
         <div className="pd-auth__block">
-          <h2>Sign in with Telegram</h2>
-          <p>Paidar signs you in through its Telegram bot. Send <code>/login</code> and tap the link it gives you.</p>
+          <h2>Sign in or get started</h2>
+          <p>Paidar signs you in through its Telegram bot. Send <code>/login</code> to sign in, or <code>/start</code> if you’re new, then tap the link it gives you.</p>
         </div>
       )}
 

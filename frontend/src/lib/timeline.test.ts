@@ -26,7 +26,7 @@ describe('buildJobTimeline', () => {
   });
   it('labels requests, expiry and hand-entered money plainly', () => {
     expect(t.map((i) => i.label)).toEqual(expect.arrayContaining([
-      'Job created', 'Deposit request sent', 'Deposit received', 'Balance request expired', '₦10,000 recorded by you',
+      'Job created', 'Deposit details created', 'Deposit received', 'Balance request expired', '₦10,000 recorded by you',
     ]));
   });
 });

@@ -95,7 +95,6 @@ export function SearchPage() {
       <div className="pd-actions pd-gap">
         {filtered && <Button variant="quiet" onClick={clearAll}>Clear all</Button>}
         <Button variant="line" onClick={() => setExporting(true)}>Export CSV</Button>
-        <LinkButton to="/review" variant="quiet">Needs review</LinkButton>
       </div>
 
       {list.isPending && <div className="pd-stack pd-gap" aria-busy="true"><Skeleton h={68} /><Skeleton h={68} /><Skeleton h={68} /></div>}
@@ -106,7 +105,7 @@ export function SearchPage() {
           ? <EmptyState title="Nothing matches" action={<Button variant="line" onClick={clearAll}>Clear all filters</Button>}>
               Try fewer filters, part of a name, or a different amount.
             </EmptyState>
-          : <EmptyState title="No jobs yet" action={<LinkButton to="/new" icon="plus">Create a request</LinkButton>}>
+          : <EmptyState title="No jobs yet" action={<LinkButton to="/new" icon="plus">Create payment details</LinkButton>}>
               Once you have jobs, search by name, phone number or amount.
             </EmptyState>
       )}

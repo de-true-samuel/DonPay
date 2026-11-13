@@ -73,6 +73,7 @@ export const PaymentRequest = z.object({
   payLink: z.string(),
   bankName: z.string().nullable(), accountNumber: z.string().nullable(), accountName: z.string().nullable(),
   expiresAt: iso.nullable(), scheduledFor: iso.nullable(), sentAt: iso.nullable(), paidAt: iso.nullable(),
+  customerClaimedPaidAt: iso.nullable().optional(),
   createdAt: iso,
 });
 export type PaymentRequest = z.infer<typeof PaymentRequest>;
@@ -92,7 +93,7 @@ export type PreparedMessage = z.infer<typeof PreparedMessage>;
 export const ReviewItem = z.object({
   id, kind: ReviewKind, message: z.string(),
   jobId: id.nullable(), requestId: id.nullable(), paymentId: id.nullable(),
-  detail: z.record(z.unknown()), createdAt: iso, resolvedAt: iso.nullable(), resolution: z.string().nullable(),
+  detail: z.record(z.string(), z.unknown()), createdAt: iso, resolvedAt: iso.nullable(), resolution: z.string().nullable(),
 });
 export type ReviewItem = z.infer<typeof ReviewItem>;
 
@@ -137,9 +138,11 @@ export const TodayResponse = z.object({
   balancesDue: z.array(JobSummary),
   expired: z.array(z.object({ request: PaymentRequest, job: JobSummary })),
   needsReview: z.array(ReviewItem),
+  remindersDue: z.array(z.object({ request: PaymentRequest, job: JobSummary })).optional().default([]),
   counts: z.object({
     justPaid: z.number(), waiting: z.number(), balancesDue: z.number(),
     expired: z.number(), needsReview: z.number(),
+    remindersDue: z.number().optional().default(0),
   }),
 });
 export type TodayResponse = z.infer<typeof TodayResponse>;
@@ -166,18 +169,6 @@ export const ImportResult = z.object({
   errors: z.array(z.object({ line: z.number(), message: z.string() })),
 });
 export type ImportResult = z.infer<typeof ImportResult>;
-
-export const PublicRequest = z.object({
-  status: RequestStatus, businessName: z.string(), customerFirstName: z.string(), service: z.string(),
-  kind: RequestKind, amountKobo: KoboString,
-  bankName: z.string().nullable(), accountNumber: z.string().nullable(), accountName: z.string().nullable(),
-  expiresAt: iso.nullable(), paidAt: iso.nullable(),
-  receipt: z.object({
-    amountKobo: KoboString, paidAt: iso, reference: z.string(),
-    jobTotalKobo: KoboString, jobPaidKobo: KoboString, jobBalanceKobo: KoboString,
-  }).nullable(),
-});
-export type PublicRequest = z.infer<typeof PublicRequest>;
 
 /* ---------- auth / me ---------- */
 export const AuthExchangeResponse = z.object({ sessionToken: z.string(), provider: Provider });
@@ -224,3 +215,49 @@ export interface ResolveBody { resolution: string; cancelRequestId?: string }
 export interface SearchParams {
   q?: string; status?: string; from?: string; to?: string; view?: SavedView; limit?: number; cursor?: string;
 }
+
+/* ---------- Phase 6B: Public customer payment page ---------- */
+export const PublicReceipt = z.object({
+  amountKobo: KoboString,
+  paidAt: iso,
+  reference: z.string(),
+  jobTotalKobo: KoboString,
+  jobPaidKobo: KoboString,
+  jobBalanceKobo: KoboString,
+  balanceDueAt: iso.nullable().optional(),
+});
+export type PublicReceipt = z.infer<typeof PublicReceipt>;
+
+export const PublicRequest = z.object({
+  status: RequestStatus,
+  serverNow: iso,
+  businessPhone: z.string().nullable(),
+  amountPlain: z.string(),
+  businessName: z.string(),
+  customerFirstName: z.string(),
+  service: z.string(),
+  kind: RequestKind,
+  amountKobo: KoboString,
+  bankName: z.string().nullable(),
+  accountNumber: z.string().nullable(),
+  accountName: z.string().nullable(),
+  expiresAt: iso.nullable(),
+  paidAt: iso.nullable(),
+  customerClaimedPaidAt: iso.nullable().optional(),
+  receipt: PublicReceipt.nullable(),
+});
+export type PublicRequest = z.infer<typeof PublicRequest>;
+
+export const PublicStatus = z.object({
+  state: z.enum(['waiting', 'paid', 'expired', 'cancelled', 'not_ready']),
+  serverNow: iso,
+  expiresAt: iso.nullable(),
+  receipt: z.object({
+    amountKobo: z.number(),
+    reference: z.string(),
+    paidAt: iso,
+    balanceKobo: z.number().optional(),
+    balanceDueDate: z.string().optional(),
+  }).optional(),
+});
+export type PublicStatus = z.infer<typeof PublicStatus>;

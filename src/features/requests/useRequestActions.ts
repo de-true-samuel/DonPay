@@ -22,7 +22,7 @@ export function useRequestActions() {
   ]);
   const onError = (e: unknown) => toast.error(describeError(e).message);
   const openShare = (r: RequestWithMessage) => {
-    if (r.message) share.open({ title: `Send to ${first(r.job.customer.name)}`, message: r.message, request: r.request });
+    if (r.message) share.open({ title: `Payment details for ${first(r.job.customer.name)}`, message: r.message, request: r.request });
   };
 
   const send = useMutation({
@@ -48,7 +48,7 @@ export function useRequestActions() {
   const shareAgain = useMutation({
     mutationFn: async (v: { request: PaymentRequest; job: JobSummary }) =>
       ({ ...v, message: await requestsApi.message(v.request.id) }),
-    onSuccess: (r) => share.open({ title: `Send to ${first(r.job.customer.name)}`, message: r.message, request: r.request }),
+    onSuccess: (r) => share.open({ title: `Payment details for ${first(r.job.customer.name)}`, message: r.message, request: r.request }),
     onError,
   });
   const balance = useMutation({

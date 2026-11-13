@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import type { JobSummary, PaymentRequest } from '../../contract/contract';
 import { KIND_LABEL } from '../../lib/labels';
 import { MOCK, SIMULATE } from '../../config';
@@ -9,15 +10,22 @@ import { Dialog } from '../../ui/Dialog';
 import { Button, TextField } from '../../ui/primitives';
 import { StatusPill } from '../../ui/Trust';
 import { TicketCard } from '../../ui/TicketCard';
+import { useToast } from '../../ui/Toast';
+import { useShare } from '../share/ShareProvider';
+import { useCopiedAt } from './copyTracker';
 import { useRequestActions } from './useRequestActions';
 
 export { KIND_LABEL };
 
-function statusLine(r: PaymentRequest): string {
+function statusLine(r: PaymentRequest, copiedAt: string | null): string {
   switch (r.status) {
-    case 'DRAFT': return 'not sent yet';
+    case 'DRAFT': return 'details not created yet';
     case 'SCHEDULED': return r.scheduledFor ? `reminder ${formatDateTime(r.scheduledFor)}` : 'reminder set';
-    case 'SENT': return r.sentAt ? `sent ${timeAgo(r.sentAt)}` : 'sent';
+    case 'SENT': {
+      const live = r.sentAt ? `created ${timeAgo(r.sentAt)}` : 'active';
+      const copy = copiedAt ? `copied ${timeAgo(copiedAt)}` : 'not copied yet';
+      return `${live} · ${copy}`;
+    }
     case 'PAID': return r.paidAt ? `paid ${timeAgo(r.paidAt)}` : 'paid';
     case 'EXPIRED': return r.expiresAt ? `expired ${timeAgo(r.expiresAt)}` : 'expired';
     default: return 'cancelled';
@@ -27,6 +35,10 @@ function statusLine(r: PaymentRequest): string {
 /** One payment request as a ticket, with the actions that make sense for its status. */
 export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRequest; job: JobSummary; linkToJob?: boolean }) {
   const a = useRequestActions();
+  const qc = useQueryClient();
+  const share = useShare();
+  const toast = useToast();
+  const copiedAt = useCopiedAt(r.id);
   const [remindOpen, setRemindOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const busy = (m: { isPending: boolean; variables?: unknown }) => m.isPending && m.variables === r.id;
@@ -36,19 +48,68 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
     <>
       <TicketCard
         title={linkToJob ? <Link to={`/jobs/${job.id}`} className="pd-plainlink">{heading}</Link> : heading}
-        subtitle={`${KIND_LABEL[r.kind]} · ${statusLine(r)}`}
+        subtitle={`${KIND_LABEL[r.kind]} · ${statusLine(r, copiedAt)}`}
         amountKobo={r.amountKobo}
-        status={<StatusPill status={r.status} />}
+        status={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <StatusPill status={r.status} />
+            {r.status === 'SENT' && r.customerClaimedPaidAt && (
+              <span
+                className="pd-trust"
+                style={{
+                  background: '#FEF08A',
+                  color: '#854D0E',
+                  border: '1px solid #FDE047',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                }}
+              >
+                Customer says paid ({timeAgo(r.customerClaimedPaidAt)})
+              </span>
+            )}
+          </div>
+        }
         aside={r.status === 'SENT' && r.sentAt && r.expiresAt ? <CountdownRing sentAt={r.sentAt} expiresAt={r.expiresAt} /> : undefined}
         footer={
           <div className="pd-actions">
             {(r.status === 'DRAFT' || r.status === 'SCHEDULED') && (
-              <Button busy={busy(a.send)} onClick={() => a.send.mutate(r.id)}>Send now</Button>
+              <Button busy={busy(a.send)} onClick={() => a.send.mutate(r.id)}>Get payment details</Button>
             )}
             {r.status === 'DRAFT' && <Button variant="line" onClick={() => setRemindOpen(true)}>Remind me later</Button>}
             {r.status === 'SENT' && (
               <Button variant="line" busy={a.shareAgain.isPending && a.shareAgain.variables?.request.id === r.id}
-                onClick={() => a.shareAgain.mutate({ request: r, job })}>Share again</Button>
+                onClick={() => a.shareAgain.mutate({ request: r, job })}>Show payment details</Button>
+            )}
+            {r.status === 'SENT' && (
+              <Button
+                variant="line"
+                onClick={() => {
+                  const firstName = job.customer.name.trim().split(' ')[0];
+                  const nudge = `Hi ${firstName}, just a gentle reminder that the payment account for ${job.service} (${r.bankName ?? 'Wema Bank'} ${r.accountNumber ?? ''}) expires soon. You can view payment details and pay here: ${r.payLink}`;
+                  share.open({
+                    title: `Reminder for ${firstName}`,
+                    message: nudge,
+                    request: r,
+                  });
+                }}
+              >
+                Copy reminder
+              </Button>
+            )}
+            {r.status === 'SENT' && r.customerClaimedPaidAt && (
+              <Button
+                variant="line"
+                onClick={() => {
+                  void qc.invalidateQueries({ queryKey: ['today'] });
+                  void qc.invalidateQueries({ queryKey: ['jobs'] });
+                  void qc.invalidateQueries({ queryKey: ['job', job.id] });
+                  toast.info('Checking with bank for payments…');
+                }}
+              >
+                Check now
+              </Button>
             )}
             {r.status === 'SENT' && SIMULATE && (
               <Button variant="quiet" busy={busy(a.simulate)} onClick={() => a.simulate.mutate(r.id)}>Simulate payment</Button>
@@ -60,7 +121,7 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
             {r.status === 'SENT' && MOCK && (
               <Button variant="quiet" busy={busy(a.expire)} onClick={() => a.expire.mutate(r.id)}>Expire now (demo)</Button>
             )}
-            {r.status === 'EXPIRED' && <Button busy={busy(a.resend)} onClick={() => a.resend.mutate(r.id)}>Send again</Button>}
+            {r.status === 'EXPIRED' && <Button busy={busy(a.resend)} onClick={() => a.resend.mutate(r.id)}>Get new details</Button>}
             {['DRAFT', 'SCHEDULED', 'SENT'].includes(r.status) && (
               <Button variant="quiet" onClick={() => setCancelOpen(true)}>Cancel</Button>
             )}
@@ -70,7 +131,11 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
       <RemindDialog open={remindOpen} onClose={() => setRemindOpen(false)} busy={busy(a.schedule)}
         onSubmit={(at) => a.schedule.mutate({ requestId: r.id, at }, { onSuccess: () => setRemindOpen(false) })} />
       <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel this request?">
-        <p className="pd-lede">{job.customer.name} won’t be asked to pay this one. You can send a new request any time.</p>
+        <p className="pd-lede">
+          {r.status === 'SENT'
+            ? `If ${job.customer.name} already has these details, a payment may still arrive. It will show in Needs review.`
+            : `${job.customer.name} won’t be asked to pay this one. You can get new payment details any time.`}
+        </p>
         <div className="pd-actions">
           <Button variant="danger" busy={busy(a.cancel)}
             onClick={() => a.cancel.mutate(r.id, { onSuccess: () => setCancelOpen(false) })}>Cancel request</Button>
@@ -88,8 +153,8 @@ function RemindDialog({ open, onClose, onSubmit, busy }: {
   const iso = value ? lagosLocalToIso(value) : '';
   const past = !value || Date.parse(iso) <= Date.now();
   return (
-    <Dialog open={open} onClose={onClose} title="Remind me to send this">
-      <p className="pd-lede">Paidar reminds you on Telegram at this time. The payment account is only created when you send, so the countdown starts then.</p>
+    <Dialog open={open} onClose={onClose} title="Remind me to get payment details">
+      <p className="pd-lede">Paidar reminds you on Telegram at this time. The payment account is only created when you get the details, so the countdown starts then.</p>
       <TextField label="Remind me at (Lagos time)" type="datetime-local" value={value} min={nowLagosLocal(1)}
         onChange={(e) => setValue(e.target.value)} error={value && past ? 'Pick a time in the future' : undefined} />
       <div className="pd-actions">

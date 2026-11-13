@@ -45,7 +45,7 @@ export function PaidItem({ payment, job }: { payment: Payment; job: JobSummary }
         <div className="pd-actions">
           <TrustBadge kind={kind} />
           <Button variant="line" busy={a.receipt.isPending && a.receipt.variables?.paymentId === payment.id}
-            onClick={() => a.receipt.mutate({ paymentId: payment.id, customerName: job.customer.name })}>Send receipt</Button>
+            onClick={() => a.receipt.mutate({ paymentId: payment.id, customerName: job.customer.name })}>Share receipt</Button>
         </div>
       }
     />
@@ -60,7 +60,7 @@ export function BalanceRow({ job }: { job: JobSummary }) {
     <QueueRow to={`/jobs/${job.id}`} title={`${job.customer.name} · ${job.service}`} sub={due} tone={overdue ? 'bad' : 'wait'}
       right={<Money kobo={job.balanceKobo} size="md" />}
       action={<Button variant="line" busy={a.balance.isPending && a.balance.variables === job.id}
-        onClick={() => a.balance.mutate(job.id)}>Request balance</Button>} />
+        onClick={() => a.balance.mutate(job.id)}>Get balance details</Button>} />
   );
 }
 
@@ -73,10 +73,23 @@ export function ExpiredRow({ request, job }: { request: PaymentRequest; job: Job
       action={
         <div className="pd-actions">
           <Button busy={a.resend.isPending && a.resend.variables === request.id}
-            onClick={() => a.resend.mutate(request.id)}>Send again</Button>
+            onClick={() => a.resend.mutate(request.id)}>Get new details</Button>
           {MOCK && <Button variant="quiet" busy={a.simulate.isPending && a.simulate.variables === request.id}
             onClick={() => a.simulate.mutate(request.id)}>Late payment (demo)</Button>}
         </div>
+      } />
+  );
+}
+
+export function ReminderRow({ request, job }: { request: PaymentRequest; job: JobSummary }) {
+  const a = useRequestActions();
+  return (
+    <QueueRow to={`/jobs/${job.id}`} title={`${job.customer.name} · ${job.service}`} tone="wait"
+      sub={`Reminder due for ${KIND_LABEL[request.kind].toLowerCase()}`}
+      right={<Money kobo={request.amountKobo} size="md" />}
+      action={
+        <Button busy={a.send.isPending && a.send.variables === request.id}
+          onClick={() => a.send.mutate(request.id)}>Get payment details</Button>
       } />
   );
 }

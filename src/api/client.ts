@@ -25,6 +25,7 @@ interface Options<T> {
   body?: unknown;
   query?: Record<string, string | number | undefined | null>;
   schema?: ZodType<T>;
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, query?: Record<string, string | number | undefined | null>): string {
@@ -45,9 +46,14 @@ function errorFrom(res: Response, json: unknown, path: string, requestId?: strin
 /** Every call: JSON, session cookie, and the CSRF header on anything that changes data. */
 export async function api<T = unknown>(path: string, opts: Options<T> = {}): Promise<T> {
   const method = opts.method ?? 'GET';
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (method !== 'GET') headers['X-Requested-With'] = 'kobo-exact'; // required by contract §1.2
+  if (method !== 'GET') {
+    headers['X-Requested-With'] = 'kobo-exact'; // required by contract §1.2
+    if (!headers['Idempotency-Key']) {
+      headers['Idempotency-Key'] = `ik_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+  }
   const init: RequestInit = {
     method,
     headers,

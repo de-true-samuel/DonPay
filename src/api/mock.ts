@@ -109,6 +109,12 @@ export async function mockFetch(url: string, init: RequestInit): Promise<Respons
     return json(200, { url: 'https://t.me/paidar_demo_bot?start=link_demo', expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
   }
 
+  if (path.startsWith('/p/') || path.startsWith('/api/public/')) {
+    const sp = new URL(url, window.location.origin).searchParams;
+    const res = handleDomain(method, path, sp, body, db.provider ?? makeProvider('Tolu’s Glam Studio', true), db.domain);
+    if (res) { save(db); return res; }
+  }
+
   if (path.startsWith('/api/')) {
     const denied = needSession();
     if (denied) return denied;

@@ -8,6 +8,7 @@ import { CancelJobDialog, EditJobDialog, ManualPaymentDialog } from '../features
 import { JobTimeline } from '../features/jobs/JobTimeline';
 import { RequestCard } from '../features/requests/RequestCard';
 import { useRequestActions } from '../features/requests/useRequestActions';
+import { useShare } from '../features/share/ShareProvider';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
 import { formatDate } from '../lib/time';
@@ -22,6 +23,7 @@ type Dlg = 'edit' | 'manual' | 'cancel' | null;
 export function JobPage() {
   const { id = '' } = useParams();
   const a = useRequestActions();
+  const share = useShare();
   const [dlg, setDlg] = useState<Dlg>(null);
   const q = useQuery({
     queryKey: ['job', id],
@@ -60,6 +62,21 @@ export function JobPage() {
             <div className="pd-actions">
               <Button variant="line" icon="pencil" onClick={() => setDlg('edit')}>Edit</Button>
               <Button variant="line" onClick={() => setDlg('manual')}>Record a payment</Button>
+              {j.readyToStart && (
+                <Button
+                  variant="line"
+                  onClick={() => {
+                    const firstName = j.customer.name.trim().split(' ')[0];
+                    const startMsg = `Hi ${firstName}, we’ve received your payment for ${j.service}. We’re starting on your job now!`;
+                    share.open({
+                      title: `Message for ${firstName}`,
+                      message: startMsg,
+                    });
+                  }}
+                >
+                  Copy “We’re starting”
+                </Button>
+              )}
             </div>
           )}
         </header>
@@ -77,16 +94,16 @@ export function JobPage() {
       </section>
 
       <section className="pd-section" aria-labelledby="j-req">
-        <h2 id="j-req">{open ? 'Open request' : 'Next payment'}</h2>
+        <h2 id="j-req">{open ? 'Payment details' : 'Next payment'}</h2>
         {open && <RequestCard request={open} job={j} />}
         {!open && cancelled && <Banner>This job is cancelled.</Banner>}
         {!open && !cancelled && owed && (
           <>
-            <p className="pd-lede">No request is open. {formatNaira(j.balanceKobo)} is still owed.</p>
-            <div><Button busy={a.balance.isPending} onClick={() => a.balance.mutate(j.id)}>Request balance</Button></div>
+            <p className="pd-lede">No payment details are active. {formatNaira(j.balanceKobo)} is still owed.</p>
+            <div><Button busy={a.balance.isPending} onClick={() => a.balance.mutate(j.id)}>Get balance details</Button></div>
           </>
         )}
-        {!open && !cancelled && !owed && <p className="pd-lede">Fully paid. Nothing to request.</p>}
+        {!open && !cancelled && !owed && <p className="pd-lede">Fully paid. Nothing to collect.</p>}
       </section>
 
       <section className="pd-section" aria-labelledby="j-tl">

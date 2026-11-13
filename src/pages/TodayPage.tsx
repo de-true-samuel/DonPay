@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { describeError } from '../api/errors';
 import { RequestCard } from '../features/requests/RequestCard';
-import { BalanceRow, ExpiredRow, PaidItem, ReviewRow } from '../features/today/TodayRows';
+import { BalanceRow, ExpiredRow, PaidItem, ReminderRow, ReviewRow } from '../features/today/TodayRows';
 import { useToday } from '../features/today/useToday';
 import { useDocumentTitle, useNow } from '../lib/hooks';
 import { timeAgo } from '../lib/time';
@@ -23,9 +23,10 @@ function Section({ title, count, to, children }: { title: string; count: number;
   );
 }
 
-function summaryLine(c: { justPaid: number; waiting: number; balancesDue: number; expired: number; needsReview: number }): string {
+function summaryLine(c: { justPaid: number; waiting: number; balancesDue: number; expired: number; needsReview: number; remindersDue?: number }): string {
   const parts = [
     c.needsReview && `${c.needsReview} to review`,
+    c.remindersDue && `${c.remindersDue} ${c.remindersDue === 1 ? 'reminder' : 'reminders'} due`,
     c.justPaid && `${c.justPaid} paid today`,
     c.waiting && `${c.waiting} waiting`,
     c.balancesDue + c.expired && `${c.balancesDue + c.expired} to follow up`,
@@ -50,7 +51,7 @@ export function TodayPage() {
     <>
       <header className="pd-pagehead">
         <h1>Today</h1>
-        <p className="pd-sub">{t ? summaryLine(t.counts) : ' '}</p>
+        <p className="pd-sub">{t ? summaryLine(t.counts) : (q.isPending ? <Skeleton h={16} w={180} /> : ' ')}</p>
         {t && <p className="pd-live" aria-live="off">Live · updated {timeAgo(new Date(q.dataUpdatedAt).toISOString(), now)}</p>}
       </header>
 
@@ -77,13 +78,18 @@ export function TodayPage() {
           <Section title="Needs review" count={t.needsReview.length} to="/review">
             {t.needsReview.map((r) => <ReviewRow key={r.id} item={r} />)}
           </Section>
+          {t.remindersDue && t.remindersDue.length > 0 && (
+            <Section title="Reminders due" count={t.remindersDue.length}>
+              {t.remindersDue.map((x) => <ReminderRow key={x.request.id} request={x.request} job={x.job} />)}
+            </Section>
+          )}
           <Section title="Just paid" count={t.justPaid.length}>
             {t.justPaid.map((x) => <PaidItem key={x.payment.id} payment={x.payment} job={x.job} />)}
           </Section>
-          <Section title="Balances to collect" count={t.balancesDue.length}>
+          <Section title="Balances due" count={t.balancesDue.length}>
             {t.balancesDue.map((j) => <BalanceRow key={j.id} job={j} />)}
           </Section>
-          <Section title="Expired, send again" count={t.expired.length}>
+          <Section title="Expired, get new details" count={t.expired.length}>
             {t.expired.map((x) => <ExpiredRow key={x.request.id} request={x.request} job={x.job} />)}
           </Section>
           <Section title="Waiting for payment" count={t.waiting.length}>
@@ -94,12 +100,12 @@ export function TodayPage() {
 
       {empty && (
         <>
-          <EmptyState title="Your day is clear" action={<LinkButton to="/new" icon="plus">Create a payment request</LinkButton>}>
-            Send a request and it waits here with a countdown. When the bank confirms it, it moves up as paid.
+          <EmptyState title="Your day is clear" action={<LinkButton to="/new" icon="plus">Create payment details</LinkButton>}>
+            Create payment details for a job and they wait here with a countdown. When the bank confirms the payment, it moves up as paid.
           </EmptyState>
           <section className="pd-example" aria-hidden="true">
             <p className="pd-eg-label">What a waiting request will look like</p>
-            <TicketCard ghost title="Tolu · Bridal makeup" subtitle="Deposit · sent 27 minutes ago" amountKobo="2500000"
+            <TicketCard ghost title="Tolu · Bridal makeup" subtitle="Deposit · created 27 minutes ago · not copied yet" amountKobo="2500000"
               status={<StatusPill status="SENT" />} aside={<CountdownRing sentAt={sample.sentAt} expiresAt={sample.expiresAt} />} />
           </section>
         </>

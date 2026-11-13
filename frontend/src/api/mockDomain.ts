@@ -168,7 +168,7 @@ function timeline(d: DomainDb, jobs: RawJob[]): TimelineEvent[] {
     out.push({ ...base, type: 'JOB_CREATED', at: j.createdAt, requestId: null, paymentId: null, amountKobo: j.totalKobo, label: `${j.service} job created` });
     for (const r of d.requests.filter((x) => x.jobId === j.id)) {
       const k = KIND_LABEL[r.kind];
-      if (r.sentAt) out.push({ ...base, type: 'REQUEST_SENT', at: r.sentAt, requestId: r.id, paymentId: null, amountKobo: r.amountKobo, label: `${k} ${formatNaira(r.amountKobo, 'auto')} sent` });
+      if (r.sentAt) out.push({ ...base, type: 'REQUEST_SENT', at: r.sentAt, requestId: r.id, paymentId: null, amountKobo: r.amountKobo, label: `${k} ${formatNaira(r.amountKobo, 'auto')} details created` });
       if (r.status === 'EXPIRED' && r.expiresAt) out.push({ ...base, type: 'REQUEST_EXPIRED', at: r.expiresAt, requestId: r.id, paymentId: null, amountKobo: r.amountKobo, label: `${k} ${formatNaira(r.amountKobo, 'auto')} expired` });
       if (r.status === 'CANCELLED') out.push({ ...base, type: 'REQUEST_CANCELLED', at: r.sentAt ?? r.createdAt, requestId: r.id, paymentId: null, amountKobo: r.amountKobo, label: `${k} request cancelled` });
     }
@@ -480,6 +480,78 @@ export function handleDomain(
     return json(200, { outcome: 'recorded', paymentId: pay.id });
   }
 
+  /* ----- Phase 6B: Public customer endpoints ----- */
+  const reqByToken = (tok: string) => d.requests.find((r) => r.payLink.endsWith('/p/' + tok) || r.id === tok || r.payLink.includes(tok));
+
+  if ((m = /^\/api\/public\/requests\/([^/]+)$/.exec(path)) && method === 'GET') {
+    const r = reqByToken(m[1]);
+    if (!r) return fail(404, 'NOT_FOUND', 'Payment request not found.');
+    const job = jobOf(r.jobId)!;
+    const cust = d.customers.find((c) => c.id === job.customerId)!;
+    const p = d.payments.find((x) => x.requestId === r.id);
+    const s = summarize(d, job);
+    const plain = (BigInt(r.amountKobo) / 100n).toString() + '.' + (BigInt(r.amountKobo) % 100n).toString().padStart(2, '0');
+    const receipt = r.status === 'PAID' && p ? {
+      amountKobo: p.amountKobo,
+      paidAt: p.receivedAt,
+      reference: `KE-${p.id.slice(-6).toUpperCase()}`,
+      jobTotalKobo: job.totalKobo,
+      jobPaidKobo: s.paidKobo,
+      jobBalanceKobo: s.balanceKobo,
+      balanceDueAt: job.balanceDueAt,
+    } : null;
+    return json(200, {
+      status: r.status,
+      serverNow: iso(Date.now()),
+      businessPhone: null,
+      amountPlain: plain,
+      businessName: provider.businessName,
+      customerFirstName: cust.name.trim().split(' ')[0],
+      service: job.service,
+      kind: r.kind,
+      amountKobo: r.amountKobo,
+      bankName: r.bankName,
+      accountNumber: r.accountNumber,
+      accountName: r.accountName,
+      expiresAt: r.expiresAt,
+      paidAt: r.paidAt,
+      customerClaimedPaidAt: r.customerClaimedPaidAt ?? null,
+      receipt,
+    });
+  }
+
+  if ((m = /^\/p\/([^/]+)\/status$/.exec(path)) && method === 'GET') {
+    const r = reqByToken(m[1]);
+    if (!r) return fail(404, 'NOT_FOUND', 'Payment request not found.');
+    const p = d.payments.find((x) => x.requestId === r.id);
+    const job = jobOf(r.jobId);
+    const s = job ? summarize(d, job) : null;
+    let state: 'waiting' | 'paid' | 'expired' | 'cancelled' | 'not_ready' = 'waiting';
+    if (r.status === 'PAID') state = 'paid';
+    else if (r.status === 'EXPIRED') state = 'expired';
+    else if (r.status === 'CANCELLED') state = 'cancelled';
+    else if (r.status === 'DRAFT' || r.status === 'SCHEDULED') state = 'not_ready';
+    return json(200, {
+      state,
+      serverNow: iso(Date.now()),
+      expiresAt: r.expiresAt,
+      receipt: r.status === 'PAID' && p ? {
+        amountKobo: Number(p.amountKobo),
+        reference: `KE-${p.id.slice(-6).toUpperCase()}`,
+        paidAt: p.receivedAt,
+        balanceKobo: s && BigInt(s.balanceKobo) > 0n ? Number(s.balanceKobo) : undefined,
+        balanceDueDate: job?.balanceDueAt ?? undefined,
+      } : undefined,
+    });
+  }
+
+  if ((m = /^\/p\/([^/]+)\/claim-paid$/.exec(path)) && method === 'POST') {
+    const r = reqByToken(m[1]);
+    if (!r) return fail(404, 'NOT_FOUND', 'Payment request not found.');
+    r.customerClaimedPaidAt = iso(Date.now());
+    return json(202, { ok: true });
+  }
+
 
 
   /* ----- search, review, export ----- */
@@ -641,11 +713,14 @@ function today(d: DomainDb): TodayResponse {
     .filter(({ job }) => job.status !== 'CANCELLED' && BigInt(job.balanceKobo) > 0n && !job.openRequest
       && !seen.has(job.id) && !!seen.add(job.id));
   const needsReview = d.reviews.filter((r) => !r.resolvedAt);
+  const remindersDue = d.requests.filter((r) => r.status === 'SCHEDULED' && r.scheduledFor && Date.parse(r.scheduledFor) <= Date.now())
+    .sort((a, b) => Date.parse(a.scheduledFor!) - Date.parse(b.scheduledFor!))
+    .map((request) => ({ request, job: jobById(request.jobId) }));
   return {
-    generatedAt: iso(Date.now()), justPaid, waiting, balancesDue, expired, needsReview,
+    generatedAt: iso(Date.now()), justPaid, waiting, balancesDue, expired, needsReview, remindersDue,
     counts: {
       justPaid: justPaid.length, waiting: waiting.length, balancesDue: balancesDue.length,
-      expired: expired.length, needsReview: needsReview.length,
+      expired: expired.length, needsReview: needsReview.length, remindersDue: remindersDue.length,
     },
   };
 }

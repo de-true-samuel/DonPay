@@ -20,7 +20,7 @@ export function JobTimeline({ items, onReceipt, receiptBusy }: {
             {i.trust && i.paymentId && (
               <div className="pd-actions">
                 <TrustBadge kind={i.trust} />
-                <Button variant="line" busy={receiptBusy === i.paymentId} onClick={() => onReceipt(i.paymentId!)}>Send receipt</Button>
+                <Button variant="line" busy={receiptBusy === i.paymentId} onClick={() => onReceipt(i.paymentId!)}>Share receipt</Button>
               </div>
             )}
           </div>

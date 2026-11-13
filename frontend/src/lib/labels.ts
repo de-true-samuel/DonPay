@@ -4,7 +4,7 @@ export type Tone = 'quiet' | 'wait' | 'ok' | 'bad';
 
 /** Labels follow the contract's suggested wording. */
 export const REQUEST_STATUS: Record<RequestStatus, { label: string; tone: Tone }> = {
-  DRAFT: { label: 'Not sent', tone: 'quiet' },
+  DRAFT: { label: 'Details not created', tone: 'quiet' },
   SCHEDULED: { label: 'Scheduled', tone: 'quiet' },
   SENT: { label: 'Waiting', tone: 'wait' },
   PAID: { label: 'Paid', tone: 'ok' },

@@ -9,14 +9,14 @@ export function JobFollowUp({ job }: { job: JobSummary }) {
   const r = job.openRequest;
   if (r?.status === 'SENT') {
     return <Button variant="line" busy={a.shareAgain.isPending && a.shareAgain.variables?.request.id === r.id}
-      onClick={() => a.shareAgain.mutate({ request: r, job })}>Share payment details again</Button>;
+      onClick={() => a.shareAgain.mutate({ request: r, job })}>Show payment details</Button>;
   }
   if (r && (r.status === 'DRAFT' || r.status === 'SCHEDULED')) {
-    return <Button busy={a.send.isPending && a.send.variables === r.id} onClick={() => a.send.mutate(r.id)}>Send now</Button>;
+    return <Button busy={a.send.isPending && a.send.variables === r.id} onClick={() => a.send.mutate(r.id)}>Get payment details</Button>;
   }
   if (!r && BigInt(job.balanceKobo) > 0n) {
     return <Button variant="line" busy={a.balance.isPending && a.balance.variables === job.id} onClick={() => a.balance.mutate(job.id)}>
-      {BigInt(job.paidKobo) === 0n ? 'Request payment' : 'Request balance'}</Button>;
+      {BigInt(job.paidKobo) === 0n ? 'Get payment details' : 'Get balance details'}</Button>;
   }
   return null;
 }

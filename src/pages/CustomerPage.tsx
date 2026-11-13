@@ -32,6 +32,10 @@ export function CustomerPage() {
   const { customer: c, jobs, timeline } = q.data;
   const owes = BigInt(c.outstandingKobo) > 0n;
   const owing = jobs.filter((j) => j.status !== 'CANCELLED' && BigInt(j.balanceKobo) > 0n).length;
+  const lastJob = jobs.find((j) => j.status !== 'CANCELLED') ?? jobs[0];
+  const repeatUrl = lastJob
+    ? `/new?customerId=${c.id}&service=${encodeURIComponent(lastJob.service)}&plan=${lastJob.plan}&total=${lastJob.totalKobo}${lastJob.depositKobo ? `&deposit=${lastJob.depositKobo}` : ''}`
+    : null;
 
   return (
     <div className="pd-stack">
@@ -40,9 +44,9 @@ export function CustomerPage() {
         <header className="pd-jobhead">
           <h1>{c.name}</h1>
           <p className="pd-sub">{formatPhone(c.phone)}</p>
-          <p className="pd-hint">{c.messageConsent ? 'OK to message' : 'Not marked OK to message yet'}</p>
           <div className="pd-actions">
             <LinkButton to={`/new?customerId=${c.id}`} icon="plus">New request</LinkButton>
+            {repeatUrl && <LinkButton to={repeatUrl} variant="line">Repeat last job</LinkButton>}
             <Button variant="line" icon="pencil" onClick={() => setEditing(true)}>Edit</Button>
           </div>
         </header>
@@ -57,7 +61,7 @@ export function CustomerPage() {
       <section className="pd-section" aria-labelledby="c-jobs">
         <h2 id="c-jobs">Jobs</h2>
         {jobs.length ? <ul className="pd-list">{jobs.map((j) => <li key={j.id}><JobRow job={j} /></li>)}</ul>
-          : <p className="pd-lede">No jobs yet. Create a request to start one.</p>}
+          : <p className="pd-lede">No jobs yet. Create payment details to start one.</p>}
       </section>
 
       {timeline.length > 0 && (
@@ -80,7 +84,6 @@ export function CustomerPage() {
           </ol>
         </section>
       )}
-      <p className="pd-hint">Customer since {formatDateTime(c.createdAt)}. Total owed is {formatNaira(c.outstandingKobo)}.</p>
 
       <EditCustomerDialog customer={c} open={editing} onClose={() => setEditing(false)} />
     </div>

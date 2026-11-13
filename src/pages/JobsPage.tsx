@@ -34,7 +34,7 @@ export function JobsPage() {
 
       {q.data && items.length === 0 && (
         <EmptyState title={filter === 'ALL' ? 'No jobs yet' : 'Nothing here'}
-          action={filter === 'ALL' ? <LinkButton to="/new" icon="plus">Start with a request</LinkButton> : <Button variant="line" onClick={() => setFilter('ALL')}>Show all jobs</Button>}>
+          action={filter === 'ALL' ? <LinkButton to="/new" icon="plus">Start with payment details</LinkButton> : <Button variant="line" onClick={() => setFilter('ALL')}>Show all jobs</Button>}>
           {filter === 'ALL' ? 'A job holds one customer’s agreement: the service, the total, and any deposit and balance.' : 'No jobs match this filter.'}
         </EmptyState>
       )}

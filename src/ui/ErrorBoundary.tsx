@@ -11,7 +11,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
     return (
       <div className="pd-crash" role="alert">
         <h1>Something broke on this screen</h1>
-        <p>Your payments are safe. Nothing you did here was lost on the server. Reloading usually fixes it.</p>
+        <p>Anything you’ve already saved is still there. Reload to continue.</p>
         <div className="pd-actions">
           <button className="pd-btn pd-btn--primary" onClick={() => window.location.reload()}><span>Reload</span></button>
           <a className="pd-btn pd-btn--line" href="/today"><span>Go to Today</span></a>

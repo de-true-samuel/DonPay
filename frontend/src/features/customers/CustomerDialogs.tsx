@@ -10,7 +10,7 @@ import { inspectCsv } from '../../lib/csv';
 import { isValidNgPhone } from '../../lib/quickEntry';
 import { formatPhone } from '../../lib/phone';
 import { Dialog } from '../../ui/Dialog';
-import { Banner, Button, Switch, TextField } from '../../ui/primitives';
+import { Banner, Button, TextField } from '../../ui/primitives';
 import { useToast } from '../../ui/Toast';
 
 function useRefreshCustomers() {
@@ -36,13 +36,12 @@ function CustomerForm({ customer, onDone }: { customer?: Customer; onDone: () =>
   const refresh = useRefreshCustomers();
   const [name, setName] = useState(customer?.name ?? '');
   const [phone, setPhone] = useState(customer ? formatPhone(customer.phone) : '');
-  const [consent, setConsent] = useState(customer?.messageConsent ?? false);
   const [tried, setTried] = useState(false);
 
   const save = useMutation({
     mutationFn: () => customer
-      ? customersApi.update(customer.id, { name: name.trim(), phone: phone.trim(), messageConsent: consent })
-      : customersApi.create({ name: name.trim(), phone: phone.trim(), messageConsent: consent }),
+      ? customersApi.update(customer.id, { name: name.trim(), phone: phone.trim() })
+      : customersApi.create({ name: name.trim(), phone: phone.trim() }),
     onSuccess: (c) => {
       void refresh();
       toast.success(customer ? 'Customer updated.' : 'Customer saved.');
@@ -65,13 +64,6 @@ function CustomerForm({ customer, onDone }: { customer?: Customer; onDone: () =>
       <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} error={nameErr} autoFocus autoComplete="off" />
       <TextField label="Phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneErr}
         hint="Any Nigerian format works." autoComplete="off" />
-      <div className="pd-row">
-        <div>
-          <p className="pd-row__title">OK to message</p>
-          <p className="pd-hint">They’ve agreed to get payment details and receipts by message.</p>
-        </div>
-        <Switch checked={consent} onChange={setConsent} label="OK to message this customer" />
-      </div>
       {save.isError && (dup
         ? <Banner tone="warn" action={<Button type="button" variant="line" onClick={() => { onDone(); nav(`/people/${dup}`); }}>View</Button>}>{err.message}</Banner>
         : !err.fieldErrors && <Banner tone="bad">{err.message}</Banner>)}
@@ -83,7 +75,7 @@ function CustomerForm({ customer, onDone }: { customer?: Customer; onDone: () =>
   );
 }
 
-const SAMPLE = 'name,phone,consent\nTolu Adeyemi,0803 123 4567,yes\nAda Okafor,08099998888,no';
+const SAMPLE = 'name,phone\nTolu Adeyemi,0803 123 4567\nAda Okafor,08099998888';
 
 export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return <Dialog open={open} onClose={onClose} title="Import customers"><ImportForm onDone={onClose} /></Dialog>;
@@ -137,7 +129,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
 
   return (
     <form className="pd-stack" noValidate onSubmit={(e) => { e.preventDefault(); if (check?.ok) run.mutate(); }}>
-      <p className="pd-lede">Paste your list or choose a CSV file. The first line must be a header: <code>name,phone</code>, and optionally <code>consent</code> (yes or no).</p>
+      <p className="pd-lede">Paste your list or choose a CSV file. The first line must be a header: <code>name,phone</code>.</p>
       <div className="pd-field">
         <label className="pd-label" htmlFor="pd-csv">Your list</label>
         <textarea id="pd-csv" className="pd-input pd-input--area pd-input--mono" rows={6} value={csv} spellCheck={false}

@@ -25,6 +25,7 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPag
 const NewRequestPage = lazyPage(() => import('./pages/NewRequestPage'), 'NewRequestPage');
 const KitPage = lazyPage(() => import('./pages/KitPage'), 'KitPage');
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'), 'NotFoundPage');
+const PublicPayPage = lazyPage(() => import('./pages/PublicPayPage'), 'PublicPayPage');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,7 @@ export default function App() {
           <AuthProvider>
             <Suspense fallback={null}>
               <Routes>
+                <Route path="/p/:token" element={<PublicPayPage />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route element={<RequireAuth />}>
                   <Route path="/onboarding" element={<OnboardingPage />} />
@@ -67,7 +69,7 @@ export default function App() {
                       <Route path="/review" element={<ReviewPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
                       <Route path="/new" element={<NewRequestPage />} />
-                      <Route path="/kit" element={<KitPage />} />
+                      {import.meta.env.DEV && <Route path="/kit" element={<KitPage />} />}
                       <Route path="*" element={<NotFoundPage />} />
                     </Route>
                   </Route>

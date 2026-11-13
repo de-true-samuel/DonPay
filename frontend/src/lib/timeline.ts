@@ -18,7 +18,7 @@ export function buildJobTimeline(j: JobDetail): TimelineItem[] {
   const out: TimelineItem[] = [{ id: 'job', at: j.createdAt, kind: 'job', label: 'Job created' }];
   for (const r of j.requests) {
     const k = KIND_LABEL[r.kind];
-    if (r.sentAt) out.push({ id: `sent-${r.id}`, at: r.sentAt, kind: 'sent', label: `${k} request sent`, amountKobo: r.amountKobo });
+    if (r.sentAt) out.push({ id: `sent-${r.id}`, at: r.sentAt, kind: 'sent', label: `${k} details created`, amountKobo: r.amountKobo });
     else if (r.status === 'SCHEDULED' && r.scheduledFor) out.push({ id: `rem-${r.id}`, at: r.scheduledFor, kind: 'reminder', label: `Reminder set for ${k.toLowerCase()}`, amountKobo: r.amountKobo });
     if (r.status === 'EXPIRED' && r.expiresAt) out.push({ id: `exp-${r.id}`, at: r.expiresAt, kind: 'expired', label: `${k} request expired`, amountKobo: r.amountKobo });
     if (r.status === 'CANCELLED') out.push({ id: `can-${r.id}`, at: r.sentAt ?? r.createdAt, kind: 'cancelled', label: `${k} request cancelled`, amountKobo: r.amountKobo });
