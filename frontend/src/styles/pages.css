@@ -6,7 +6,7 @@
   height: calc(var(--header-h) + var(--safe-t)); padding-top: var(--safe-t);
   padding-inline: max(20px, calc((100vw - var(--content-w)) / 2 + 20px));
   display: flex; align-items: center; justify-content: space-between;
-  background: transparent;
+  background: linear-gradient(180deg, var(--ground) 84%, transparent);
   transition: transform var(--ease-small), opacity var(--ease-small);
 }
 .pd-header.is-hidden {

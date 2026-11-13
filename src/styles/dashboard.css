@@ -113,23 +113,31 @@
 .pd-hero-ticket {
   position: relative;
   background: var(--paper);
+  color: var(--paper-ink) !important;
   border-radius: var(--r-ticket);
   border: 1px solid rgba(20, 24, 63, 0.08);
   box-shadow: 0 24px 32px -8px rgba(16, 21, 77, 0.5);
   overflow: visible;
+}
+.pd-hero-ticket h3,
+.pd-hero-ticket strong,
+.pd-hero-ticket a,
+.pd-hero-ticket .pd-plainlink {
+  color: var(--paper-ink) !important;
 }
 .pd-hero-dial-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16px 20px 20px;
+  padding: 24px 20px 22px;
   text-align: center;
 }
 .pd-hero-dial-sub {
-  font-size: 13px;
-  color: var(--paper-muted);
-  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--paper-muted) !important;
+  margin-top: 12px;
+  font-weight: 500;
 }
 .pd-hero-cta {
   padding: 0 20px 20px;

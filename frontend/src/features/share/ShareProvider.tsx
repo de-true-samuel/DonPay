@@ -145,13 +145,11 @@ export function ShareProvider({ children }: { children: ReactNode }) {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  padding: '8px 0',
+                  padding: '8px 0 12px',
                 }}
               >
-                <div className="pd-ring pd-ring--hero" style={{ width: 100, height: 100 }}>
-                  <CountdownRing sentAt={r.sentAt} expiresAt={r.expiresAt} />
-                </div>
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
+                <CountdownRing sentAt={r.sentAt} expiresAt={r.expiresAt} size="hero" />
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
                   The 60-minute clock started at {formatTime(r.sentAt)}.
                 </p>
               </div>

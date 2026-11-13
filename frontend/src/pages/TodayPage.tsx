@@ -219,12 +219,11 @@ export function TodayPage() {
                 {/* Big Countdown Dial */}
                 <div className="pd-hero-dial-wrap">
                   {heroItem.request.sentAt && heroItem.request.expiresAt && (
-                    <div className="pd-ring pd-ring--hero">
-                      <CountdownRing
-                        sentAt={heroItem.request.sentAt}
-                        expiresAt={heroItem.request.expiresAt}
-                      />
-                    </div>
+                    <CountdownRing
+                      sentAt={heroItem.request.sentAt}
+                      expiresAt={heroItem.request.expiresAt}
+                      size="hero"
+                    />
                   )}
                   <p className="pd-hero-dial-sub">left on this dynamic account</p>
                 </div>
@@ -238,10 +237,18 @@ export function TodayPage() {
                 {/* Stub: Amount + Bank + CTA */}
                 <div className="pd-ticket__bottom">
                   <div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32 }}>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-display)',
+                        fontWeight: 800,
+                        fontSize: 32,
+                        color: 'var(--paper-ink)',
+                        letterSpacing: '-0.02em',
+                      }}
+                    >
                       {formatNaira(heroItem.request.amountKobo)}
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
+                    <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--paper-muted)', fontWeight: 500 }}>
                       {heroItem.request.bankName ?? 'Wema Bank'} ·{' '}
                       {heroItem.request.accountNumber ?? 'Account allocated'}
                     </p>

@@ -344,24 +344,85 @@
 .pd-status--bad { background: var(--tag-urgent-bg); color: var(--tag-urgent-ink); }
 
 /* ---------- countdown ring (Spec Section 4.2) ---------- */
-.pd-ring { position: relative; width: 56px; height: 56px; flex: none; }
+.pd-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.pd-ring--sm {
+  width: 48px;
+  height: 48px;
+}
+.pd-ring--sm .pd-ring__time {
+  font-size: 11px;
+  font-weight: 700;
+}
+.pd-ring--md {
+  width: 84px;
+  height: 84px;
+}
+.pd-ring--md .pd-ring__time {
+  font-size: 18px;
+  font-weight: 800;
+}
+/* Hero Ring for dial (Today Hero Ticket & Share Panel) */
+.pd-ring--hero {
+  width: 154px;
+  height: 154px;
+  margin: 0 auto;
+}
+.pd-ring--hero .pd-ring__time {
+  font-size: 30px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--paper-ink) !important;
+}
+
+.pd-ring__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 .pd-ring--ok { color: var(--calm); }
 .pd-ring--wait { color: var(--warn); }
 .pd-ring--bad { color: var(--urgent); }
-.pd-ring__track { fill: none; stroke: var(--off-tick); stroke-width: 4; }
-.pd-ring__bar { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
-.pd-ring__sweep { transform-origin: 28px 28px; animation: pd-spin 4s linear infinite; }
-.pd-ring__sweep line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: 0.5; }
+.pd-ring__track {
+  fill: none;
+  stroke: rgba(20, 24, 63, 0.1);
+  stroke-width: 3.5;
+}
+.pd-ring__bar {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+.pd-ring__sweep {
+  transform-origin: 28px 28px;
+  animation: pd-spin 4s linear infinite;
+}
+.pd-ring__sweep line {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
 .pd-ring__time {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 11px; font-weight: 700; color: var(--paper-ink);
-  font-family: var(--font-display); font-variant-numeric: tabular-nums;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--paper-ink) !important;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 @keyframes pd-spin { to { transform: rotate(360deg); } }
-
-/* Hero Ring for dial (approx 120-220px) */
-.pd-ring--hero { width: 140px; height: 140px; margin: 0 auto; }
-.pd-ring--hero .pd-ring__time { font-size: 24px; font-weight: 800; }
 
 /* ---------- TICKET COMPONENT (Spec Section 4.1 & 2.3) ---------- */
 .pd-ticket {
