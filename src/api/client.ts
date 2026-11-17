@@ -1,6 +1,7 @@
 import type { ZodType } from 'zod';
-import { API_URL, MOCK } from '../config';
+import { API_URL, MOCK, MOCK_FALLBACK } from '../config';
 import type { ErrorCode } from '../contract/contract';
+import { authHeader } from './authHooks';
 import { mockFetch } from './mock';
 
 export const UNAUTH_EVENT = 'paidar:unauthenticated';
@@ -54,6 +55,7 @@ export async function api<T = unknown>(path: string, opts: Options<T> = {}): Pro
       headers['Idempotency-Key'] = `ik_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     }
   }
+  if (!MOCK) Object.assign(headers, await authHeader()); // Clerk session, when Clerk sign-in is on
   const init: RequestInit = {
     method,
     headers,
@@ -71,13 +73,13 @@ export async function api<T = unknown>(path: string, opts: Options<T> = {}): Pro
       // Auto-fallback: if calling a relative /api route on a static host returns 405 (Method Not Allowed),
       // 404 (Not Found), or returns HTML (SPA rewrite fallback on missing backend), seamlessly use mockFetch.
       const contentType = res.headers.get('content-type') ?? '';
-      if (!API_URL && (res.status === 405 || res.status === 404 || (res.status === 200 && contentType.includes('text/html')))) {
+      if (MOCK_FALLBACK && !contentType.includes('application/json') && (res.status === 405 || res.status === 404 || (res.status === 200 && contentType.includes('text/html')))) {
         console.info(`[api] No live backend responding at ${path} (status ${res.status}). Using local in-browser mock engine.`);
         res = await mockFetch(url, init);
       }
     }
   } catch {
-    if (!API_URL) {
+    if (MOCK_FALLBACK) {
       try {
         res = await mockFetch(url, init);
       } catch {
@@ -112,7 +114,9 @@ export async function api<T = unknown>(path: string, opts: Options<T> = {}): Pro
 export async function apiDownload(
   path: string, query?: Record<string, string | undefined | null>,
 ): Promise<{ blob: Blob; filename: string }> {
-  const init: RequestInit = { method: 'GET', credentials: 'include', headers: { Accept: 'text/csv' } };
+  const init: RequestInit = {
+    method: 'GET', credentials: 'include', headers: { Accept: 'text/csv', ...(MOCK ? {} : await authHeader()) },
+  };
   const url = buildUrl(path, query);
   let res: Response;
   try {
@@ -120,16 +124,13 @@ export async function apiDownload(
       res = await mockFetch(url, init);
     } else {
       res = await fetch(url, init);
-      // Auto-fallback: if calling a relative /api route on a static host returns 405 (Method Not Allowed),
-      // 404 (Not Found), or returns HTML (SPA rewrite fallback on missing backend), seamlessly use mockFetch.
       const contentType = res.headers.get('content-type') ?? '';
-      if (!API_URL && (res.status === 405 || res.status === 404 || (res.status === 200 && contentType.includes('text/html')))) {
-        console.info(`[api] No live backend responding at ${path} (status ${res.status}). Using local in-browser mock engine.`);
+      if (MOCK_FALLBACK && !contentType.includes('application/json') && (res.status === 405 || res.status === 404 || (res.status === 200 && contentType.includes('text/html')))) {
         res = await mockFetch(url, init);
       }
     }
   } catch {
-    if (!API_URL) {
+    if (MOCK_FALLBACK) {
       try {
         res = await mockFetch(url, init);
       } catch {

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { authHooks } from '../api/authHooks';
 import { ApiRequestError, UNAUTH_EVENT } from '../api/client';
 import { authApi, meApi } from '../api/endpoints';
 import type { Provider } from '../contract/contract';
@@ -43,11 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(UNAUTH_EVENT, onUnauth);
   }, [qc]);
 
+  /**
+   * Ends every session (ours and Clerk's), then always lands on the sign-in page with a full page load,
+   * so nothing from the old account stays in memory. Every Sign out button calls this.
+   */
   const signOut = useCallback(async () => {
     try { await authApi.logout(); } catch { /* signing out locally either way */ }
+    try { await authHooks()?.signOut(); } catch { /* Clerk sign-out; ignore if offline */ }
     qc.clear();
     setExpired(false);
     qc.setQueryData(ME_KEY, null);
+    window.location.replace('/auth');
   }, [qc]);
   const clearExpired = useCallback(() => setExpired(false), []);
 

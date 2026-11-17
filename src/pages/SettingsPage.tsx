@@ -18,6 +18,7 @@ import { Banner, Button, ChoiceCards, Segmented, Switch, TextField } from '../ui
 export function SettingsPage() {
   useDocumentTitle('Settings');
   const { provider, signOut } = useAuth();
+  const [leaving, setLeaving] = useState(false);
   const theme = useTheme();
   const install = useInstall();
   const qc = useQueryClient();
@@ -502,8 +503,16 @@ export function SettingsPage() {
         >
           Account
         </h2>
-        <Button variant="danger" onClick={() => void signOut()}>
-          Sign out
+        <Button
+          variant="danger"
+          icon="signout"
+          busy={leaving}
+          onClick={() => {
+            setLeaving(true);
+            void signOut(); // redirects to the sign-in page
+          }}
+        >
+          {leaving ? 'Signing out…' : 'Sign out'}
         </Button>
         <div style={{ marginTop: 14, display: 'grid', gap: 6 }}>
           <p style={{ margin: 0, fontSize: 13 }}>

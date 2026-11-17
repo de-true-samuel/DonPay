@@ -18,6 +18,16 @@ export const MOCK: boolean = storageMock !== null
       ? env.VITE_MOCK === 'true'
       : (!API_URL && !env.VITE_DEV_PROXY));
 
+/**
+ * Static-preview fallback: when NO backend is configured (no VITE_API_URL, no VITE_DEV_PROXY, VITE_MOCK not 'false'),
+ * an /api call that hits the static host (404/405/HTML) is answered by the in-browser mock instead.
+ * Never active when a real backend is configured, so a real error is never silently replaced by demo data.
+ */
+export const MOCK_FALLBACK: boolean = !API_URL && !env.VITE_DEV_PROXY && env.VITE_MOCK !== 'false';
+
+/** Clerk website sign-in: on when a publishable key is set (never in mock mode). */
+export const CLERK_KEY: string = MOCK ? '' : String(env.VITE_CLERK_PUBLISHABLE_KEY ?? '').trim();
+
 export const DEV_LOGIN: boolean = MOCK || env.VITE_DEV_LOGIN === 'true';
 export const BOT_URL: string = String(env.VITE_TELEGRAM_BOT_URL ?? '');
 export const SIMULATE: boolean = MOCK || env.VITE_SIMULATE_PAYMENTS === 'true';

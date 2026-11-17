@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { SignIn } from '@clerk/react';
+import { CLERK_KEY } from '../config';
 import { ApiRequestError } from '../api/client';
 import { describeError } from '../api/errors';
 import { authApi } from '../api/endpoints';
@@ -223,8 +225,15 @@ export function AuthPage() {
         </div>
       )}
 
-      {/* Normal Idle State: Elegant Workspace Ticket */}
-      {phase === 'idle' && (
+      {/* Clerk website sign-in (when configured): email/social sign-in and sign-up in one card */}
+      {phase === 'idle' && CLERK_KEY && (
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <SignIn routing="hash" withSignUp fallbackRedirectUrl="/auth" signUpFallbackRedirectUrl="/auth" />
+        </div>
+      )}
+
+      {/* Normal Idle State: Elegant Workspace Ticket (dev sign-in when Clerk is off) */}
+      {phase === 'idle' && !CLERK_KEY && (
         <div style={{ width: 'min(420px, 100%)' }}>
           <article
             style={{

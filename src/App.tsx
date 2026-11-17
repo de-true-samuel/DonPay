@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiRequestError } from './api/client';
 import { AuthProvider } from './auth/AuthProvider';
+import { ClerkGate } from './auth/ClerkGate';
 import { RequireAuth, RequireOnboarded } from './auth/guards';
 import { AppShell } from './shell/AppShell';
 import { MasterDetail } from './shell/MasterDetail';
@@ -48,6 +49,7 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
+          <ClerkGate>
           <AuthProvider>
             <Suspense fallback={null}>
               <Routes>
@@ -77,6 +79,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </AuthProvider>
+          </ClerkGate>
         </BrowserRouter>
       </QueryClientProvider>
     </ErrorBoundary>
