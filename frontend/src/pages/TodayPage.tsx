@@ -322,9 +322,9 @@ export function TodayPage() {
           )}
 
           {/* Reminders due */}
-          {t.remindersDue && t.remindersDue.length > 0 && (
-            <Section title="Reminders due" count={t.remindersDue.length}>
-              {t.remindersDue.map((x) => (
+          {t.dueReminders && t.dueReminders.length > 0 && (
+            <Section title="Reminders due" count={t.dueReminders.length}>
+              {t.dueReminders.map((x) => (
                 <ReminderRow key={x.request.id} request={x.request} job={x.job} />
               ))}
             </Section>

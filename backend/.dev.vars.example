@@ -4,3 +4,7 @@ KORA_SECRET_KEY=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=change-me-random-string
 ADMIN_SECRET=change-me-admin
+# Clerk website sign-in (optional; leave both empty to keep Telegram/dev sign-in only).
+# Clerk Dashboard → API keys. The publishable key also goes in frontend/.env.local as VITE_CLERK_PUBLISHABLE_KEY.
+CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=

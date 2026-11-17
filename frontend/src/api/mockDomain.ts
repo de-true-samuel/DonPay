@@ -842,14 +842,14 @@ function today(d: DomainDb): TodayResponse {
     .filter(({ job }) => job.status !== 'CANCELLED' && BigInt(job.balanceKobo) > 0n && !job.openRequest
       && !seen.has(job.id) && !!seen.add(job.id));
   const needsReview = d.reviews.filter((r) => !r.resolvedAt);
-  const remindersDue = d.requests.filter((r) => r.status === 'SCHEDULED' && r.scheduledFor && Date.parse(r.scheduledFor) <= Date.now())
+  const dueReminders = d.requests.filter((r) => r.status === 'SCHEDULED' && r.scheduledFor && Date.parse(r.scheduledFor) <= Date.now())
     .sort((a, b) => Date.parse(a.scheduledFor!) - Date.parse(b.scheduledFor!))
     .map((request) => ({ request, job: jobById(request.jobId) }));
   return {
-    generatedAt: iso(Date.now()), justPaid, waiting, balancesDue, expired, needsReview, remindersDue,
+    generatedAt: iso(Date.now()), justPaid, waiting, balancesDue, expired, needsReview, dueReminders,
     counts: {
       justPaid: justPaid.length, waiting: waiting.length, balancesDue: balancesDue.length,
-      expired: expired.length, needsReview: needsReview.length, remindersDue: remindersDue.length,
+      expired: expired.length, needsReview: needsReview.length, dueReminders: dueReminders.length,
     },
   };
 }

@@ -1,6 +1,6 @@
 # Paidar: Backend ↔ Frontend Contract
 
-**Contract version: 1.1.0** · Backend: `backend/` · Source of truth for types: `backend/src/shared/contract.ts` · Every response carries the header `x-contract-version: 1.1.0`.
+**Contract version: 1.1.1** · Backend: `backend/` · Source of truth for types: `backend/src/shared/contract.ts` · Every response carries the header `x-contract-version: 1.1.1`.
 
 Paidar was called Kobo-Exact. Two identifiers keep the old name and **must not be renamed** without a coordinated backend + frontend change: the header `X-Requested-With: kobo-exact` and the session cookie `ke_session`.
 
@@ -194,7 +194,7 @@ interface JobSummary {
   readyToStart: boolean;            // uses verifiedPaidKobo only; show "Ready to start ✔"
   hasUnverifiedPayments: boolean;   // true → show "includes payments not verified by Kora"
 
-  openRequest: PaymentRequest | null;   // the single SCHEDULED/SENT request, if any
+  openRequest: PaymentRequest | null;   // the job's single unfinished request (DRAFT, SCHEDULED or SENT), if any
   createdAt: string;
   cancelledAt: string | null;
 }
@@ -647,5 +647,6 @@ Read-only support view (BE-18). `:reference` is the Kora reference (`KE-<id>-1`)
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.1.1 | 2026-11-17 | **Fixed:** `JobSummary.openRequest` now includes an unsent `DRAFT` request (it was only `SCHEDULED`/`SENT`). A new job's draft was invisible, so the frontend couldn't get payment details for it, and asking for a balance instead was refused with `OPEN_REQUEST_EXISTS`. |
 | 1.1.0 | 2026-11-12 | Paidar. **Changed:** `PreparedMessage.text` uses the short template; `GET /p/:token/status` returns the new `PublicStatus` (the old shape stays at `GET /api/public/requests/:token`); `/p/:token` page rebuilt (no-store, noindex, CSP). **New:** `PreparedMessage.details` and `.language`; `TodayResponse.dueReminders` + `counts.dueReminders`; `PaymentRequest.detailsCopiedAt`, `.customerClaimedPaidAt`; `POST /api/requests/:id/copied`, `/recheck`, `GET /api/requests/:id/nudge-message`, `GET /api/jobs/:id/start-message`; `POST /p/:token/claim-paid`; `Idempotency-Key` header; `Provider.phone`, `.onboardedAt` (settable via `PATCH /api/me`); `Customer.messageLanguage`; `GET /api/me/export`, `POST /api/me/delete`, `POST /api/auth/logout-all`; `GET /api/admin/support/requests/:reference`; richer admin health; error codes `REQUEST_NOT_WAITING`, `REQUEST_EXPIRED`, `JOB_NOT_READY`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_IN_PROGRESS`; `x-contract-version` header. **Deprecated:** `Customer.messageConsent` (accepted, ignored, always false; CSV `consent` column ignored). |
 | 1.0.0 | 2026-11-05 | Initial contract, as implemented in `backend/`: added `POST /api/me/telegram-link`, `POST /api/dev/simulate-payment/:requestId`, `unattributedReviewItems` in admin health; `OPEN_REQUEST_EXISTS` also covers unsent drafts for balance requests |

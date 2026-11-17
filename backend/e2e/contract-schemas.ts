@@ -241,7 +241,7 @@ export const ClaimResult = z.strictObject({ ok: z.literal(true) });
 
 export const AccountExport = z.strictObject({
   exportedAt: iso,
-  contractVersion: z.literal('1.1.0'),
+  contractVersion: z.literal('1.1.1'),
   provider: Provider,
   customers: z.array(Customer),
   jobs: z.array(JobDetail),

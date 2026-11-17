@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig, type Env } from '../../src/config';
 import { runSweep } from '../../src/services/background';
 import { createDepositJob, json, retryableKoraError, setupHarness, signedWebhook } from '../helpers';
+import { CONTRACT_VERSION } from '../../src/shared/contract';
 
 const h = setupHarness();
 const MIN = 60_000;
@@ -339,7 +340,7 @@ describe('provider account (BE-10, BE-11, BE-16)', () => {
     const { job } = await sentJob(token);
 
     const exp = await json(await h.api('GET', '/api/me/export', { token }));
-    expect(exp).toMatchObject({ contractVersion: '1.1.0', customers: [{ name: 'Tolu Adeyemi' }] });
+    expect(exp).toMatchObject({ contractVersion: CONTRACT_VERSION, customers: [{ name: 'Tolu Adeyemi' }] });
     expect(exp.jobs[0].id).toBe(job.id);
     expect(exp.jobs[0].requests).toHaveLength(1);
 

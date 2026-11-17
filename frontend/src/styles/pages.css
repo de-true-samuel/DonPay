@@ -30,6 +30,67 @@
   transition: transform var(--ease-micro);
 }
 .pd-avatar:hover { transform: scale(1.05); }
+button.pd-avatar { border: 0; padding: 0; cursor: pointer; }
+.pd-avatar:focus-visible { outline: 3px solid var(--cta); outline-offset: 3px; }
+.pd-avatar.is-open { box-shadow: 0 0 0 3px var(--cta), 0 4px 12px rgba(16, 21, 77, 0.25); }
+
+/* ---------- Account menu (avatar → paper card) ---------- */
+.pd-acct { position: relative; }
+.pd-acct__menu {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 60;
+  width: min(260px, calc(100vw - 32px));
+  background: var(--paper); color: var(--paper-ink);
+  border-radius: var(--r-slip);
+  box-shadow: 0 18px 36px rgba(16, 21, 77, 0.4);
+  padding: 8px;
+  transform-origin: top right;
+  animation: pd-acct-in var(--ease-small) both;
+}
+@keyframes pd-acct-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+.pd-acct__who { display: flex; align-items: center; gap: 10px; padding: 10px 10px 12px; }
+.pd-acct__badge {
+  width: 34px; height: 34px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ground); color: var(--paper);
+  font-family: var(--font-display); font-weight: 800; font-size: 14px;
+}
+.pd-acct__name { display: grid; gap: 2px; min-width: 0; }
+.pd-acct__name strong {
+  font-family: var(--font-display); font-weight: 800; font-size: 14px; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pd-acct__name span { font-size: 12px; color: var(--paper-muted); }
+.pd-acct__cut { border-top: 2px dashed var(--off-tick); margin: 0 6px 6px; }
+.pd-acct__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  min-height: 44px; padding: 0 12px; box-sizing: border-box;
+  border: 0; border-radius: var(--r-chip); background: transparent;
+  font-family: var(--font-ui); font-size: 15px; font-weight: 600;
+  color: var(--paper-ink); text-decoration: none; cursor: pointer;
+  transition: background var(--ease-micro);
+}
+.pd-acct__item:hover, .pd-acct__item:focus-visible { background: rgba(20, 24, 63, 0.06); outline: none; }
+.pd-acct__item:focus-visible { box-shadow: inset 0 0 0 2px var(--ground); }
+.pd-acct__item--out { color: var(--urgent); }
+.pd-acct__item--out:hover, .pd-acct__item--out:focus-visible { background: var(--tag-urgent-bg); }
+.pd-acct__item:disabled { opacity: .6; cursor: progress; }
+@media (prefers-reduced-motion: reduce) { .pd-acct__menu { animation: none; } }
+
+/* Onboarding: quiet sign-out under the setup card */
+.pd-onb-out {
+  margin: 20px 0 0; text-align: center;
+  font-size: 14px; color: var(--muted-on-ground);
+}
+.pd-onb-out button {
+  display: inline-flex; align-items: center; gap: 6px; vertical-align: middle;
+  min-height: 44px; padding: 0 10px; border: 0; border-radius: var(--r-chip);
+  background: transparent; color: var(--ink-on-ground);
+  font: 700 14px var(--font-ui); text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; transition: background var(--ease-micro);
+}
+.pd-onb-out button:hover { background: rgba(255, 255, 255, 0.08); }
+.pd-onb-out button:focus-visible { outline: 3px solid var(--cta); outline-offset: 2px; }
+.pd-onb-out button:disabled { opacity: .6; cursor: progress; }
 
 .pd-main {
   width: 100%; max-width: var(--content-w); margin: 0 auto;
@@ -151,9 +212,18 @@
     transform: translateY(2px);
     box-shadow: 0 1px 0 var(--cta-edge);
   }
+  /* Dock is at top-centre on desktop; the header keeps only brand (left) and account menu (right),
+     level with the dock, and never auto-hides. It lets clicks through to the dock in between. */
   .pd-header {
-    display: none; /* Dock is at top-centre on desktop */
+    position: fixed; left: 0; right: 0; top: 0;
+    height: 92px; padding-top: 0;
+    padding-inline: 32px;
+    background: none;
+    pointer-events: none;
   }
+  .pd-header.is-hidden { transform: none; opacity: 1; }
+  .pd-header > * { pointer-events: auto; }
+  .pd-header .pd-avatar { width: 44px; height: 44px; font-size: 17px; }
   .pd-main {
     padding-top: 96px;
     padding-bottom: 60px;

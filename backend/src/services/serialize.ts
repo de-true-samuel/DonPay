@@ -12,7 +12,9 @@ const isoOrNull = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 export const jobInclude = {
   customer: { select: { id: true, name: true, phoneE164: true } },
   payments: { select: { amountKobo: true, source: true } },
-  requests: { where: { status: { in: ['SCHEDULED', 'SENT'] } }, orderBy: { createdAt: 'desc' }, take: 1 },
+  // openRequest: the job's one unfinished request, including an unsent DRAFT (the frontend's
+  // "Get payment details" acts on it; a draft also blocks a second request, see requests.ts).
+  requests: { where: { status: { in: ['DRAFT', 'SCHEDULED', 'SENT'] } }, orderBy: { createdAt: 'desc' }, take: 1 },
 } as const satisfies Prisma.JobInclude;
 
 export type JobWithSummary = Prisma.JobGetPayload<{ include: typeof jobInclude }>;

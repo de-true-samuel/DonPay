@@ -1,6 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
 import { PaidPingLayer } from '../features/ping/PaidPing';
 import { ShareProvider } from '../features/share/ShareProvider';
 import { cls } from '../lib/cls';
@@ -8,6 +7,7 @@ import { Icon } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
 import { Skeleton } from '../ui/primitives';
 import { ToastProvider } from '../ui/Toast';
+import { AccountMenu } from './AccountMenu';
 import { ConnectionBanner, RiskBanner, UpdateBanner } from './Banners';
 
 function RouteFallback() {
@@ -21,12 +21,10 @@ function RouteFallback() {
 }
 
 export function AppShell() {
-  const { provider } = useAuth();
   const { pathname } = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   const wide = /^\/(today|jobs|people|review)(\/|$)/.test(pathname);
-  const initial = (provider?.businessName ?? '?').trim().charAt(0).toUpperCase();
 
   // Scroll listener for auto-hiding top bar on scroll down, showing on scroll up
   const [headerVisible, setHeaderVisible] = useState(true);
@@ -74,9 +72,7 @@ export function AppShell() {
               <LogoMark size={28} />
               <span>paidar</span>
             </Link>
-            <NavLink to="/settings" className="pd-avatar" aria-label="Settings">
-              {initial}
-            </NavLink>
+            <AccountMenu />
           </header>
 
           <div className="pd-stage">

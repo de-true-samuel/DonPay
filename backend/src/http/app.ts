@@ -2,6 +2,7 @@
  * The Hono HTTP app. Routes are thin: validate input, call a service, shape the response.
  * Every /api route except auth/public/admin requires a session and is scoped to that provider.
  */
+import { clerkMiddleware, getAuth } from '@clerk/hono';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
@@ -122,13 +123,35 @@ export function createApp(opts: AppOptions) {
     }),
   );
 
+  // --- Clerk (optional website sign-in) -------------------------------------------------------
+  // Only when CLERK_* keys are set, and only on protected routes. It never rejects a request by itself:
+  // it just attaches who Clerk says is signed in, and the auth check below decides.
+  const isPublicApi = (path: string) => PUBLIC_API_PREFIXES.some((p) => path.startsWith(p));
+  app.use('/api/*', async (c, next) => {
+    const cfg = c.get('deps').config;
+    if (!cfg.clerk || c.req.method === 'OPTIONS' || isPublicApi(c.req.path)) return next();
+    return clerkMiddleware({
+      secretKey: cfg.clerk.secretKey,
+      publishableKey: cfg.clerk.publishableKey,
+      authorizedParties: cfg.frontendOrigins,
+    })(c, next);
+  });
+
   // --- CSRF + auth ---------------------------------------------------------------------------
   app.use('/api/*', async (c, next) => {
     const method = c.req.method;
     if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && c.req.header('x-requested-with') !== CSRF_HEADER_VALUE) {
       throw new AppError('CSRF_HEADER_MISSING', `Send the header "X-Requested-With: ${CSRF_HEADER_VALUE}" on every change request`);
     }
-    if (method === 'OPTIONS' || PUBLIC_API_PREFIXES.some((p) => c.req.path.startsWith(p))) return next();
+    if (method === 'OPTIONS' || isPublicApi(c.req.path)) return next();
+    // 1. Clerk session (Authorization: Bearer <Clerk JWT> or Clerk's session cookie).
+    const clerkUserId = c.get('deps').config.clerk ? getAuth(c)?.userId : null;
+    if (clerkUserId) {
+      c.set('provider', await auth.providerForClerkUser(c.get('deps'), clerkUserId, c.get('clerk').users));
+      c.set('sessionToken', '');
+      return next();
+    }
+    // 2. Our own session (Telegram link or dev login): Bearer token or the ke_session cookie.
     const bearer = c.req.header('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
     const token = bearer ?? getCookie(c, SESSION_COOKIE);
     if (!token) throw new AppError('UNAUTHENTICATED', 'Please log in');
@@ -195,7 +218,8 @@ export function createApp(opts: AppOptions) {
     return c.json(res);
   });
   app.post('/api/auth/logout', async (c) => {
-    await auth.logout(d(c), c.get('sessionToken'));
+    // Clerk sessions are ended by Clerk in the browser (signOut); only our own sessions live here.
+    if (c.get('sessionToken')) await auth.logout(d(c), c.get('sessionToken'));
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return c.body(null, 204);
   });
@@ -240,7 +264,14 @@ export function createApp(opts: AppOptions) {
     return c.json(await account.exportAccount(d(c), pid(c)));
   });
   app.post('/api/me/delete', validate('json', z.object({ confirmBusinessName: z.string().min(1).max(120) })), async (c) => {
+    const clerkUserId = c.get('provider').clerkUserId;
     await account.deleteAccount(d(c), pid(c), c.req.valid('json').confirmBusinessName);
+    if (clerkUserId && d(c).config.clerk) {
+      // Also remove the sign-in itself, so the same login can't silently recreate an empty account.
+      await c.get('clerk').users.deleteUser(clerkUserId).catch((err: Error) =>
+        d(c).log.error('account.clerk_delete_failed', { clerkUserId, error: err.message }),
+      );
+    }
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return c.body(null, 204);
   });

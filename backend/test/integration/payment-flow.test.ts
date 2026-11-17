@@ -34,8 +34,9 @@ describe('job creation and send', () => {
       status: 'NOT_STARTED',
       readyToStart: false,
       customer: { name: 'Tolu Adeyemi', phone: '+2348031234567' },
-      openRequest: null,
+      openRequest: { kind: 'DEPOSIT', status: 'DRAFT', accountNumber: null },
     });
+    expect(job.openRequest.id).toBe(job.requests[0].id);
     expect(job.requests).toHaveLength(1);
     expect(job.requests[0]).toMatchObject({ kind: 'DEPOSIT', amountKobo: '2500000', status: 'DRAFT', accountNumber: null });
     expect(job.requests[0].payLink).toMatch(/^https:\/\/api\.test\/p\/[A-Za-z0-9_-]{22}$/);

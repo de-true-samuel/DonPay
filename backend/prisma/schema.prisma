@@ -83,6 +83,8 @@ model Provider {
   telegramChatId    BigInt?   @unique
   telegramUsername  String?
   devLoginKey       String?   @unique
+  /// Clerk user id when the provider signs in with Clerk (website sign-in). Null for Telegram/dev sign-in.
+  clerkUserId       String?   @unique
   defaultReadyRule  ReadyRule @default(AFTER_DEPOSIT)
   digestMinuteOfDay Int?
   lastDigestOn      DateTime? @db.Date

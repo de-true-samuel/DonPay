@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export type IconName =
   | 'today' | 'jobs' | 'people' | 'search' | 'plus' | 'check' | 'pencil'
-  | 'flask' | 'clock' | 'x' | 'send' | 'chevron' | 'gear' | 'alert';
+  | 'flask' | 'clock' | 'x' | 'send' | 'chevron' | 'gear' | 'alert' | 'signout';
 
 const PATHS: Record<IconName, ReactNode> = {
   today: <><circle cx="12" cy="12" r="9" /><path d="M12 12 L18 7" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /></>,
@@ -19,6 +19,7 @@ const PATHS: Record<IconName, ReactNode> = {
   chevron: <path d="M9 6l6 6-6 6" />,
   gear: <><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /></>,
   alert: <><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17v.5" /></>,
+  signout: <><path d="M14 5H6v14h8" /><path d="M11 12h9M17 8.5l3.5 3.5-3.5 3.5" /></>,
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

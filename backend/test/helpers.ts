@@ -33,6 +33,7 @@ export const testConfig: AppConfig = {
   reminderFollowUpMinute: null,
   telegramWebhookSecret: 'tg-secret',
   adminSecret: 'admin-secret',
+  clerk: null,
 };
 
 /** Programmable Kora: allocates accounts, and lets tests decide what a charge query returns. */

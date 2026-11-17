@@ -138,11 +138,11 @@ export const TodayResponse = z.object({
   balancesDue: z.array(JobSummary),
   expired: z.array(z.object({ request: PaymentRequest, job: JobSummary })),
   needsReview: z.array(ReviewItem),
-  remindersDue: z.array(z.object({ request: PaymentRequest, job: JobSummary })).optional().default([]),
+  dueReminders: z.array(z.object({ request: PaymentRequest, job: JobSummary })).optional().default([]),
   counts: z.object({
     justPaid: z.number(), waiting: z.number(), balancesDue: z.number(),
     expired: z.number(), needsReview: z.number(),
-    remindersDue: z.number().optional().default(0),
+    dueReminders: z.number().optional().default(0),
   }),
 });
 export type TodayResponse = z.infer<typeof TodayResponse>;

@@ -25,6 +25,9 @@ export interface Env {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
   ADMIN_SECRET?: string;
+  /** Clerk website sign-in. Both set = Clerk on; both empty = off (Telegram/dev sign-in only). */
+  CLERK_PUBLISHABLE_KEY?: string;
+  CLERK_SECRET_KEY?: string;
 }
 
 export type KoraMode = 'fake' | 'sandbox' | 'live';
@@ -48,6 +51,8 @@ export interface AppConfig {
   reminderFollowUpMinute: number | null;
   telegramWebhookSecret: string | null;
   adminSecret: string | null;
+  /** Clerk keys; null when Clerk sign-in is off. */
+  clerk: { publishableKey: string; secretKey: string } | null;
 }
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
@@ -58,6 +63,7 @@ export function loadConfig(env: Env): AppConfig {
   if (koraMode !== 'fake' && !env.KORA_SECRET_KEY) throw new Error('KORA_SECRET_KEY is required unless KORA_MODE=fake');
   const devLogin = env.DEV_LOGIN_ENABLED === 'true';
   if (devLogin && env.APP_ENV === 'production') throw new Error('DEV_LOGIN_ENABLED must not be set in production');
+  if (!!env.CLERK_SECRET_KEY !== !!env.CLERK_PUBLISHABLE_KEY) throw new Error('Set both CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY, or neither');
   if (koraMode === 'fake' && env.APP_ENV === 'production') throw new Error('KORA_MODE=fake is not allowed in production');
   return {
     appEnv: env.APP_ENV || 'local',
@@ -80,5 +86,6 @@ export function loadConfig(env: Env): AppConfig {
     reminderFollowUpMinute: env.REMINDER_FOLLOW_UP_TIME ? parseHHMM(env.REMINDER_FOLLOW_UP_TIME) : null,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || null,
     adminSecret: env.ADMIN_SECRET || null,
+    clerk: env.CLERK_SECRET_KEY && env.CLERK_PUBLISHABLE_KEY ? { publishableKey: env.CLERK_PUBLISHABLE_KEY, secretKey: env.CLERK_SECRET_KEY } : null,
   };
 }

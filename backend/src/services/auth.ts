@@ -1,6 +1,6 @@
 /**
- * Provider auth via Telegram magic links (ARCHITECTURE.md §6.7).
- * Only hashes of login tokens and session tokens are stored.
+ * Provider auth: Telegram magic links (ARCHITECTURE.md §6.7), dev login, and Clerk website sign-in.
+ * Only hashes of login tokens and session tokens are stored. Clerk sessions are verified by Clerk, not stored here.
  */
 import type { Deps } from '../deps';
 import { hashToken, randomToken } from '../domain/tokens';
@@ -61,4 +61,30 @@ export async function providerForSession(deps: Deps, rawToken: string) {
 
 export async function logout(deps: Deps, rawToken: string): Promise<void> {
   await deps.db.session.deleteMany({ where: { tokenHash: await hashToken(rawToken) } });
+}
+
+/** What we need from a Clerk user to open a provider account (kept minimal so tests can stub it). */
+export interface ClerkUserLookup {
+  getUser(userId: string): Promise<{ firstName: string | null; lastName: string | null; username: string | null }>;
+}
+
+/**
+ * Clerk website sign-in: the provider linked to this Clerk user, created on first sign-in.
+ * The business name starts as the person's name (or "My business") and is set properly in onboarding.
+ */
+export async function providerForClerkUser(deps: Deps, clerkUserId: string, users: ClerkUserLookup) {
+  const existing = await deps.db.provider.findUnique({ where: { clerkUserId } });
+  if (existing) return existing;
+  let businessName = 'My business';
+  try {
+    const u = await users.getUser(clerkUserId);
+    const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.username?.trim() || '';
+    if (name.length >= 2) businessName = name.slice(0, 80);
+  } catch (err) {
+    deps.log.warn('auth.clerk_user_lookup_failed', { error: (err as Error).message });
+  }
+  // upsert: two first requests at once must not create two providers.
+  const provider = await deps.db.provider.upsert({ where: { clerkUserId }, create: { clerkUserId, businessName }, update: {} });
+  if (provider.createdAt.getTime() > deps.now().getTime() - 5_000) deps.log.info('auth.clerk_signup', { providerId: provider.id });
+  return provider;
 }

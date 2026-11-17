@@ -7,14 +7,16 @@ import { ME_KEY, useAuth } from '../auth/AuthProvider';
 import type { ReadyRule } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { markOnboarded } from '../lib/onboarding';
+import { Icon } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
 import { Banner, Switch, TextField } from '../ui/primitives';
 
 export function OnboardingPage() {
   useDocumentTitle('Set up your business');
-  const { provider } = useAuth();
+  const { provider, signOut } = useAuth();
   const qc = useQueryClient();
   const nav = useNavigate();
+  const [leaving, setLeaving] = useState(false);
   const [step, setStep] = useState(1);
   const [name, setName] = useState(provider?.businessName ?? '');
   const [rule, setRule] = useState<ReadyRule>(provider?.defaultReadyRule ?? 'AFTER_DEPOSIT');
@@ -460,6 +462,22 @@ export function OnboardingPage() {
           </div>
         )}
       </article>
+
+      {/* A way out before setup is finished (wrong account, shared device) */}
+      <p className="pd-onb-out">
+        Not your account?{' '}
+        <button
+          type="button"
+          disabled={leaving}
+          onClick={() => {
+            setLeaving(true);
+            void signOut(); // redirects to the sign-in page
+          }}
+        >
+          <Icon name="signout" size={16} />
+          {leaving ? 'Signing out…' : 'Sign out'}
+        </button>
+      </p>
     </div>
   );
 }

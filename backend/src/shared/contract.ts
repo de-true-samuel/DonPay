@@ -1,5 +1,5 @@
 /**
- * Response types of the backend ↔ frontend contract. Mirrors /contract.md (v1.1.0).
+ * Response types of the backend ↔ frontend contract. Mirrors /contract.md (v1.1.1).
  * The frontend may copy this file verbatim; it has no imports.
  */
 
@@ -24,7 +24,7 @@ export type SavedView = 'unpaid_balances' | 'this_week' | 'needs_follow_up';
 /** Wording template for messages copied to a customer. null on a customer means 'en'. */
 export type MessageLanguage = 'en' | 'pcm';
 
-export const CONTRACT_VERSION = '1.1.0';
+export const CONTRACT_VERSION = '1.1.1';
 
 export type ErrorCode =
   | 'VALIDATION_ERROR'

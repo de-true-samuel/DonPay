@@ -47,6 +47,7 @@ async function main() {
       reminderFollowUpMinute: null,
       telegramWebhookSecret: null,
       adminSecret: null,
+      clerk: null,
     },
     now: () => now,
     log: silentLogger,

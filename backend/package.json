@@ -25,6 +25,8 @@
     "postinstall": "prisma generate && wrangler types --include-runtime"
   },
   "dependencies": {
+    "@clerk/backend": "^3.30.0",
+    "@clerk/hono": "^0.1.101",
     "@hono/zod-validator": "^0.9.1",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
