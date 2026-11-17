@@ -9,3 +9,10 @@ dist/
 coverage/
 e2e/last-run.md
 *.log
+
+# Per-environment connection strings / secrets (never commit)
+.env.*
+!.env.example
+.dev.vars.*
+!.dev.vars.example
+.neon

@@ -28,6 +28,8 @@
     "@clerk/backend": "^3.30.0",
     "@clerk/hono": "^0.1.101",
     "@hono/zod-validator": "^0.9.1",
+    "@neon/config": "^1.14.2",
+    "@neon/env": "^2.1.5",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "hono": "^4.13.16",

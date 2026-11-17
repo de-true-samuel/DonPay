@@ -46,14 +46,15 @@
       "name": "kobo-exact-staging",
       "vars": {
         "APP_ENV": "staging",
-        "PUBLIC_BASE_URL": "https://kobo-exact-staging.YOUR-SUBDOMAIN.workers.dev",
-        "FRONTEND_URL": "https://staging.kobo-exact.example",
-        "FRONTEND_ORIGINS": "https://staging.kobo-exact.example",
-        "COOKIE_SAMESITE": "None",
+        "PUBLIC_BASE_URL": "https://kobo-exact-staging.detruesamuel.workers.dev",
+        "FRONTEND_URL": "https://paidar.detruesamuel.workers.dev",
+        "FRONTEND_ORIGINS": "https://paidar.detruesamuel.workers.dev",
+        // Lax: the frontend Worker forwards /api here through a service binding, so it is one site.
+        "COOKIE_SAMESITE": "Lax",
         "KORA_MODE": "sandbox",
         "KORA_EXPIRY_MINUTES": "60",
         "DEV_LOGIN_ENABLED": "true",
-        "TELEGRAM_BOT_USERNAME": "KoboExactStagingBot",
+        "TELEGRAM_BOT_USERNAME": "", // set once the staging bot exists (BotFather)
         "REMINDER_FOLLOW_UP_TIME": "08:00",
         "CLERK_PUBLISHABLE_KEY": ""
       },
