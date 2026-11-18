@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # One-shot staging deploy of the backend Worker (DEPLOY.md steps 3–7). Safe to re-run.
 #
-#   CLOUDFLARE_ACCOUNT_ID=<id> bash scripts/deploy-staging.sh <workers.dev subdomain>
+#   CLOUDFLARE_ACCOUNT_ID=<id> [FRONTEND_ORIGIN=https://paidar.<sub>.workers.dev] \
+#     bash scripts/deploy-staging.sh <backend account's workers.dev subdomain>
+#
+# FRONTEND_ORIGIN defaults to paidar on the same subdomain; set it when the frontend lives on another account.
 #
 # Reads secrets from local, git-ignored files and pipes them to Cloudflare. Never prints them.
-#   .env.staging  DATABASE_URL_UNPOOLED (Neon direct), ADMIN_SECRET, TELEGRAM_WEBHOOK_SECRET
+#   .env.staging  DATABASE_URL_UNPOOLED (Neon direct), ADMIN_SECRET, TELEGRAM_WEBHOOK_SECRET, PROXY_SECRET (created if missing)
 #   .env          KORA_SECRET_KEY (sandbox sk_test_…)
 #   .dev.vars     CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
 set -euo pipefail
@@ -14,10 +17,11 @@ SUB="${1:?usage: deploy-staging.sh <workers.dev subdomain, e.g. detruesamuel>}"
 : "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID}"
 NAME=kobo-exact-staging
 API="https://$NAME.$SUB.workers.dev"
-WEB="https://paidar.$SUB.workers.dev"
+WEB="${FRONTEND_ORIGIN:-https://paidar.$SUB.workers.dev}"
 
 val() { grep -E "^$2=" "$1" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
 DIRECT="$(val .env.staging DATABASE_URL_UNPOOLED)"
+grep -q "^PROXY_SECRET=" .env.staging || node -e 'console.log("PROXY_SECRET=" + require("crypto").randomBytes(32).toString("base64url"))' >> .env.staging
 [[ "$DIRECT" == *-pooler* ]] && { echo "DATABASE_URL_UNPOOLED must be the direct (non -pooler) string"; exit 1; }
 
 echo "1/6 Hyperdrive"
@@ -54,6 +58,7 @@ put KORA_SECRET_KEY "$(val .env KORA_SECRET_KEY)"
 put CLERK_SECRET_KEY "$(val .dev.vars CLERK_SECRET_KEY)"
 put ADMIN_SECRET "$(val .env.staging ADMIN_SECRET)"
 put TELEGRAM_WEBHOOK_SECRET "$(val .env.staging TELEGRAM_WEBHOOK_SECRET)"
+put PROXY_SECRET "$(val .env.staging PROXY_SECRET)"
 
 echo "5/6 Migrations (Neon, direct connection)"
 DATABASE_URL="$DIRECT" npx prisma migrate deploy 2>&1 | grep -E "applied|No pending|up to date|Error" || true

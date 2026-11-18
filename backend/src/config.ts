@@ -28,6 +28,8 @@ export interface Env {
   /** Clerk website sign-in. Both set = Clerk on; both empty = off (Telegram/dev sign-in only). */
   CLERK_PUBLISHABLE_KEY?: string;
   CLERK_SECRET_KEY?: string;
+  /** Shared with the frontend Worker that forwards /api here; lets it pass the visitor's IP (x-paidar-client-ip). */
+  PROXY_SECRET?: string;
 }
 
 export type KoraMode = 'fake' | 'sandbox' | 'live';
@@ -53,6 +55,8 @@ export interface AppConfig {
   adminSecret: string | null;
   /** Clerk keys; null when Clerk sign-in is off. */
   clerk: { publishableKey: string; secretKey: string } | null;
+  /** When set, x-paidar-client-ip is trusted only on requests carrying x-paidar-proxy = this value. */
+  proxySecret: string | null;
 }
 
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
@@ -86,6 +90,7 @@ export function loadConfig(env: Env): AppConfig {
     reminderFollowUpMinute: env.REMINDER_FOLLOW_UP_TIME ? parseHHMM(env.REMINDER_FOLLOW_UP_TIME) : null,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || null,
     adminSecret: env.ADMIN_SECRET || null,
+    proxySecret: env.PROXY_SECRET || null,
     clerk: env.CLERK_SECRET_KEY && env.CLERK_PUBLISHABLE_KEY ? { publishableKey: env.CLERK_PUBLISHABLE_KEY, secretKey: env.CLERK_SECRET_KEY } : null,
   };
 }

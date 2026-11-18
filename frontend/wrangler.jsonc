@@ -14,6 +14,9 @@
     // Only these paths run the Worker; every other request is served straight from ./dist.
     "run_worker_first": ["/api/*", "/p/*"]
   },
-  // The backend Worker (backend/wrangler.jsonc, env "staging"). Deploy the backend first.
-  "services": [{ "binding": "BACKEND", "service": "kobo-exact-staging" }]
+  "vars": {
+    // The backend Worker's public address (it lives on another Cloudflare account, so no service binding).
+    // PROXY_SECRET is a Worker secret: npx wrangler secret put PROXY_SECRET --name paidar
+    "BACKEND_ORIGIN": "https://kobo-exact-staging.theibukunjames.workers.dev"
+  }
 }

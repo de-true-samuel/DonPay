@@ -46,7 +46,7 @@
       "name": "kobo-exact-staging",
       "vars": {
         "APP_ENV": "staging",
-        "PUBLIC_BASE_URL": "https://kobo-exact-staging.detruesamuel.workers.dev",
+        "PUBLIC_BASE_URL": "https://kobo-exact-staging.theibukunjames.workers.dev",
         "FRONTEND_URL": "https://paidar.detruesamuel.workers.dev",
         "FRONTEND_ORIGINS": "https://paidar.detruesamuel.workers.dev",
         // Lax: the frontend Worker forwards /api here through a service binding, so it is one site.
@@ -56,9 +56,9 @@
         "DEV_LOGIN_ENABLED": "true",
         "TELEGRAM_BOT_USERNAME": "", // set once the staging bot exists (BotFather)
         "REMINDER_FOLLOW_UP_TIME": "08:00",
-        "CLERK_PUBLISHABLE_KEY": ""
+        "CLERK_PUBLISHABLE_KEY": "pk_test_ZXZpZGVudC1hbnRlbG9wZS00ODU4LmNsZXJrLmFjY291bnRzLmRldiQ"
       },
-      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "REPLACE_WITH_STAGING_HYPERDRIVE_ID" }],
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "26b219a16a8b4c9a810b3b461a56e41e" }],
       "queues": {
         "producers": [{ "binding": "QUEUE", "queue": "kobo-exact-staging" }],
         "consumers": [
