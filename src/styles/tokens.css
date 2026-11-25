@@ -1,86 +1,139 @@
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --ground: #2330A6;
-  --ground-pattern: rgba(255, 255, 255, 0.025);
-  --ink-on-ground: #F3F1FF;
-  --muted-on-ground: #BBC1F7;
-  --paper: #F5F4EF;
-  --paper-ink: #14183F;
-  --paper-muted: #5E6285;
-  --cta: #FFB81C;
-  --cta-edge: #B97F00;
-  --calm: #2330A6;
-  --warn: #E58A00;
-  --urgent: #E5392D;
-  --ok: #0E9F57;
-  --off-tick: rgba(20,24,63,.14);
-  --font-display: "Unbounded", system-ui, sans-serif;
-  --font-ui: "Figtree", system-ui, sans-serif;
-  --font-mono: "DM Mono", ui-monospace, Menlo, monospace;
-  --r-ticket: 30px;
-  --r-button: 22px;
-  --r-chip: 12px;
-  --r-sheet: 28px;
-  --r-slip: 18px;
-  /* spacing */
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
-  /* layout */
-  --content-w: 460px;
-  --tabbar-h: 72px;
-  --header-h: 56px;
+  /* Precision Futurism 2.0 — Core Palette (Spec §3.1) */
+  --nav-bg: #111B33;          /* Midnight Navy */
+  --nav-hover: #172443;       /* Deep Navy */
+  --action-primary: #5368F8;  /* Electric Cobalt */
+  --action-primary-hover: #4357E7;
+  --bg-selected: #EAF0FF;     /* Ice Blue */
+
+  --bg-canvas: #F5F7FB;
+  --bg-surface: #FFFFFF;
+  --bg-surface-subtle: #F8FAFD;
+  --border-default: #E5EAF2;
+  --border-strong: #CDD5E2;
+
+  --text-primary: #172033;
+  --text-secondary: #647087;
+  --text-muted: #8792A5;
+
+  /* Semantic Status Tokens (always pair with icon + text label) */
+  --status-success: #15966B;
+  --status-success-tint: #E8F6F0;
+  --status-warning: #B7791F;
+  --status-warning-tint: #FFF5E4;
+  --status-danger: #D94B59;
+  --status-danger-tint: #FDECEF;
+  --status-info: #3486D7;
+  --status-info-tint: #EAF4FE;
+  --status-neutral: #697586;
+  --status-neutral-tint: #EFF2F6;
+  --status-scheduled: #6657C8;
+  --status-scheduled-tint: #F0EDFF;
+
+  /* Typography (Spec §4.1) */
+  --font-display: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-ui: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-body: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radii & Spacing (Spec §5.1 & §5.2) */
+  --r-card: 14px;
+  --r-control: 9px;
+  --r-chip: 8px;
+  --r-ticket: 14px;
+  --r-button: 9px;
+  --r-sheet: 16px;
+  --r-slip: 12px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+
+  /* Layout Shell */
+  --sidebar-w: 248px;
+  --sidebar-w-collapsed: 76px;
+  --header-h: 68px;
+  --tabbar-h: 64px;
+  --content-max-w: 1600px;
+  --content-w: 720px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
-  /* easing */
-  --ease-micro: 120ms ease-out;
-  --ease-small: 200ms cubic-bezier(.2,.8,.2,1);
-  --ease-medium: 350ms cubic-bezier(.2,.8,.2,1);
-  --ease-slam: 500ms cubic-bezier(.2,.9,.3,1.2);
-  /* tag pairs on paper */
-  --tag-warn-bg: #FFE3A6; --tag-warn-ink: #6A4200;
-  --tag-copied-bg: #DFE3FF; --tag-copied-ink: #1B2480;
-  --tag-paid-bg: #CDF3DE; --tag-paid-ink: #0A6636;
-  --tag-urgent-bg: #FFD9D5; --tag-urgent-ink: #8A1409;
-  /* legacy aliases so old code doesn't break */
-  --ink: var(--paper-ink);
-  --ink-2: var(--paper-muted);
-  --ink-3: #8A91B8;
-  --surface: var(--paper);
-  --line: rgba(20,24,63,.12);
-  --line-strong: rgba(20,24,63,.22);
-  --violet: var(--ground);
-  --violet-soft: var(--tag-copied-bg);
-  --violet-ink: var(--tag-copied-ink);
-  --mint: var(--ok);
-  --mint-soft: var(--tag-paid-bg);
-  --mint-ink: var(--tag-paid-ink);
-  --amber-soft: var(--tag-warn-bg);
-  --amber-ink: var(--tag-warn-ink);
-  --red-soft: var(--tag-urgent-bg);
-  --red-ink: var(--tag-urgent-ink);
-  --font-body: "Figtree", system-ui, sans-serif;
+
+  /* Motion (Spec §7.5) */
+  --ease-micro: 140ms ease-out;
+  --ease-small: 180ms ease-out;
+  --ease-medium: 220ms ease-out;
+  --ease-slam: 240ms ease-out;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Tag pairs */
+  --tag-warn-bg: var(--status-warning-tint);
+  --tag-warn-ink: #7A4E0B;
+  --tag-copied-bg: var(--bg-selected);
+  --tag-copied-ink: #293BB8;
+  --tag-paid-bg: var(--status-success-tint);
+  --tag-paid-ink: #0E6B4B;
+  --tag-urgent-bg: var(--status-danger-tint);
+  --tag-urgent-ink: #A32634;
+
+  /* Compatibility aliases for un-migrated pages during Phases 3-5 */
+  --ground: var(--bg-canvas);
+  --ink-on-ground: var(--text-primary);
+  --muted-on-ground: var(--text-secondary);
+  --paper: var(--bg-surface);
+  --paper-ink: var(--text-primary);
+  --paper-muted: var(--text-secondary);
+  --cta: var(--action-primary);
+  --cta-edge: var(--action-primary-hover);
+  --calm: var(--action-primary);
+  --warn: var(--status-warning);
+  --urgent: var(--status-danger);
+  --ok: var(--status-success);
+  --off-tick: var(--border-strong);
+  --ink: var(--text-primary);
+  --ink-2: var(--text-secondary);
+  --ink-3: var(--text-muted);
+  --surface: var(--bg-surface);
+  --line: var(--border-default);
+  --line-strong: var(--border-strong);
+  --violet: var(--action-primary);
+  --violet-soft: var(--bg-selected);
+  --violet-ink: #293BB8;
+  --mint: var(--status-success);
+  --mint-soft: var(--status-success-tint);
+  --mint-ink: #0E6B4B;
+  --amber-soft: var(--status-warning-tint);
+  --amber-ink: #7A4E0B;
+  --red-soft: var(--status-danger-tint);
+  --red-ink: #A32634;
   --r-s: var(--r-chip);
   --r-m: var(--r-slip);
   --r-l: var(--r-button);
-  --paper-glass: rgba(245,244,239,0.92);
-  --skel-hi: rgba(20,24,63,.06);
-  --amber-line: var(--warn);
-  --red-line: var(--urgent);
-  --solid-ok: var(--ok);
-  --solid-bad: var(--urgent);
-  --fab-bg: var(--cta);
-  --fab-fg: var(--paper-ink);
-  --toast-bg: #14183F;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #10154D;
-    --ground-pattern: rgba(255, 255, 255, 0.02);
-    --muted-on-ground: #9EA5E6;
-  }
-}
-:root[data-theme="dark"] {
-  --ground: #10154D;
-  --ground-pattern: rgba(255, 255, 255, 0.02);
-  --muted-on-ground: #9EA5E6;
+  --paper-glass: rgba(255, 255, 255, 0.94);
+  --skel-hi: rgba(23, 32, 51, 0.06);
+  --amber-line: var(--status-warning);
+  --red-line: var(--status-danger);
+  --solid-ok: var(--status-success);
+  --solid-bad: var(--status-danger);
+  --fab-bg: var(--action-primary);
+  --fab-fg: #FFFFFF;
+  --toast-bg: var(--nav-bg);
+
+  color-scheme: light;
 }

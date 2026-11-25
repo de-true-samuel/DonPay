@@ -1,345 +1,286 @@
-/* ==========================================================================
-   PAIDAR DESIGN DIRECTION V1.0 — TODAY STAGE & DASHBOARD
-   ========================================================================== */
+/* Precision Futurism 2.0 — Operational Surfaces (Dashboard, Queue, Payments) */
 
-/* ---------- Header on Ground ---------- */
-.pd-today-head {
-  margin-bottom: 24px;
-}
-.pd-today-date {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--muted-on-ground);
-  margin: 0 0 4px;
-}
-.pd-today-greeting {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: clamp(22px, 6vw, 30px);
-  color: var(--ink-on-ground);
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-}
-.pd-today-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--muted-on-ground);
-  font-weight: 500;
-}
-.pd-today-live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
-}
-
-/* ---------- The Money Line (Spec Section 5.6 & Proposed P4) ---------- */
-.pd-money-line {
+.pf-page-head {
   display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--r-slip);
-  margin-bottom: 24px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
 }
-.pd-money-cell {
-  flex: 1;
+.pf-page-head__sub {
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-size: 14px;
 }
-.pd-money-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted-on-ground);
-  margin: 0 0 4px;
-}
-.pd-money-val {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: clamp(24px, 6vw, 34px);
-  color: var(--ink-on-ground);
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-}
-.pd-money-divider {
-  width: 1px;
-  height: 44px;
-  background: rgba(255, 255, 255, 0.14);
-}
-
-/* ---------- Attention Rail (Spec Section 5.6) ---------- */
-.pd-rail-chips {
+.pf-page-head__actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
 }
-.pd-rail-chip {
+
+.pf-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-radius: var(--r-chip);
-  font-family: var(--font-ui);
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--r-control);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  cursor: pointer;
   text-decoration: none;
-  min-height: 44px;
-  box-sizing: border-box;
-  transition: transform var(--ease-micro);
+  border: 1px solid transparent;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
 }
-.pd-rail-chip:hover {
-  transform: translateY(-1px);
+.pf-btn--sm {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
 }
-.pd-rail-chip--urgent {
-  background: var(--tag-urgent-bg);
-  color: var(--tag-urgent-ink);
-  border: 1.5px solid var(--urgent);
+.pf-btn--primary {
+  background: var(--action-primary);
+  color: #FFFFFF;
 }
-.pd-rail-chip--claims {
-  background: var(--tag-copied-bg);
-  color: var(--tag-copied-ink);
-  border: 1.5px solid var(--calm);
+.pf-btn--primary:hover {
+  background: var(--action-primary-hover);
+}
+.pf-btn--secondary {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.pf-btn--secondary:hover {
+  background: var(--bg-surface-subtle);
+}
+.pf-btn--danger {
+  background: var(--status-danger);
+  color: #FFFFFF;
 }
 
-/* ---------- Hero Ticket Area (Spec Section 5.6) ---------- */
-.pd-hero-stage {
-  margin-bottom: 32px;
+.pf-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-card);
+  padding: 20px;
 }
-.pd-hero-ticket {
-  position: relative;
-  background: var(--paper);
-  color: var(--paper-ink) !important;
-  border-radius: var(--r-ticket);
-  border: 1px solid rgba(20, 24, 63, 0.08);
-  box-shadow: 0 24px 32px -8px rgba(16, 21, 77, 0.5);
-  overflow: visible;
+
+/* 4-column metric row */
+.pf-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 24px;
 }
-.pd-hero-ticket h3,
-.pd-hero-ticket strong,
-.pd-hero-ticket a,
-.pd-hero-ticket .pd-plainlink {
-  color: var(--paper-ink) !important;
+@media (min-width: 640px) {
+  .pf-metrics { grid-template-columns: repeat(2, 1fr); }
 }
-.pd-hero-dial-wrap {
+@media (min-width: 1024px) {
+  .pf-metrics { grid-template-columns: repeat(4, 1fr); }
+}
+
+.pf-metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 20px 22px;
-  text-align: center;
+  gap: 8px;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
 }
-.pd-hero-dial-sub {
-  font-size: 13.5px;
-  color: var(--paper-muted) !important;
-  margin-top: 12px;
+.pf-metric:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-subtle);
+}
+.pf-metric__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 13px;
   font-weight: 500;
 }
-.pd-hero-cta {
-  padding: 0 20px 20px;
+.pf-metric__val {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.pf-metric__val--danger {
+  color: var(--status-danger);
+}
+.pf-metric__sub {
+  font-size: 12.5px;
+  color: var(--text-secondary);
 }
 
-/* ---------- Horizontal Carousel for Other Waiting Tickets ---------- */
-.pd-carousel-wrap {
-  margin: 0 -20px 32px;
-  padding: 0 20px;
-}
-.pd-carousel-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--ink-on-ground);
-  margin: 0 0 12px;
-}
-.pd-carousel {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 12px;
-}
-.pd-carousel::-webkit-scrollbar {
-  height: 6px;
-}
-.pd-carousel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-}
-.pd-carousel__item {
-  flex: 0 0 86%;
-  max-width: 380px;
-  scroll-snap-align: start;
-}
-
-/* ---------- Queues Section & Slips (Spec Section 5.6) ---------- */
-.pd-qsection {
-  margin-top: 32px;
-}
-.pd-qsection__h {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 17px;
-  color: var(--ink-on-ground);
-  margin-bottom: 12px;
-}
-.pd-qsection__list {
+/* 7/5 Dashboard split */
+.pf-dash-split {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
 }
-.pd-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--ink-on-ground);
-  margin-left: 8px;
-}
-.pd-qsection__more {
-  font-size: 14px;
-  color: var(--muted-on-ground);
-  text-decoration: underline;
+@media (min-width: 1024px) {
+  .pf-dash-split {
+    grid-template-columns: 7fr 5fr;
+    align-items: start;
+  }
 }
 
-/* Slip Layout */
-.pd-slip {
-  position: relative;
-  background: var(--paper);
-  color: var(--paper-ink);
-  border-radius: var(--r-slip);
-  padding: 16px 18px 16px 24px;
+.pf-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  box-shadow: 0 4px 14px rgba(16, 21, 77, 0.12);
-  border: 1px solid rgba(20, 24, 63, 0.08);
+  gap: 12px;
+  margin-bottom: 14px;
 }
-.pd-slip::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--ground);
-}
-.pd-slip__main {
-  flex: 1;
-  min-width: 0;
-}
-.pd-slip__name {
-  font-family: var(--font-ui);
+.pf-panel-head h2 {
   font-size: 16px;
-  font-weight: 700;
-  color: var(--paper-ink);
-  display: block;
+  line-height: 22px;
 }
-.pd-slip__meta {
+.pf-panel-link {
   font-size: 13px;
-  color: var(--paper-muted);
-  margin: 3px 0 0;
-}
-.pd-slip__side {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-.pd-slip__amt {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--paper-ink);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--action-primary);
 }
 
-/* Just Paid Mini Receipt Strip (Spec Section 5.6) */
-.pd-receipt-strip {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 12px;
-}
-.pd-mini-receipt {
-  flex: 0 0 240px;
-  background: #FFFEFA;
-  border-radius: 12px 12px 0 0;
-  padding: 16px;
-  color: var(--paper-ink);
-  font-family: var(--font-mono);
-  box-shadow: 0 6px 16px rgba(16, 21, 77, 0.2);
-  position: relative;
+.pf-list-rows {
   display: flex;
   flex-direction: column;
+  divide-y: 1px solid var(--border-default);
+}
+.pf-row {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-default);
 }
-.pd-mini-receipt::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: radial-gradient(circle, transparent, transparent 50%, #FFFEFA 50%, #FFFEFA 100%);
-  background-size: 12px 12px;
+.pf-row:first-child {
+  border-top: 0;
+  padding-top: 4px;
 }
-.pd-mini-receipt__who {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 14px;
-  margin: 0 0 2px;
-}
-.pd-mini-receipt__sub {
-  font-size: 12px;
-  color: var(--paper-muted);
-  margin: 0;
-}
-.pd-mini-receipt__amt {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 20px;
-  color: var(--ok);
+.pf-row:last-child {
+  padding-bottom: 4px;
 }
 
-/* Empty State on Today Stage */
-.pd-today-empty {
-  border: 2px dashed rgba(255, 255, 255, 0.22);
-  border-radius: var(--r-ticket);
-  background: rgba(255, 255, 255, 0.035);
-  padding: 44px 24px;
-  text-align: center;
-  color: var(--ink-on-ground);
-  margin: 20px 0 40px;
+/* Capacity Strip */
+.pf-capacity {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-card);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+.pf-capacity__bar {
+  height: 8px;
+  background: var(--bg-surface-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 1px solid var(--border-default);
+}
+.pf-capacity__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 220ms ease-out;
+}
+
+/* Tables on Desktop / Cards on Mobile */
+.pf-table-wrap {
+  display: none;
+}
+.pf-card-list {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .pf-table-wrap { display: block; overflow-x: auto; }
+  .pf-card-list { display: none; }
+}
+
+.pf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pf-table th {
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--bg-surface-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-default);
+}
+.pf-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: middle;
+}
+.pf-table tr:hover td {
+  background: var(--bg-surface-subtle);
+}
+.pf-table tr.is-clickable {
+  cursor: pointer;
+}
+
+/* Right Drawer (Desktop) / Full-screen Sheet (Mobile) */
+.pf-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 27, 51, 0.45);
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+.pf-drawer {
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-default);
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Tabs */
+.pf-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+.pf-tab-btn {
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  display: inline-flex;
   align-items: center;
-  gap: 16px;
+  gap: 6px;
+  white-space: nowrap;
 }
-.pd-today-empty h2 {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 24px;
-  margin: 0;
-}
-.pd-today-empty p {
-  color: var(--muted-on-ground);
-  max-width: 44ch;
-  line-height: 1.45;
-  font-size: 15px;
-  margin: 0;
+.pf-tab-btn.is-active {
+  color: var(--action-primary);
+  border-bottom-color: var(--action-primary);
 }

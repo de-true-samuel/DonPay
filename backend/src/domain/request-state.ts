@@ -1,18 +1,32 @@
-export type RequestStatus = 'DRAFT' | 'SCHEDULED' | 'SENT' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+export type RequestStatus =
+  | 'DRAFT'
+  | 'SCHEDULED'
+  | 'SENT'
+  | 'PAID'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'NOT_REQUESTED'
+  | 'AWAITING_PAYMENT'
+  | 'UNDER_REVIEW'
+  | 'REFUNDED';
 export type RequestKind = 'FULL' | 'DEPOSIT' | 'BALANCE' | 'CUSTOM';
 
 /** Statuses that count as "open" — at most one per job (enforced by a partial unique index too). */
-export const OPEN_STATUSES = ['SCHEDULED', 'SENT'] as const satisfies readonly RequestStatus[];
+export const OPEN_STATUSES = ['SCHEDULED', 'SENT', 'AWAITING_PAYMENT'] as const satisfies readonly RequestStatus[];
 
 const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
-  DRAFT: ['SCHEDULED', 'SENT', 'CANCELLED'],
-  SCHEDULED: ['SCHEDULED', 'SENT', 'CANCELLED'],
+  DRAFT: ['SCHEDULED', 'SENT', 'CANCELLED', 'AWAITING_PAYMENT'],
+  NOT_REQUESTED: ['AWAITING_PAYMENT', 'SENT', 'CANCELLED'],
+  SCHEDULED: ['SCHEDULED', 'SENT', 'CANCELLED', 'AWAITING_PAYMENT'],
   // SENT -> PAID is the happy path. SENT -> SENT is an idempotent re-send.
-  SENT: ['SENT', 'PAID', 'EXPIRED', 'CANCELLED'],
+  SENT: ['SENT', 'PAID', 'EXPIRED', 'CANCELLED', 'UNDER_REVIEW'],
+  AWAITING_PAYMENT: ['AWAITING_PAYMENT', 'PAID', 'UNDER_REVIEW', 'CANCELLED'],
+  UNDER_REVIEW: ['PAID', 'CANCELLED', 'REFUNDED'],
   // A verified payment always wins: money that Kora accepted after expiry or cancellation is real.
   EXPIRED: ['PAID'],
   CANCELLED: ['PAID'],
-  PAID: [],
+  PAID: ['REFUNDED'],
+  REFUNDED: [],
 };
 
 export function canTransition(from: RequestStatus, to: RequestStatus): boolean {
@@ -37,10 +51,10 @@ export class InvalidTransitionError extends Error {
 export type RequestAction = 'send' | 'schedule' | 'cancel' | 'resend';
 
 export const ACTION_ALLOWED_FROM: Record<RequestAction, readonly RequestStatus[]> = {
-  send: ['DRAFT', 'SCHEDULED', 'SENT'], // SENT is accepted so a retried "send" returns the same account
+  send: ['DRAFT', 'NOT_REQUESTED', 'SCHEDULED', 'SENT', 'AWAITING_PAYMENT'], // SENT is accepted so a retried "send" returns the same account
   schedule: ['DRAFT', 'SCHEDULED'],
-  cancel: ['DRAFT', 'SCHEDULED', 'SENT'],
-  resend: ['SENT', 'EXPIRED'],
+  cancel: ['DRAFT', 'NOT_REQUESTED', 'SCHEDULED', 'SENT', 'AWAITING_PAYMENT'],
+  resend: ['SENT', 'EXPIRED', 'AWAITING_PAYMENT'],
 };
 
 export function isActionAllowed(action: RequestAction, status: RequestStatus): boolean {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { describeError } from '../api/errors';
@@ -7,477 +7,454 @@ import { ME_KEY, useAuth } from '../auth/AuthProvider';
 import type { ReadyRule } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { markOnboarded } from '../lib/onboarding';
-import { Icon } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
 import { Banner, Switch, TextField } from '../ui/primitives';
+
+type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+const DAYS: { key: DayKey; label: string }[] = [
+  { key: 'mon', label: 'Mon' },
+  { key: 'tue', label: 'Tue' },
+  { key: 'wed', label: 'Wed' },
+  { key: 'thu', label: 'Thu' },
+  { key: 'fri', label: 'Fri' },
+  { key: 'sat', label: 'Sat' },
+  { key: 'sun', label: 'Sun' },
+];
+
+type DaySched = { enabled: boolean; start: string; end: string };
+type HoursMap = Record<DayKey, DaySched>;
+
+const PRESET_MF: HoursMap = {
+  mon: { enabled: true, start: '09:00', end: '17:00' },
+  tue: { enabled: true, start: '09:00', end: '17:00' },
+  wed: { enabled: true, start: '09:00', end: '17:00' },
+  thu: { enabled: true, start: '09:00', end: '17:00' },
+  fri: { enabled: true, start: '09:00', end: '17:00' },
+  sat: { enabled: false, start: '09:00', end: '17:00' },
+  sun: { enabled: false, start: '09:00', end: '17:00' },
+};
+
+const PRESET_MS: HoursMap = {
+  ...PRESET_MF,
+  sat: { enabled: true, start: '09:00', end: '17:00' },
+};
+
+function toMin(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
 
 export function OnboardingPage() {
   useDocumentTitle('Set up your business');
   const { provider, signOut } = useAuth();
   const qc = useQueryClient();
   const nav = useNavigate();
-  const [leaving, setLeaving] = useState(false);
+
   const [step, setStep] = useState(1);
+  const [maxStep, setMaxStep] = useState(1);
+  const [leaving, setLeaving] = useState(false);
+
+  // Step 1: Business
   const [name, setName] = useState(provider?.businessName ?? '');
-  const [rule, setRule] = useState<ReadyRule>(provider?.defaultReadyRule ?? 'AFTER_DEPOSIT');
-  const [digestOn, setDigestOn] = useState(true);
-  const [digestTime, setDigestTime] = useState('19:30');
+  const [phone, setPhone] = useState('');
+  const [showPhone, setShowPhone] = useState(true);
+  const [bizType, setBizType] = useState('CREATIVE_DESIGN');
+  const [nameErr, setNameErr] = useState('');
+
+  // Step 2: Working hours
+  const [preset, setPreset] = useState<'mf' | 'ms' | 'custom'>('mf');
+  const [hours, setHours] = useState<HoursMap>(PRESET_MF);
+  const [hoursErr, setHoursErr] = useState('');
+
+  // Step 3: Payment defaults
+  const [terms, setTerms] = useState<'FULL' | 'DEPOSIT' | 'PAY_ON_DELIVERY'>('FULL');
+  const [depositPct, setDepositPct] = useState(50);
+  const [feeBearer, setFeeBearer] = useState<'OWNER' | 'CLIENT'>('OWNER');
 
   const save = useMutation({
     mutationFn: meApi.update,
     onSuccess: (p) => qc.setQueryData(ME_KEY, p),
   });
 
+  const weeklyHours = useMemo(() => {
+    let mins = 0;
+    for (const d of DAYS) {
+      const s = hours[d.key];
+      if (!s.enabled) continue;
+      const diff = toMin(s.end) - toMin(s.start);
+      if (diff > 0) mins += diff;
+    }
+    return Math.round((mins / 60) * 10) / 10;
+  }, [hours]);
+
   if (!provider) return null;
   const err = describeError(save.error);
+  const previewAccountName = name.trim().replace(/[^a-zA-Z0-9 '&.-]/g, '').slice(0, 40) || 'Your Business Name';
 
-  function next(body?: Parameters<typeof meApi.update>[0]) {
-    if (body) {
-      save.mutate(body, { onSuccess: () => setStep((s) => s + 1) });
-    } else {
-      setStep((s) => s + 1);
-    }
+  function goToStep(s: number) {
+    if (s <= maxStep) setStep(s);
   }
 
-  function finish() {
+  function handleStep1() {
+    const clean = name.trim();
+    if (clean.length < 2 || clean.length > 40) {
+      setNameErr('Business name must be 2–40 characters.');
+      return;
+    }
+    setNameErr('');
     save.mutate(
-      { defaultReadyRule: rule, digestTime: digestOn ? digestTime : null },
+      { businessName: clean },
       {
         onSuccess: () => {
-          markOnboarded(provider!.id);
-          nav('/today', { replace: true });
+          setStep(2);
+          setMaxStep((m) => Math.max(m, 2));
         },
-      }
+      },
     );
   }
 
-  return (
-    <div
-      style={{
-        maxWidth: 480,
-        margin: '0 auto',
-        padding: '32px 20px 60px',
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        position: 'relative',
-        zIndex: 1,
-      }}
-    >
-      {/* Onboarding Ticket Shell (Spec Section 5.2) */}
-      <article
-        style={{
-          background: 'var(--paper)',
-          borderRadius: 'var(--r-ticket)',
-          boxShadow: '0 24px 36px rgba(16, 21, 77, 0.45)',
-          color: 'var(--paper-ink)',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Progress: 3 notches along a perforated line at the top (Spec Section 5.2) */}
-        <div
-          style={{
-            padding: '24px 24px 16px',
-            borderBottom: '1px dashed rgba(20, 24, 63, 0.18)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <LogoMark size={24} />
-            <span
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontWeight: 800,
-                fontSize: 16,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              paidar
-            </span>
-          </div>
+  function handleStep2() {
+    const active = DAYS.filter((d) => hours[d.key].enabled);
+    if (active.length === 0) {
+      setHoursErr('At least one working day must be active.');
+      return;
+    }
+    for (const d of active) {
+      const diff = toMin(hours[d.key].end) - toMin(hours[d.key].start);
+      if (diff <= 0) {
+        setHoursErr(`End time must be after start time for ${d.label}.`);
+        return;
+      }
+      if (diff > 16 * 60) {
+        setHoursErr(`Maximum 16 hours per day (${d.label}).`);
+        return;
+      }
+    }
+    setHoursErr('');
+    setStep(3);
+    setMaxStep((m) => Math.max(m, 3));
+  }
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                style={{
-                  width: s === step ? 22 : 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background:
-                    s === step
-                      ? 'var(--cta)'
-                      : s < step
-                        ? 'var(--ground)'
-                        : 'rgba(20, 24, 63, 0.16)',
-                  transition: 'all 0.2s ease',
-                }}
-              />
-            ))}
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: 'var(--paper-muted)',
-                marginLeft: 4,
-              }}
+  function handleFinish() {
+    const rule: ReadyRule = terms === 'DEPOSIT' ? 'AFTER_DEPOSIT' : 'AFTER_FULL';
+    save.mutate(
+      { defaultReadyRule: rule },
+      {
+        onSuccess: () => {
+          markOnboarded(provider!.id);
+          nav('/app', { replace: true });
+        },
+      },
+    );
+  }
+
+  function saveAndExit() {
+    markOnboarded(provider!.id);
+    nav('/app', { replace: true });
+  }
+
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--bg-canvas)', padding: '24px 16px 64px' }} data-flow-id="ONB-00">
+      <div style={{ maxWidth: 620, margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--nav-bg)', fontWeight: 700, fontSize: 18 }}>
+            <LogoMark size={26} />
+            <span>paidar</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13.5 }}>
+            <button type="button" onClick={saveAndExit} data-flow-id="ONB-00c" style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontWeight: 600, cursor: 'pointer' }}>
+              Save and exit
+            </button>
+            <button
+              type="button"
+              disabled={leaving}
+              onClick={() => { setLeaving(true); void signOut().then(() => nav('/auth', { replace: true })); }}
+              style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
             >
-              Step {step} of 3
-            </span>
+              {leaving ? 'Signing out…' : 'Sign out'}
+            </button>
           </div>
         </div>
 
-        {/* STEP 1: Your business (Spec Section 5.2) */}
-        {step === 1 && (
-          <form
-            style={{ padding: '24px 24px 28px', display: 'grid', gap: 20 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              next({ businessName: name.trim() });
-            }}
-          >
-            <div>
-              <h1
+        {/* 3-Step Progress Stepper (ONB-00a) */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }} data-flow-id="ONB-00a">
+          {[
+            { n: 1, label: '1. Your business' },
+            { n: 2, label: '2. Working hours' },
+            { n: 3, label: '3. How you get paid' },
+          ].map((item) => {
+            const active = step === item.n;
+            const clickable = item.n <= maxStep;
+            return (
+              <button
+                key={item.n}
+                type="button"
+                disabled={!clickable}
+                onClick={() => goToStep(item.n)}
                 style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 800,
-                  fontSize: 24,
-                  letterSpacing: '-0.02em',
-                  margin: '0 0 6px',
+                  flex: 1, padding: '10px 12px', borderRadius: 9, textAlign: 'left', fontSize: 13, fontWeight: 600,
+                  border: `1px solid ${active ? 'var(--action-primary)' : 'var(--border-default)'}`,
+                  background: active ? 'var(--bg-selected)' : '#FFFFFF',
+                  color: active ? 'var(--action-primary)' : clickable ? 'var(--text-primary)' : 'var(--text-muted)',
+                  cursor: clickable ? 'pointer' : 'default',
                 }}
               >
-                Your business
-              </h1>
-              <p style={{ color: 'var(--paper-muted)', fontSize: 14, margin: 0 }}>
-                This name appears on the customer payment link and receipt.
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {save.isError && <Banner tone="bad"><strong>Could not save:</strong> {err.message}</Banner>}
+
+        {/* Step 1: Your business */}
+        {step === 1 && (
+          <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h1>Your business</h1>
+              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                This is how clients recognize your business when they open your payment link.
               </p>
             </div>
 
             <TextField
-              label="Business name"
+              label="Business or studio name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Tolu’s Glam Studio"
-              maxLength={80}
-              error={err.fieldErrors?.businessName?.[0]}
-              autoComplete="organization"
-              autoFocus={typeof window !== 'undefined' && !('ontouchstart' in window)}
+              onChange={(e) => { setName(e.target.value); setNameErr(''); }}
+              error={nameErr}
+              placeholder="e.g. Tolu's Glam Studio"
+              data-flow-id="ONB-01"
             />
 
-            {/* Live Ticket Preview (Spec Section 5.2) */}
-            <div
-              style={{
-                background: 'rgba(20, 24, 63, 0.05)',
-                border: '1.5px dashed rgba(20, 24, 63, 0.2)',
-                borderRadius: 14,
-                padding: '16px 18px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  color: 'var(--paper-muted)',
-                  display: 'block',
-                  marginBottom: 6,
-                }}
-              >
-                Customer Ticket Preview
-              </span>
-              <p
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 700,
-                  fontSize: 16,
-                  color: 'var(--paper-ink)',
-                  margin: 0,
-                }}
-              >
-                Pay ₦25,000 to{' '}
-                <span style={{ color: 'var(--ground)' }}>
-                  {name.trim() || 'Tolu’s Glam Studio'}
-                </span>
+            {/* Live Account Name Preview (ONB-02) */}
+            <div style={{ background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', borderRadius: 10, padding: 14 }} data-flow-id="ONB-02">
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Live bank-app preview</div>
+              <div style={{ fontSize: 14 }}>
+                Account name: <strong>{previewAccountName}</strong>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                Final accepted account name depends on Kora’s naming rules.
               </p>
             </div>
 
-            {save.isError && !err.fieldErrors && <Banner tone="bad">{err.message}</Banner>}
+            <TextField
+              label="WhatsApp / phone (optional)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="0803 123 4567"
+              data-flow-id="ONB-03"
+            />
 
-            <button
-              type="submit"
-              className="pd-btn-primary pd-btn--block"
-              disabled={save.isPending || !name.trim()}
-            >
-              {save.isPending ? 'Saving…' : 'Continue'}
-            </button>
-          </form>
-        )}
-
-        {/* STEP 2: How payments work (Spec Section 5.2) */}
-        {step === 2 && (
-          <div style={{ padding: '24px 24px 28px', display: 'grid', gap: 20 }}>
-            <div>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 800,
-                  fontSize: 24,
-                  letterSpacing: '-0.02em',
-                  margin: '0 0 6px',
-                }}
-              >
-                How payments work
-              </h1>
-              <p style={{ color: 'var(--paper-muted)', fontSize: 14, margin: 0 }}>
-                Three simple steps keeping you in complete control.
-              </p>
-            </div>
-
-            <div style={{ display: 'grid', gap: 14 }}>
-              {/* Panel 1 */}
-              <div
-                style={{
-                  background: 'rgba(20, 24, 63, 0.04)',
-                  border: '1px solid rgba(20, 24, 63, 0.1)',
-                  borderRadius: 14,
-                  padding: '14px 16px',
-                }}
-              >
-                <h3
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 700,
-                    fontSize: 15,
-                    margin: '0 0 4px',
-                  }}
-                >
-                  1. You copy.
-                </h3>
-                <p style={{ fontSize: 14, color: 'var(--paper-muted)', margin: 0, lineHeight: 1.45 }}>
-                  Paidar prepares the message. You paste it into your chat. Paidar never messages
-                  your customer.
-                </p>
-              </div>
-
-              {/* Panel 2 */}
-              <div
-                style={{
-                  background: 'rgba(20, 24, 63, 0.04)',
-                  border: '1px solid rgba(20, 24, 63, 0.1)',
-                  borderRadius: 14,
-                  padding: '14px 16px',
-                }}
-              >
-                <h3
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 700,
-                    fontSize: 15,
-                    margin: '0 0 4px',
-                  }}
-                >
-                  2. They pay.
-                </h3>
-                <p style={{ fontSize: 14, color: 'var(--paper-muted)', margin: 0, lineHeight: 1.45 }}>
-                  Your customer pays by ordinary bank transfer. No signup, no card.
-                </p>
-              </div>
-
-              {/* Panel 3 */}
-              <div
-                style={{
-                  background: 'rgba(20, 24, 63, 0.04)',
-                  border: '1px solid rgba(20, 24, 63, 0.1)',
-                  borderRadius: 14,
-                  padding: '14px 16px',
-                }}
-              >
-                <h3
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 700,
-                    fontSize: 15,
-                    margin: '0 0 4px',
-                  }}
-                >
-                  3. You get pinged.
-                </h3>
-                <p style={{ fontSize: 14, color: 'var(--paper-muted)', margin: 0, lineHeight: 1.45 }}>
-                  Kora detects the payment and Paidar tells you the moment it clears.
-                </p>
-              </div>
-            </div>
-
-            <p
-              style={{
-                fontSize: 13,
-                color: 'var(--paper-muted)',
-                lineHeight: 1.4,
-                margin: '2px 0 0',
-                borderLeft: '3px solid var(--cta)',
-                paddingLeft: 12,
-              }}
-            >
-              The account is a one-time Kora account for this payment only. It is not your own bank
-              account.
-            </p>
-
-            <button type="button" className="pd-btn-primary pd-btn--block" onClick={() => next()}>
-              Continue
-            </button>
-          </div>
-        )}
-
-        {/* STEP 3: Your rules (Spec Section 5.2) */}
-        {step === 3 && (
-          <div style={{ padding: '24px 24px 28px', display: 'grid', gap: 20 }}>
-            <div>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 800,
-                  fontSize: 24,
-                  letterSpacing: '-0.02em',
-                  margin: '0 0 6px',
-                }}
-              >
-                Your rules
-              </h1>
-              <p style={{ color: 'var(--paper-muted)', fontSize: 14, margin: 0 }}>
-                Set when jobs are marked ready to start and daily summaries.
-              </p>
-            </div>
-
-            {/* Ready to start selector cards */}
-            <div style={{ display: 'grid', gap: 10 }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: 'var(--paper-muted)',
-                }}
-              >
-                Ready to start rule
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setRule('AFTER_DEPOSIT')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 12,
-                  padding: '16px 18px',
-                  borderRadius: 'var(--r-slip)',
-                  background: rule === 'AFTER_DEPOSIT' ? 'var(--tag-copied-bg)' : 'transparent',
-                  border: `2px solid ${rule === 'AFTER_DEPOSIT' ? 'var(--calm)' : 'var(--line-strong)'}`,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  color: 'var(--paper-ink)',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'var(--font-ui)', fontWeight: 700, fontSize: 15 }}>
-                    After deposit
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--paper-muted)', marginTop: 2 }}>
-                    Work begins once the deposit is paid. Balance is tracked.
-                  </div>
-                </div>
-                {rule === 'AFTER_DEPOSIT' && <span style={{ color: 'var(--calm)' }}>✓</span>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRule('AFTER_FULL')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 12,
-                  padding: '16px 18px',
-                  borderRadius: 'var(--r-slip)',
-                  background:
-                    rule === 'AFTER_FULL' ? 'var(--tag-copied-bg)' : 'transparent',
-                  border: `2px solid ${rule === 'AFTER_FULL' ? 'var(--calm)' : 'var(--line-strong)'}`,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  color: 'var(--paper-ink)',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'var(--font-ui)', fontWeight: 700, fontSize: 15 }}>
-                    After full payment
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--paper-muted)', marginTop: 2 }}>
-                    Work begins only when 100% of the total amount has cleared.
-                  </div>
-                </div>
-                {rule === 'AFTER_FULL' && <span style={{ color: 'var(--calm)' }}>✓</span>}
-              </button>
-            </div>
-
-            {/* Evening summary */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: 8,
-              }}
-            >
-              <div>
-                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Evening summary</h4>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
-                  Daily Telegram message: who paid, who owes, what is pending.
-                </p>
-              </div>
-              <Switch checked={digestOn} onChange={setDigestOn} label="Evening summary" />
-            </div>
-
-            {digestOn && (
-              <TextField
-                label="Summary time (Lagos time)"
-                type="time"
-                value={digestTime}
-                onChange={(e) => setDigestTime(e.target.value)}
-                error={err.fieldErrors?.digestTime?.[0]}
+            {phone.trim() && (
+              <Switch
+                checked={showPhone}
+                onChange={setShowPhone}
+                label="Show my number on the payment page"
               />
             )}
 
-            {save.isError && <Banner tone="bad">{err.message}</Banner>}
+            <div>
+              <label htmlFor="onb-type" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                What do you do? (optional)
+              </label>
+              <select
+                id="onb-type"
+                value={bizType}
+                onChange={(e) => setBizType(e.target.value)}
+                data-flow-id="ONB-05"
+                style={{ width: '100%', height: 46, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF' }}
+              >
+                <option value="CREATIVE_DESIGN">Creative / Design</option>
+                <option value="DIGITAL_SERVICES">Digital services</option>
+                <option value="REPAIRS_MAINTENANCE">Repairs & maintenance</option>
+                <option value="PRINTING_PRODUCTION">Printing & production</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
 
-            <button
-              type="button"
-              className="pd-btn-primary pd-btn--block"
-              disabled={save.isPending}
-              onClick={finish}
-            >
-              {save.isPending ? 'Setting up…' : 'Complete setup'}
+            <button type="button" className="pf-btn pf-btn--primary" disabled={save.isPending} onClick={handleStep1} data-flow-id="ONB-06">
+              {save.isPending ? 'Saving…' : 'Continue'}
             </button>
           </div>
         )}
-      </article>
 
-      {/* A way out before setup is finished (wrong account, shared device) */}
-      <p className="pd-onb-out">
-        Not your account?{' '}
-        <button
-          type="button"
-          disabled={leaving}
-          onClick={() => {
-            setLeaving(true);
-            void signOut(); // redirects to the sign-in page
-          }}
-        >
-          <Icon name="signout" size={16} />
-          {leaving ? 'Signing out…' : 'Sign out'}
-        </button>
-      </p>
+        {/* Step 2: When do you work? */}
+        {step === 2 && (
+          <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h1>When do you work?</h1>
+              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                Used to flag when upcoming job deadlines exceed your available hours.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} data-flow-id="ONB-07">
+              <button
+                type="button"
+                className={`pf-btn pf-btn--sm ${preset === 'mf' ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                onClick={() => { setPreset('mf'); setHours(PRESET_MF); setHoursErr(''); }}
+              >
+                Mon–Fri 9–5
+              </button>
+              <button
+                type="button"
+                className={`pf-btn pf-btn--sm ${preset === 'ms' ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                onClick={() => { setPreset('ms'); setHours(PRESET_MS); setHoursErr(''); }}
+              >
+                Mon–Sat 9–5
+              </button>
+              <button
+                type="button"
+                className={`pf-btn pf-btn--sm ${preset === 'custom' ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                onClick={() => setPreset('custom')}
+              >
+                Custom
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {DAYS.map((d) => {
+                const s = hours[d.key];
+                return (
+                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-default)' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, minWidth: 80 }}>
+                      <input
+                        type="checkbox"
+                        checked={s.enabled}
+                        onChange={(e) => {
+                          setPreset('custom');
+                          setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], enabled: e.target.checked } }));
+                        }}
+                      />
+                      <span>{d.label}</span>
+                    </label>
+                    {s.enabled ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="time"
+                          value={s.start}
+                          onChange={(e) => {
+                            setPreset('custom');
+                            setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], start: e.target.value } }));
+                          }}
+                          style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border-strong)' }}
+                        />
+                        <span>to</span>
+                        <input
+                          type="time"
+                          value={s.end}
+                          onChange={(e) => {
+                            setPreset('custom');
+                            setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], end: e.target.value } }));
+                          }}
+                          style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border-strong)' }}
+                        />
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Off</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9, fontSize: 13.5 }} data-flow-id="ONB-10">
+              You have about <strong>{weeklyHours} working hours</strong> a week.
+            </div>
+
+            {hoursErr && <p style={{ color: 'var(--status-danger)', fontSize: 13 }}>{hoursErr}</p>}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setStep(1)} data-flow-id="ONB-00b">Back</button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button type="button" onClick={() => { setHours(PRESET_MF); setStep(3); setMaxStep(3); }} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }} data-flow-id="ONB-12">
+                  Skip, use defaults
+                </button>
+                <button type="button" className="pf-btn pf-btn--primary" onClick={handleStep2} data-flow-id="ONB-11">Continue</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: How you get paid */}
+        {step === 3 && (
+          <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h1>How you get paid</h1>
+              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+                Set your defaults for new payment requests. You can override these per job.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-flow-id="ONB-13">
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Default payment terms</div>
+              {[
+                { val: 'FULL' as const, title: 'Pay in full first (default)', desc: 'Job becomes Ready once the full amount is verified.' },
+                { val: 'DEPOSIT' as const, title: 'Deposit', desc: 'Collect a deposit upfront; request the balance on delivery.' },
+                { val: 'PAY_ON_DELIVERY' as const, title: 'Pay on delivery', desc: 'Job starts Ready immediately; request payment when delivered.' },
+              ].map((opt) => (
+                <label key={opt.val} style={{
+                  display: 'flex', gap: 10, padding: 12, borderRadius: 9, cursor: 'pointer',
+                  border: `1px solid ${terms === opt.val ? 'var(--action-primary)' : 'var(--border-default)'}`,
+                  background: terms === opt.val ? 'var(--bg-selected)' : '#FFFFFF',
+                }}>
+                  <input type="radio" name="terms" checked={terms === opt.val} onChange={() => setTerms(opt.val)} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{opt.title}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {terms === 'DEPOSIT' && (
+              <div data-flow-id="ONB-14">
+                <label htmlFor="dep-pct" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                  Deposit percentage: <strong>{depositPct}%</strong>
+                </label>
+                <input
+                  id="dep-pct"
+                  type="range"
+                  min={10}
+                  max={90}
+                  step={5}
+                  value={depositPct}
+                  onChange={(e) => setDepositPct(Number(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-flow-id="ONB-15">
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Who pays the processing fee?</div>
+              {[
+                { val: 'OWNER' as const, title: 'I do (default)', desc: 'Your client pays the exact quoted price.' },
+                { val: 'CLIENT' as const, title: 'My client does', desc: 'Exact fee shown on the payment page.' },
+              ].map((opt) => (
+                <label key={opt.val} style={{
+                  display: 'flex', gap: 10, padding: 12, borderRadius: 9, cursor: 'pointer',
+                  border: `1px solid ${feeBearer === opt.val ? 'var(--action-primary)' : 'var(--border-default)'}`,
+                  background: feeBearer === opt.val ? 'var(--bg-selected)' : '#FFFFFF',
+                }}>
+                  <input type="radio" name="fee" checked={feeBearer === opt.val} onChange={() => setFeeBearer(opt.val)} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{opt.title}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="pf-btn pf-btn--primary" disabled={save.isPending} onClick={handleFinish} data-flow-id="ONB-16">
+                {save.isPending ? 'Finishing…' : 'Finish setup'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

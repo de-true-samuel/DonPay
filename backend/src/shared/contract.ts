@@ -9,7 +9,17 @@ export type KoboString = string;
 export type PaymentPlan = 'FULL' | 'DEPOSIT_BALANCE';
 export type ReadyRule = 'AFTER_DEPOSIT' | 'AFTER_FULL';
 export type RequestKind = 'FULL' | 'DEPOSIT' | 'BALANCE' | 'CUSTOM';
-export type RequestStatus = 'DRAFT' | 'SCHEDULED' | 'SENT' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+export type RequestStatus =
+  | 'DRAFT'
+  | 'SCHEDULED'
+  | 'SENT'
+  | 'PAID'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'NOT_REQUESTED'
+  | 'AWAITING_PAYMENT'
+  | 'UNDER_REVIEW'
+  | 'REFUNDED';
 export type JobStatus = 'NOT_STARTED' | 'PART_PAID' | 'FULLY_PAID' | 'CANCELLED';
 export type PaymentSource = 'KORA_VERIFIED' | 'MANUAL';
 export type ReviewKind =
@@ -18,7 +28,12 @@ export type ReviewKind =
   | 'JOB_OVERPAID'
   | 'AMOUNT_MISMATCH'
   | 'PAYER_NAME_DIFFERS'
-  | 'VERIFICATION_FAILED';
+  | 'VERIFICATION_FAILED'
+  | 'EXTRA_PAYMENT'
+  | 'UNKNOWN_REFERENCE'
+  | 'PAID_ON_CANCELLED'
+  | 'VERIFICATION_MISMATCH'
+  | 'REFUND_RECORDED';
 export type SearchStatus = 'paid' | 'waiting' | 'balance_due' | 'expired' | 'needs_review';
 export type SavedView = 'unpaid_balances' | 'this_week' | 'needs_follow_up';
 /** Wording template for messages copied to a customer. null on a customer means 'en'. */

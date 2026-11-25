@@ -32,6 +32,7 @@ import { toProvider } from '../services/serialize';
 import { supportLookup } from '../services/support';
 import { createTelegramLink, handleTelegramUpdate } from '../services/telegram-bot';
 import { getToday } from '../services/today';
+import * as v2 from '../services/v2';
 import { receiveKoraWebhook } from '../services/webhooks';
 import { CONTRACT_VERSION, type ApiError } from '../shared/contract';
 import { idempotent } from './idempotency';
@@ -485,6 +486,33 @@ export function createApp(opts: AppOptions) {
     }
     return c.json({ ok: true });
   });
+
+  // --- Paidar v2.0.0 routes (waitlist, queue, work transitions, public attempts/receipts) ---
+  app.post(
+    '/api/waitlist',
+    publicRateLimit,
+    validate('json', z.object({ email: z.string().email(), whatsappPhone: z.string().optional(), businessType: z.string().optional() })),
+    async (c) => c.json(await v2.joinWaitlist(d(c), c.req.valid('json'))),
+  );
+  app.get('/api/queue', async (c) => c.json(await v2.getQueueV2(d(c), pid(c))));
+  app.post('/api/jobs/:id/start', async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'start')));
+  app.post('/api/jobs/:id/complete', async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'complete')));
+  app.post(
+    '/api/jobs/:id/hold',
+    validate('json', z.object({ reason: z.string().max(200).optional() }).optional()),
+    async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'hold', c.req.valid('json')?.reason)),
+  );
+  app.post('/api/jobs/:id/resume', async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'resume')));
+  app.post(
+    '/api/jobs/:id/override-ready',
+    validate('json', z.object({ reason: z.string().min(5).max(200) })),
+    async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'override_ready', c.req.valid('json').reason)),
+  );
+  app.patch('/api/notifications/:id/read', async (c) => c.json(await v2.markNotificationRead(d(c), pid(c), c.req.param('id'))));
+  app.post('/api/notifications/read-all', async (c) => c.json(await v2.markAllNotificationsRead(d(c), pid(c))));
+  app.delete('/api/me/sample-data', async (c) => c.json(await v2.removeSampleData(d(c), pid(c))));
+  app.post('/api/public/pay/:token/attempt', publicRateLimit, async (c) => c.json(await v2.createOrGetActiveAttempt(d(c), requireToken(c))));
+  app.get('/api/public/receipt/:token', publicRateLimit, async (c) => c.json(await v2.getPublicReceiptV2(d(c), requireToken(c))));
 
   return app;
 }

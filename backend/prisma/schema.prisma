@@ -47,6 +47,52 @@ enum RequestStatus {
   PAID
   EXPIRED
   CANCELLED
+  NOT_REQUESTED
+  AWAITING_PAYMENT
+  UNDER_REVIEW
+  REFUNDED
+}
+
+enum JobWorkStatus {
+  AWAITING_PAYMENT
+  READY
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ChargeAttemptStatus {
+  ACCOUNT_ACTIVE
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum FeeBearer {
+  OWNER
+  CLIENT
+}
+
+enum PaymentTermsV2 {
+  FULL
+  DEPOSIT
+  PAY_ON_DELIVERY
+}
+
+enum ActivityActor {
+  OWNER
+  CLIENT
+  KORA
+  SYSTEM
+}
+
+enum ActivityCategory {
+  PAYMENTS
+  STATUS
+  EDITS
 }
 
 enum PaymentSource {
@@ -61,6 +107,11 @@ enum ReviewKind {
   AMOUNT_MISMATCH
   PAYER_NAME_DIFFERS
   VERIFICATION_FAILED
+  EXTRA_PAYMENT
+  UNKNOWN_REFERENCE
+  PAID_ON_CANCELLED
+  VERIFICATION_MISMATCH
+  REFUND_RECORDED
 }
 
 enum NotificationKind {
@@ -78,44 +129,61 @@ enum MessageLanguage {
 }
 
 model Provider {
-  id                String    @id @default(cuid())
-  businessName      String
-  telegramChatId    BigInt?   @unique
-  telegramUsername  String?
-  devLoginKey       String?   @unique
+  id                    String         @id @default(cuid())
+  businessName          String
+  email                 String?        @unique
+  emailVerifiedAt       DateTime?
+  fullName              String?
+  businessType          String?
+  telegramChatId        BigInt?        @unique
+  telegramUsername      String?
+  devLoginKey           String?        @unique
   /// Clerk user id when the provider signs in with Clerk (website sign-in). Null for Telegram/dev sign-in.
-  clerkUserId       String?   @unique
-  defaultReadyRule  ReadyRule @default(AFTER_DEPOSIT)
-  digestMinuteOfDay Int?
-  lastDigestOn      DateTime? @db.Date
+  clerkUserId           String?        @unique
+  defaultReadyRule      ReadyRule      @default(AFTER_DEPOSIT)
+  digestMinuteOfDay     Int?
+  lastDigestOn          DateTime?      @db.Date
   /// Business phone (E.164) for the "message the business" button on the customer page (BE-16).
-  phoneE164         String?
+  phoneE164             String?
+  showPhoneOnPayPage    Boolean        @default(true)
+  onboardingStep        Int            @default(1)
+  workingHoursJson      Json?
+  defaultPaymentTerms   PaymentTermsV2 @default(FULL)
+  defaultDepositPercent Int            @default(50)
+  defaultFeeBearer      FeeBearer      @default(OWNER)
+  whatsappTemplate      String?
+  dueSoonReminderDays   Int            @default(1)
+  checklistDismissedAt  DateTime?
   /// When the provider finished onboarding (BE-10). Replaces per-device memory in the frontend.
-  onboardedAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  onboardedAt           DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  customers     Customer[]
-  jobs          Job[]
-  requests      PaymentRequest[]
-  payments      Payment[]
-  reviewItems   ReviewItem[]
-  notifications Notification[]
-  sessions      Session[]
-  loginTokens   LoginToken[]
+  customers       Customer[]
+  jobs            Job[]
+  requests        PaymentRequest[]
+  payments        Payment[]
+  reviewItems     ReviewItem[]
+  notifications   Notification[]
+  activityEvents  ActivityEvent[]
+  sessions        Session[]
+  loginTokens     LoginToken[]
   idempotencyKeys IdempotencyKey[]
 }
 
 model Customer {
-  id             String   @id @default(cuid())
-  providerId     String
-  name           String
-  phoneE164      String
+  id              String           @id @default(cuid())
+  providerId      String
+  name            String
+  phoneE164       String
+  email           String?
+  notes           String?
+  archivedAt      DateTime?
   /// DEPRECATED in contract 1.1.0 (BE-15): accepted by the API, never read or written. Drop in 2.0.
-  messageConsent Boolean  @default(false)
+  messageConsent  Boolean          @default(false)
   messageLanguage MessageLanguage?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   jobs     Job[]
@@ -125,26 +193,36 @@ model Customer {
 }
 
 model Job {
-  id                String      @id @default(cuid())
-  providerId        String
-  customerId        String
-  service           String
-  totalKobo         BigInt
-  plan              PaymentPlan
-  depositKobo       BigInt?
-  balanceDueAt      DateTime?
-  readyRule         ReadyRule
-  notes             String?
-  cancelledAt       DateTime?
-  balancePromptedAt DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                    String         @id @default(cuid())
+  providerId            String
+  customerId            String
+  title                 String?
+  service               String
+  totalKobo             BigInt
+  plan                  PaymentPlan
+  paymentTerms          PaymentTermsV2 @default(FULL)
+  depositPercent        Int?
+  depositKobo           BigInt?
+  feeBearer             FeeBearer      @default(OWNER)
+  balanceDueAt          DateTime?
+  estimatedHours        Float?
+  workStatus            JobWorkStatus  @default(AWAITING_PAYMENT)
+  startedWithoutPayment Boolean        @default(false)
+  overrideReason        String?
+  isSample              Boolean        @default(false)
+  readyRule             ReadyRule
+  notes                 String?
+  cancelledAt           DateTime?
+  balancePromptedAt     DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  provider    Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  customer    Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  requests    PaymentRequest[]
-  payments    Payment[]
-  reviewItems ReviewItem[]
+  provider       Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requests       PaymentRequest[]
+  payments       Payment[]
+  reviewItems    ReviewItem[]
+  activityEvents ActivityEvent[]
 
   @@index([providerId, createdAt])
   @@index([customerId])
@@ -182,11 +260,16 @@ model PaymentRequest {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  job         Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  payment     Payment?
-  reviewItems ReviewItem[]
-  claimEvents ClaimEvent[]
+  provider           Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  job                Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payment            Payment?
+  attempts           ChargeAttempt[]
+  reviewItems        ReviewItem[]
+  claimEvents        ClaimEvent[]
+  feeBearer          FeeBearer      @default(OWNER)
+  acceptedAmountKobo BigInt?
+  feeKobo            BigInt?
+  netKobo            BigInt?
 
   @@index([providerId, status])
   @@index([status, expiresAt])
@@ -299,6 +382,9 @@ model Notification {
   kind       NotificationKind
   dedupeKey  String           @unique
   payload    Json
+  readAt     DateTime?
+  deepLink   String?
+  entityId   String?
   sentAt     DateTime?
   failedAt   DateTime?
   attempts   Int              @default(0)
@@ -308,6 +394,53 @@ model Notification {
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([sentAt, createdAt])
+  @@index([providerId, readAt])
+}
+
+model ChargeAttempt {
+  id            String              @id @default(cuid())
+  requestId     String
+  koraReference String              @unique
+  bankName      String
+  accountNumber String
+  accountName   String
+  status        ChargeAttemptStatus @default(ACCOUNT_ACTIVE)
+  expiresAt     DateTime
+  supersededAt  DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  request PaymentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, status])
+}
+
+model ActivityEvent {
+  id         String           @id @default(cuid())
+  providerId String
+  jobId      String?
+  requestId  String?
+  clientId   String?
+  actor      ActivityActor
+  category   ActivityCategory
+  eventType  String
+  summary    String
+  detail     String?
+  createdAt  DateTime         @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  job      Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, createdAt])
+  @@index([jobId, createdAt])
+}
+
+model WaitlistEntry {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  whatsappPhone String?
+  businessType  String?
+  createdAt     DateTime @default(now())
 }
 
 model Session {

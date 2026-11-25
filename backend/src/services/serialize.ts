@@ -136,6 +136,16 @@ export function reviewMessage(kind: C.ReviewKind, detail: Record<string, unknown
       return `The payer name "${detail.payerName ?? 'unknown'}" looks different from the customer "${detail.customerName ?? ''}".`;
     case 'VERIFICATION_FAILED':
       return `We couldn't verify a payment notification for reference ${detail.reference ?? 'unknown'} after several tries.`;
+    case 'EXTRA_PAYMENT':
+      return `${detail.clientName ?? 'A client'} paid ${kobo(detail.amountKobo)} twice.`;
+    case 'UNKNOWN_REFERENCE':
+      return `We received ${kobo(detail.amountKobo)} we can't match (reference ${detail.reference ?? 'unknown'}).`;
+    case 'PAID_ON_CANCELLED':
+      return `${detail.clientName ?? 'A client'} paid a request you cancelled.`;
+    case 'VERIFICATION_MISMATCH':
+      return `The amount confirmed (${kobo(detail.acceptedKobo)}) doesn't match what was expected (${kobo(detail.expectedKobo)}).`;
+    case 'REFUND_RECORDED':
+      return `${kobo(detail.amountKobo)} was refunded.`;
   }
 }
 

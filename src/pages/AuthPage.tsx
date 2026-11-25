@@ -38,7 +38,7 @@ export function AuthPage() {
     !rawFrom.startsWith('/auth') &&
     !rawFrom.startsWith('//')
       ? rawFrom
-      : '/today';
+      : '/app';
 
   const [phase, setPhase] = useState<Phase>(token ? 'checking' : 'idle');
   const [failMsg, setFailMsg] = useState('');

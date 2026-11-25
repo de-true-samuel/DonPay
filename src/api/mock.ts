@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { Provider } from '../contract/contract';
 import { emptyDomain, fail, handleDomain, json, seedDomain } from './mockDomain';
 import type { DomainDb } from './mockDomain';
+import { handleMockV2 } from './mockV2';
 
 const KEY = 'paidar.mock.v2';
 interface Db { provider: Provider | null; signedIn: boolean; tgRequestedAt: number | null; domain: DomainDb }
@@ -111,7 +112,9 @@ export async function mockFetch(url: string, init: RequestInit): Promise<Respons
     return json(200, { url: 'https://t.me/paidar_demo_bot?start=link_demo', expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
   }
 
-  if (path.startsWith('/p/') || path.startsWith('/api/public/')) {
+  if (path.startsWith('/p/') || path.startsWith('/api/public/') || path === '/api/waitlist') {
+    const v2Res = handleMockV2(method, path, body, db.provider ?? makeProvider('Tolu’s Glam Studio', true), db.domain);
+    if (v2Res) { save(db); return v2Res; }
     const sp = new URL(url, window.location.origin).searchParams;
     const res = handleDomain(method, path, sp, body, db.provider ?? makeProvider('Tolu’s Glam Studio', true), db.domain);
     if (res) { save(db); return res; }
@@ -120,6 +123,8 @@ export async function mockFetch(url: string, init: RequestInit): Promise<Respons
   if (path.startsWith('/api/')) {
     const denied = needSession();
     if (denied) return denied;
+    const v2Res = handleMockV2(method, path, body, db.provider!, db.domain);
+    if (v2Res) { save(db); return v2Res; }
     const sp = new URL(url, window.location.origin).searchParams;
     const res = handleDomain(method, path, sp, body, db.provider!, db.domain);
     if (res) { save(db); return res; }

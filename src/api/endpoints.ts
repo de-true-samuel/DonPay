@@ -6,6 +6,10 @@ import {
 import type {
   CreateCustomerBody, CreateJobBody, ManualPaymentBody, PatchCustomerBody, PatchJobBody, PatchMeBody, ResolveBody, SearchParams,
 } from '../contract/contract';
+import {
+  ChargeAttempt, PublicReceiptV2, QueueResponse,
+  type WaitlistBody,
+} from '../contract/v2';
 
 export const authApi = {
   exchange: (token: string) =>
@@ -89,4 +93,24 @@ export const publicApi = {
   getRequest: (token: string) => api(`/api/public/requests/${token}`, { schema: PublicRequest }),
   getStatus: (token: string) => api(`/p/${token}/status`, { schema: PublicStatus }),
   claimPaid: (token: string) => api<{ ok: boolean }>(`/p/${token}/claim-paid`, { method: 'POST' }),
+  createAttempt: (token: string) => api(`/api/public/pay/${token}/attempt`, { method: 'POST', schema: ChargeAttempt }),
+  getReceipt: (token: string) => api(`/api/public/receipt/${token}`, { schema: PublicReceiptV2 }),
+};
+
+export const queueApi = {
+  get: () => api('/api/queue', { schema: QueueResponse }),
+  transition: (id: string, action: 'start' | 'complete' | 'hold' | 'resume' | 'override-ready', reason?: string) =>
+    api<{ id: string; workStatus: string; startedWithoutPayment: boolean }>(`/api/jobs/${id}/${action}`, {
+      method: 'POST',
+      body: reason !== undefined ? { reason } : {},
+    }),
+};
+
+export const waitlistApi = {
+  join: (body: WaitlistBody) => api<{ ok: boolean }>('/api/waitlist', { method: 'POST', body }),
+};
+
+export const notificationsApi = {
+  markRead: (id: string) => api<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllRead: () => api<{ ok: boolean }>('/api/notifications/read-all', { method: 'POST' }),
 };

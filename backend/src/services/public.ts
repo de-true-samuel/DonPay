@@ -48,11 +48,15 @@ function effectiveStatus(r: Pick<PublicRow, 'status' | 'expiresAt'>, now: Date):
 
 const STATE: Record<C.RequestStatus, C.PublicState> = {
   SENT: 'waiting',
+  AWAITING_PAYMENT: 'waiting',
   PAID: 'paid',
   EXPIRED: 'expired',
   CANCELLED: 'cancelled',
+  REFUNDED: 'cancelled',
+  UNDER_REVIEW: 'waiting',
   DRAFT: 'not_ready',
   SCHEDULED: 'not_ready',
+  NOT_REQUESTED: 'not_ready',
 };
 
 export async function getPublicRequest(deps: Deps, publicToken: string): Promise<C.PublicRequest> {

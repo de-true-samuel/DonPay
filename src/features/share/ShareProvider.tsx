@@ -180,10 +180,12 @@ export function ShareProvider({ children }: { children: ReactNode }) {
               type="button"
               className="pd-btn-primary pd-btn--block"
               style={{
-                background: copiedState ? 'var(--ok)' : 'var(--cta)',
-                boxShadow: copiedState ? '0 6px 0 #0A6636' : '0 6px 0 var(--cta-edge)',
+                background: copiedState ? 'var(--status-success)' : 'var(--action-primary)',
+                color: '#FFFFFF',
+                borderRadius: 9,
               }}
               onClick={() => void handleCopyMessage()}
+              data-flow-id="SHR-07"
             >
               {copiedState ? 'Copied ✓' : 'Copy message'}
             </button>
@@ -301,13 +303,14 @@ export function ShareProvider({ children }: { children: ReactNode }) {
               </div>
             )}
 
-            {/* Small tertiary chat links (Spec Section 5.5) */}
+            {/* Share & Preview links (SHR-06, SHR-09) */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 16,
+                flexWrap: 'wrap',
+                gap: 14,
                 fontSize: 13,
               }}
             >
@@ -315,19 +318,34 @@ export function ShareProvider({ children }: { children: ReactNode }) {
                 href={msgObj.whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: 'var(--ground)', textDecoration: 'underline' }}
+                data-flow-id="SHR-06"
+                style={{ color: 'var(--action-primary)', fontWeight: 600, textDecoration: 'underline' }}
               >
-                Open in WhatsApp
+                Open WhatsApp
               </a>
               <span style={{ color: 'var(--line-strong)' }}>·</span>
               <a
                 href={msgObj.telegramUrl}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: 'var(--ground)', textDecoration: 'underline' }}
+                style={{ color: 'var(--action-primary)', textDecoration: 'underline' }}
               >
-                Open in Telegram
+                Open Telegram
               </a>
+              {msgObj.payLink && (
+                <>
+                  <span style={{ color: 'var(--line-strong)' }}>·</span>
+                  <a
+                    href={`/pay/${msgObj.payLink.split('/').pop()}?preview=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-flow-id="SHR-09"
+                    style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}
+                  >
+                    Preview as your client
+                  </a>
+                </>
+              )}
             </div>
 
             {/* Close control reads "I've sent it" */}

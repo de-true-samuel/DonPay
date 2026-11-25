@@ -1,557 +1,399 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '../api/endpoints';
+import type { PublicRequest } from '../contract/contract';
+import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
-import { formatDateTime } from '../lib/time';
+import { formatTime } from '../lib/time';
+import { Icon } from '../ui/Icon';
+import { LogoMark } from '../ui/Logo';
 
-const QUALIFIER: Record<string, string> = { DEPOSIT: ' (deposit)', BALANCE: ' (balance)' };
+const DEMO_REQUEST: PublicRequest = {
+  status: 'SENT',
+  serverNow: new Date().toISOString(),
+  businessPhone: '+2348031234567',
+  amountPlain: '₦25,000',
+  businessName: "Tolu's Glam Studio",
+  customerFirstName: 'Ada',
+  service: 'Bridal makeup & hair styling (Demo)',
+  kind: 'FULL',
+  amountKobo: '2500000',
+  bankName: 'Wema Bank (Test)',
+  accountNumber: '9012345678',
+  accountName: "Tolu's Glam Studio",
+  expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+  paidAt: null,
+  customerClaimedPaidAt: null,
+  receipt: null,
+};
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    /* fallback */
-  }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    ta.remove();
-    return ok;
-  } catch {
-    return false;
-  }
+function formatCountdown(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
 }
 
 export function PublicPayPage() {
-  const { token } = useParams<{ token: string }>();
-  const [copiedAcct, setCopiedAcct] = useState(false);
-  const [copiedAmt, setCopiedAmt] = useState(false);
-  const [claimed, setClaimed] = useState(false);
-  const [claiming, setClaiming] = useState(false);
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const startRef = useRef(Date.now());
+  const { token = '' } = useParams();
+  const [params] = useSearchParams();
+  const isDemo = token === 'demo';
+  const isPreview = isDemo || params.get('preview') === '1';
+  const qc = useQueryClient();
 
-  const q = useQuery({
-    queryKey: ['publicRequest', token],
-    queryFn: () => publicApi.getRequest(token!),
-    enabled: !!token,
-    staleTime: 2000,
+  const [demoPaid, setDemoPaid] = useState(false);
+  const [demoClaimed, setDemoClaimed] = useState(false);
+  const [copiedAcct, setCopiedAcct] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [announcement, setAnnouncement] = useState('');
+  const mountMs = useRef(Date.now());
+  const announcedMilestones = useRef(new Set<number>());
+
+  const { data: liveReq, isLoading, isError, refetch } = useQuery({
+    queryKey: ['public-pay', token],
+    queryFn: () => publicApi.getRequest(token),
+    enabled: !!token && !isDemo,
+    retry: false,
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      if (!d) return false;
+      if (d.status === 'PAID' || d.status === 'CANCELLED') return false;
+      const elapsed = Date.now() - mountMs.current;
+      if (elapsed > 10 * 60_000) return 30_000; // Backoff after 10 minutes
+      return d.status === 'SENT' ? 5_000 : 15_000;
+    },
   });
 
-  const req = q.data;
+  const req: PublicRequest | undefined = isDemo
+    ? {
+        ...DEMO_REQUEST,
+        status: demoPaid ? 'PAID' : 'SENT',
+        paidAt: demoPaid ? new Date().toISOString() : null,
+        customerClaimedPaidAt: demoClaimed ? new Date().toISOString() : null,
+      }
+    : liveReq;
 
-  // Track elapsed seconds since page open for 60s claim button delay (Spec reconciliation #4)
+  useDocumentTitle(req ? `Pay ${req.businessName}` : 'Payment request');
+
+  // Tick 1s for countdown display & milestone announcements (10:00, 5:00, 1:00, 0:10 only)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSecondsElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
   }, []);
 
-  // Poll status endpoint
+  const remainingMs = req?.expiresAt ? Date.parse(req.expiresAt) - nowMs : 0;
+
   useEffect(() => {
-    if (!token || !req) return;
-    if (req.status === 'PAID' || req.status === 'CANCELLED') return;
-
-    let timer: number | null = null;
-    let cancelled = false;
-
-    async function poll() {
-      if (document.hidden) return;
-      try {
-        const s = await publicApi.getStatus(token!);
-        if (s.state.toUpperCase() !== req?.status) {
-          void q.refetch();
-        }
-      } catch {
-        /* network blip */
-      }
-      if (!cancelled) {
-        const delay = Date.now() - startRef.current < 120_000 ? 4000 : 10_000;
-        timer = window.setTimeout(poll, delay);
+    if (!req?.expiresAt || req.status !== 'SENT') return;
+    const secs = Math.floor(remainingMs / 1000);
+    for (const milestone of [600, 300, 60, 10]) {
+      if (secs <= milestone && secs > milestone - 2 && !announcedMilestones.current.has(milestone)) {
+        announcedMilestones.current.add(milestone);
+        const label = milestone >= 60 ? `${milestone / 60} minute${milestone === 60 ? '' : 's'}` : '10 seconds';
+        setAnnouncement(`Account instructions expire in ${label}.`);
       }
     }
+  }, [remainingMs, req?.expiresAt, req?.status]);
 
-    timer = window.setTimeout(poll, 4000);
-
-    const onVisibility = () => {
-      if (!document.hidden && timer === null) {
-        poll();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [token, req?.status, q]);
-
-  // Countdown timer
+  // Immediate recheck on tab regaining focus (Flow §2.4)
   useEffect(() => {
-    if (!req?.expiresAt || req.status !== 'SENT') {
-      setTimeLeft(null);
-      return;
-    }
+    if (isDemo) return;
+    const onFocus = () => { void refetch(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [isDemo, refetch]);
 
-    const target = Date.parse(req.expiresAt);
-    const tick = () => {
-      const ms = Math.max(0, target - Date.now());
-      setTimeLeft(ms);
-      if (ms <= 0 && req.status === 'SENT') {
-        void q.refetch();
+  const claimMut = useMutation({
+    mutationFn: async () => {
+      if (isDemo) {
+        setDemoClaimed(true);
+        return { ok: true };
       }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [req?.expiresAt, req?.status, q]);
+      const res = await publicApi.claimPaid(token);
+      await refetch();
+      return res;
+    },
+  });
 
-  if (q.isPending) {
-    return (
-      <main
-        style={{
-          minHeight: '100dvh',
-          display: 'grid',
-          placeItems: 'center',
-          background: '#2330A6',
-          color: '#F3F1FF',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          padding: 20,
-        }}
-      >
-        <p style={{ fontSize: 16 }}>Loading payment details…</p>
-      </main>
-    );
-  }
+  const attemptMut = useMutation({
+    mutationFn: () => publicApi.createAttempt(token),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['public-pay', token] });
+      void refetch();
+    },
+  });
 
-  if (q.isError || !req) {
-    return (
-      <main
-        style={{
-          minHeight: '100dvh',
-          display: 'grid',
-          placeItems: 'center',
-          background: '#2330A6',
-          color: '#F3F1FF',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          padding: 20,
-        }}
-      >
-        <div
-          style={{
-            background: '#F5F4EF',
-            color: '#14183F',
-            borderRadius: 24,
-            padding: '32px 24px',
-            maxWidth: 400,
-            textAlign: 'center',
-            boxShadow: '0 20px 30px rgba(0,0,0,0.3)',
-          }}
-        >
-          <h2 style={{ fontSize: 20, margin: '0 0 8px' }}>We can’t find this payment link.</h2>
-          <p style={{ color: '#5E6285', fontSize: 14, margin: 0 }}>
-            It may have expired or been removed. Please ask the business for fresh details.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  async function handleCopyAcct() {
-    if (!req?.accountNumber) return;
-    const ok = await copyText(req.accountNumber);
-    if (ok) {
-      setCopiedAcct(true);
-      setTimeout(() => setCopiedAcct(false), 2000);
-    }
-  }
-
-  async function handleCopyAmt() {
-    if (!req) return;
-    const plain = (BigInt(req.amountKobo) / 100n).toString();
-    const ok = await copyText(plain);
-    if (ok) {
-      setCopiedAmt(true);
-      setTimeout(() => setCopiedAmt(false), 2000);
-    }
-  }
-
-  async function handleClaimPaid() {
-    if (!token) return;
-    setClaiming(true);
+  async function copyAccount(acct: string) {
     try {
-      await publicApi.claimPaid(token);
-      setClaimed(true);
-    } catch {
-      /* ignore */
-    } finally {
-      setClaiming(false);
-    }
+      await navigator.clipboard.writeText(acct);
+      setCopiedAcct(true);
+      setAnnouncement('Account number copied.');
+      setTimeout(() => setCopiedAcct(false), 2000);
+    } catch { /* ignore */ }
   }
 
-  const plainAmount = (BigInt(req.amountKobo) / 100n).toString();
-  const formatCountdownStr = (ms: number) => {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
-  };
-
-  const isPaid = req.status === 'PAID';
-  const isExpired = req.status === 'EXPIRED';
-  const isCancelled = req.status === 'CANCELLED';
+  const rawStatus = req?.status as string | undefined;
+  const isExpired = rawStatus === 'EXPIRED' || (rawStatus === 'SENT' && !!req?.expiresAt && remainingMs <= 0);
+  const isNotReady = rawStatus === 'DRAFT' || rawStatus === 'SCHEDULED' || rawStatus === 'NOT_REQUESTED';
+  const isPaid = rawStatus === 'PAID';
+  const isCancelled = rawStatus === 'CANCELLED' || rawStatus === 'REFUNDED';
+  const isProcessing = !isPaid && !isExpired && !isCancelled && !!req?.customerClaimedPaidAt;
 
   return (
-    <div
+    <main
       style={{
         minHeight: '100dvh',
-        background: '#2330A6',
-        padding: '32px 16px 60px',
+        background: 'var(--bg-canvas)',
+        padding: '20px 16px 48px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-        boxSizing: 'border-box',
       }}
+      data-flow-id="PGE-00"
     >
-      <main
-        style={{
-          width: 'min(440px, 100%)',
-          background: '#F5F4EF',
-          borderRadius: 28,
-          boxShadow: '0 24px 36px -8px rgba(16, 21, 77, 0.5)',
-          color: '#14183F',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {/* Top Brand & Customer Strip (Spec Section 5.14) */}
-        <div style={{ padding: '24px 22px 14px', borderBottom: '1px solid rgba(20, 24, 63, 0.08)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <span style={{ width: 4, height: 16, background: '#2330A6', borderRadius: 2 }} />
-            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#14183F' }}>
-              {req.businessName}
-            </h1>
+      {/* Screen-reader assertive status announcements */}
+      <div className="pd-sr-only" aria-live="assertive" aria-atomic="true">
+        {announcement}
+        {isPaid ? 'Payment verified.' : ''}
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Header bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--nav-bg)', fontWeight: 700, fontSize: 17 }}>
+            <LogoMark size={24} />
+            <span>paidar</span>
           </div>
-          <p style={{ margin: 0, fontSize: 14, color: '#5E6285' }}>
-            Payment for {req.customerFirstName} · {req.service}
-            {QUALIFIER[req.kind] ?? ''}
-          </p>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+            background: 'var(--status-warning-tint)', color: 'var(--status-warning)', border: '1px solid #F3D19E',
+          }}>
+            <Icon name="flask" size={14} />
+            Test mode
+          </span>
         </div>
 
-        {/* STATE A: WAITING (Spec Section 5.14) */}
-        {!isPaid && !isExpired && !isCancelled && (
-          <div style={{ padding: '20px 22px 28px' }}>
-            <p
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                color: '#5E6285',
-                margin: '0 0 2px',
-              }}
-            >
-              Pay exactly
-            </p>
-            <div
-              style={{
-                fontSize: 'clamp(36px, 10vw, 48px)',
-                fontWeight: 800,
-                fontFamily: 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif',
-                letterSpacing: '-0.02em',
-                color: '#14183F',
-                margin: '0 0 10px',
-                lineHeight: 1,
-              }}
-            >
-              {formatNaira(req.amountKobo)}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCopyAmt}
-              style={{
-                width: '100%',
-                padding: '10px 16px',
-                borderRadius: 12,
-                border: '1.5px solid #14183F',
-                background: copiedAmt ? '#0E9F57' : 'transparent',
-                color: copiedAmt ? '#fff' : '#14183F',
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: 20,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {copiedAmt ? 'Amount Copied ✓' : `Copy amount ${plainAmount}`}
-            </button>
-
-            {/* Countdown Ring banner */}
-            {timeLeft !== null && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  background: timeLeft <= 180_000 ? '#FFD9D5' : timeLeft <= 600_000 ? '#FFE3A6' : '#DFE3FF',
-                  color: timeLeft <= 180_000 ? '#8A1409' : timeLeft <= 600_000 ? '#6A4200' : '#1B2480',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  marginBottom: 20,
-                }}
-              >
-                <span>Dynamic Account Expiry</span>
-                <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 16 }}>
-                  {formatCountdownStr(timeLeft)} left to pay
-                </span>
-              </div>
-            )}
-
-            {/* Account Details Box */}
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 16,
-                padding: '18px 16px',
-                border: '1px solid rgba(20, 24, 63, 0.1)',
-                display: 'grid',
-                gap: 12,
-                marginBottom: 20,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                <span style={{ color: '#5E6285' }}>Bank</span>
-                <strong style={{ fontSize: 15 }}>{req.bankName}</strong>
-              </div>
-
-              <div>
-                <span style={{ fontSize: 12, color: '#5E6285', display: 'block', marginBottom: 2 }}>
-                  Account number
-                </span>
-                <div
-                  style={{
-                    fontFamily: 'ui-monospace, monospace',
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    color: '#14183F',
-                    marginBottom: 10,
-                  }}
-                >
-                  {req.accountNumber}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyAcct}
-                  style={{
-                    width: '100%',
-                    minHeight: 52,
-                    borderRadius: 14,
-                    border: 'none',
-                    background: copiedAcct ? '#0E9F57' : '#FFB81C',
-                    color: '#14183F',
-                    fontWeight: 800,
-                    fontSize: 16,
-                    cursor: 'pointer',
-                    boxShadow: copiedAcct ? '0 4px 0 #0A6636' : '0 4px 0 #B97F00',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {copiedAcct ? 'Account Number Copied ✓' : 'Copy account number'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
-                <span style={{ color: '#5E6285' }}>Account name</span>
-                <strong>{req.accountName}</strong>
-              </div>
-            </div>
-
-            {/* Reassurance copy (Spec Section 5.14) */}
-            <div style={{ fontSize: 13, color: '#5E6285', lineHeight: 1.45, marginBottom: 20 }}>
-              <p style={{ margin: '0 0 6px' }}>
-                A different amount may be reversed by your bank.
-              </p>
-              <p style={{ margin: 0 }}>
-                This account is for this payment only. Transfer from any Nigerian bank app or USSD.
-              </p>
-            </div>
-
-            {/* Live Status and "Tell business I've paid" button */}
-            <div style={{ borderTop: '1px dashed rgba(20, 24, 63, 0.16)', paddingTop: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#5E6285', marginBottom: 12 }}>
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: '#2330A6',
-                    display: 'inline-block',
-                  }}
-                />
-                <span>Waiting for your transfer…</span>
-              </div>
-
-              {claimed || req.customerClaimedPaidAt ? (
-                <p style={{ margin: 0, color: '#0E9F57', fontWeight: 700, fontSize: 14, textAlign: 'center' }}>
-                  ✓ {req.businessName} has been told. This page will update once the bank confirms your payment.
-                </p>
-              ) : secondsElapsed >= 60 ? (
-                <button
-                  type="button"
-                  onClick={handleClaimPaid}
-                  disabled={claiming}
-                  style={{
-                    width: '100%',
-                    minHeight: 44,
-                    background: 'transparent',
-                    border: '1.5px solid #14183F',
-                    borderRadius: 12,
-                    color: '#14183F',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {claiming ? 'Notifying…' : `Tell ${req.businessName} I’ve paid`}
-                </button>
-              ) : null}
-            </div>
+        {/* Preview-only warning banner (Spec §9.6) */}
+        {isPreview && (
+          <div
+            role="note"
+            style={{
+              padding: '10px 14px', borderRadius: 9,
+              background: 'var(--status-info-tint)', color: 'var(--status-info)',
+              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8,
+            }}
+          >
+            <Icon name="info" size={16} />
+            <span>Preview only. Nothing is charged.</span>
           </div>
         )}
 
-        {/* STATE B: PAID (Spec Section 5.14) */}
-        {isPaid && (
-          <div style={{ padding: '24px 22px 32px' }}>
-            <div
-              style={{
-                display: 'inline-block',
-                fontFamily: 'ui-rounded, system-ui',
-                fontWeight: 800,
-                fontSize: 28,
-                letterSpacing: '0.08em',
-                color: '#0E9F57',
-                border: '4px solid #0E9F57',
-                borderRadius: 8,
-                padding: '4px 16px',
-                transform: 'rotate(-4deg)',
-                marginBottom: 20,
-              }}
-            >
-              PAID ✓
+        {isLoading && (
+          <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, border: '1px solid var(--border-default)' }}>
+            <p style={{ color: 'var(--text-secondary)' }}>Loading payment details…</p>
+          </div>
+        )}
+
+        {isError && (
+          <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, border: '1px solid var(--border-default)' }}>
+            <h1 style={{ fontSize: 20, marginBottom: 8 }}>Payment link not found</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              This link may be invalid or no longer available. Please ask the business for an updated payment link.
+            </p>
+          </div>
+        )}
+
+        {req && (
+          <section
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 14,
+              padding: 22,
+              border: '1px solid var(--border-default)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 18,
+            }}
+          >
+            {/* Business & Amount Header */}
+            <div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                Payment request from <strong style={{ color: 'var(--text-primary)' }}>{req.businessName}</strong>
+              </p>
+              <h1 style={{ fontSize: 34, lineHeight: '40px', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+                {formatNaira(req.amountKobo)}
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 14 }}>{req.service}</p>
             </div>
 
-            {req.receipt && (
+            {/* State: Paid / Verified */}
+            {isPaid && (
               <div
                 style={{
-                  background: '#FFFEFA',
-                  border: '1px solid rgba(20, 24, 63, 0.12)',
-                  borderRadius: '12px 12px 0 0',
-                  padding: 20,
-                  fontFamily: 'ui-monospace, monospace',
-                  fontSize: 14,
-                  lineHeight: 1.6,
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
-                  position: 'relative',
+                  background: 'var(--status-success-tint)',
+                  borderRadius: 12,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
                 }}
               >
-                <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8, fontFamily: 'system-ui' }}>
-                  {req.businessName} Receipt
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--status-success)', fontWeight: 700, fontSize: 16 }}>
+                  <Icon name="shield" size={20} />
+                  <span>Payment verified</span>
                 </div>
-                <div>Service: {req.service}</div>
-                <div style={{ borderTop: '1px dashed #ccc', margin: '8px 0' }} />
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#0E9F57' }}>
-                  {formatNaira(req.receipt.amountKobo)}
-                </div>
-                <div>Ref: {req.receipt.reference}</div>
-                <div>Time: {formatDateTime(req.receipt.paidAt)}</div>
+                <p style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>
+                  Confirmed through the payment provider’s transaction records{req.paidAt ? ` on ${formatTime(req.paidAt)}` : ''}.
+                </p>
+                <Link
+                  to={`/receipt/${token}`}
+                  style={{
+                    height: 44, borderRadius: 9, background: 'var(--status-success)', color: '#FFFFFF',
+                    textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <Icon name="external" size={16} />
+                  <span>View verified receipt</span>
+                </Link>
+              </div>
+            )}
 
-                {BigInt(req.receipt.jobBalanceKobo) > 0n && (
-                  <div style={{ borderTop: '1px dashed #ccc', marginTop: 8, paddingTop: 6, color: '#E58A00' }}>
-                    Balance remaining: {formatNaira(req.receipt.jobBalanceKobo)}
-                  </div>
+            {/* State: Not Ready */}
+            {isNotReady && (
+              <div style={{ background: 'var(--bg-surface-subtle)', borderRadius: 12, padding: 16, border: '1px solid var(--border-default)' }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Not ready for payment yet</p>
+                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
+                  {req.businessName} hasn’t released this payment request yet. Check back when they send you the link.
+                </p>
+              </div>
+            )}
+
+            {/* State: Cancelled / Refunded */}
+            {isCancelled && (
+              <div style={{ background: 'var(--status-neutral-tint)', borderRadius: 12, padding: 16 }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Payment request closed</p>
+                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
+                  This payment request is no longer active. Do not transfer to any previous account details.
+                </p>
+              </div>
+            )}
+
+            {/* State: Expired Attempt (Request stays open) */}
+            {!isPaid && !isCancelled && !isNotReady && isExpired && (
+              <div style={{ background: 'var(--status-warning-tint)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontWeight: 600, color: 'var(--status-warning)' }}>Temporary account expired</p>
+                <p style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>
+                  Your payment request remains open. Generate a fresh bank account below before transferring.
+                </p>
+                {!isPreview && (
+                  <button
+                    type="button"
+                    disabled={attemptMut.isPending}
+                    onClick={() => attemptMut.mutate()}
+                    style={{
+                      height: 44, borderRadius: 9, border: 0, background: 'var(--action-primary)',
+                      color: '#FFFFFF', fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    {attemptMut.isPending ? 'Generating…' : 'Generate new account'}
+                  </button>
                 )}
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => window.print()}
-              style={{
-                width: '100%',
-                minHeight: 48,
-                marginTop: 20,
-                borderRadius: 14,
-                border: '2px solid #14183F',
-                background: 'transparent',
-                fontWeight: 700,
-                fontSize: 15,
-                cursor: 'pointer',
-              }}
-            >
-              Print / Save receipt
-            </button>
-          </div>
-        )}
+            {/* State: Active Kora Account Attempt */}
+            {!isPaid && !isCancelled && !isNotReady && !isExpired && req.accountNumber && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {isProcessing && (
+                  <div style={{ background: 'var(--status-info-tint)', color: 'var(--status-info)', padding: '12px 14px', borderRadius: 9, fontSize: 13.5, fontWeight: 600 }}>
+                    We’re checking the payment with the payment provider. This usually takes a moment.
+                  </div>
+                )}
 
-        {/* STATE C: EXPIRED (Spec Section 5.14) */}
-        {isExpired && (
-          <div style={{ padding: '32px 22px', textAlign: 'center' }}>
-            <div
-              style={{
-                display: 'inline-block',
-                fontWeight: 800,
-                fontSize: 24,
-                color: '#E5392D',
-                border: '3px solid #E5392D',
-                borderRadius: 8,
-                padding: '4px 14px',
-                marginBottom: 16,
-              }}
-            >
-              EXPIRED
-            </div>
-            <h2 style={{ fontSize: 18, color: '#14183F', margin: '0 0 8px' }}>
-              This payment account has expired.
-            </h2>
-            <p style={{ color: '#5E6285', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-              To prevent lost transfers, this one-time account closed. Please ask {req.businessName} for a fresh payment link.
-            </p>
-          </div>
-        )}
+                <div style={{ background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bank name</div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{req.bankName ?? '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Account name</div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{req.accountName ?? req.businessName}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Account number</div>
+                      <div className="pd-mono" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '0.04em' }}>
+                        {req.accountNumber}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyAccount(req.accountNumber!)}
+                      style={{
+                        minHeight: 44, padding: '0 14px', borderRadius: 9, border: '1px solid var(--border-strong)',
+                        background: '#FFFFFF', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      <Icon name={copiedAcct ? 'check' : 'copy'} size={16} />
+                      <span>{copiedAcct ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
 
-        {/* STATE D: CANCELLED (Spec Section 5.14) */}
-        {isCancelled && (
-          <div style={{ padding: '32px 22px', textAlign: 'center' }}>
-            <h2 style={{ fontSize: 18, color: '#14183F', margin: '0 0 8px' }}>
-              Payment request cancelled
-            </h2>
-            <p style={{ color: '#5E6285', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-              This payment request was cancelled. If you think this is a mistake, ask {req.businessName}.
-            </p>
-          </div>
-        )}
-      </main>
+                {req.expiresAt && (
+                  <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: '18px' }}>
+                    Payment instructions expire in <strong className="pd-mono">{formatCountdown(remainingMs)}</strong>. Your payment request remains open. You can generate another set of instructions if this attempt expires.
+                  </p>
+                )}
 
-      {/* Footer promise (Spec Section 5.14) */}
-      <footer style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: '#BBC1F7' }}>
-        This account is for this payment only · Powered by Paidar
-      </footer>
-    </div>
+                <button
+                  type="button"
+                  disabled={claimMut.isPending}
+                  onClick={() => claimMut.mutate()}
+                  style={{
+                    width: '100%', height: 48, borderRadius: 9, border: 0,
+                    background: 'var(--action-primary)', color: '#FFFFFF', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {claimMut.isPending ? 'Checking status…' : "I've paid"}
+                </button>
+
+                {isDemo && (
+                  <button
+                    type="button"
+                    onClick={() => setDemoPaid(true)}
+                    style={{
+                      width: '100%', height: 44, borderRadius: 9,
+                      border: '1px dashed var(--border-strong)', background: '#FFFFFF',
+                      color: 'var(--text-secondary)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Simulate verified payment (Demo only)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Contact business footer */}
+            {req.businessPhone && (
+              <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Questions for {req.businessName}?</span>
+                <a
+                  href={`https://wa.me/${req.businessPhone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontWeight: 600, textDecoration: 'none' }}
+                >
+                  Message on WhatsApp
+                </a>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    </main>
   );
 }

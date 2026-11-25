@@ -1,377 +1,335 @@
-import { useMemo } from 'react';
-import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
-import { describeError } from '../api/errors';
-import {
-  ActivePaymentRow,
-  BalanceRow,
-  ExpiredRow,
-  ReminderRow,
-  ReviewRow,
-  SettledPaymentRow,
-} from '../features/today/TodayRows';
-import { useToday } from '../features/today/useToday';
-import { useCopiedAt } from '../features/requests/copyTracker';
-import { useRequestActions } from '../features/requests/useRequestActions';
-import { useDocumentTitle, useNow } from '../lib/hooks';
+import { queueApi, todayApi } from '../api/endpoints';
+import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
-import { timeAgo } from '../lib/time';
-import { CountdownRing } from '../ui/CountdownRing';
-import { Banner, Button, LinkButton, Skeleton } from '../ui/primitives';
+import { formatTime } from '../lib/time';
+import { Icon } from '../ui/Icon';
+import { FlagChip, JobStatusChip } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
 
-function Section({
-  title,
-  count,
-  to,
-  children,
-}: {
-  title: string;
-  count: number;
-  to?: string;
-  children: ReactNode;
-}) {
-  if (!count) return null;
-  return (
-    <section className="pd-qsection">
-      <h2 className="pd-qsection__h">
-        <span>
-          {title}
-          <span className="pd-count">{count}</span>
-        </span>
-        {to && (
-          <Link to={to} className="pd-qsection__more">
-            See all
-          </Link>
-        )}
-      </h2>
-      <div className="pd-qsection__list">{children}</div>
-    </section>
-  );
+const CHECKLIST_DISMISSED_KEY = 'paidar.checklist.dismissed';
+
+function lagosGreeting(): string {
+  const hour = (new Date().getUTCHours() + 1) % 24;
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export function TodayPage() {
-  useDocumentTitle('Today');
+  useDocumentTitle('Dashboard');
   const { provider } = useAuth();
-  const q = useToday();
-  const now = useNow(5000);
-  const actions = useRequestActions();
   const qc = useQueryClient();
   const toast = useToast();
+  const [period, setPeriod] = useState<'week' | 'month' | '30d' | 'all'>('month');
+  const [checklistHidden, setChecklistHidden] = useState(() => {
+    try { return localStorage.getItem(CHECKLIST_DISMISSED_KEY) === '1'; } catch { return false; }
+  });
 
-  const t = q.data;
+  const { data: today, isLoading: todayLoading } = useQuery({
+    queryKey: ['today'],
+    queryFn: () => todayApi.get(),
+  });
 
-  // Formatted Lagos date
-  const todayDateString = useMemo(() => {
-    return new Intl.DateTimeFormat('en-NG', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      timeZone: 'Africa/Lagos',
-    }).format(now);
-  }, [now]);
+  const { data: queue } = useQuery({
+    queryKey: ['queue'],
+    queryFn: () => queueApi.get(),
+  });
 
-  // Landing soon: sum of waiting tickets
-  const landingSoonKobo = useMemo(() => {
-    return (
-      t?.waiting?.reduce((acc, x) => acc + BigInt(x.request.amountKobo), 0n) ?? 0n
-    ).toString();
-  }, [t]);
+  const startMut = useMutation({
+    mutationFn: (jobId: string) => queueApi.transition(jobId, 'start'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['queue'] });
+      void qc.invalidateQueries({ queryKey: ['today'] });
+      toast.success('Started. Good luck.');
+    },
+  });
 
-  // Landed today: sum of verified payments today
-  const landedTodayKobo = useMemo(() => {
-    return (
-      t?.justPaid?.reduce((acc, x) => acc + BigInt(x.payment.amountKobo), 0n) ?? 0n
-    ).toString();
-  }, [t]);
+  const checkMut = useMutation({
+    mutationFn: async (_requestId: string) => {
+      await qc.invalidateQueries({ queryKey: ['today'] });
+    },
+    onSuccess: () => {
+      toast.info('Checked payment status.');
+    },
+  });
 
-  // Sort waiting requests by urgency: customer-claimed-paid first, then least time remaining
-  const sortedWaiting = useMemo(() => {
-    if (!t?.waiting) return [];
-    return [...t.waiting].sort((a, b) => {
-      if (a.request.customerClaimedPaidAt && !b.request.customerClaimedPaidAt) return -1;
-      if (!a.request.customerClaimedPaidAt && b.request.customerClaimedPaidAt) return 1;
-      const expA = a.request.expiresAt ? Date.parse(a.request.expiresAt) : Infinity;
-      const expB = b.request.expiresAt ? Date.parse(b.request.expiresAt) : Infinity;
-      return expA - expB;
-    });
-  }, [t?.waiting]);
+  const receivedTotal = useMemo(
+    () => (today?.justPaid ?? []).reduce((s, x) => s + BigInt(x.payment.amountKobo), 0n),
+    [today],
+  );
+  const awaitingTotal = useMemo(
+    () => (today?.waiting ?? []).reduce((s, x) => s + BigInt(x.request.amountKobo), 0n),
+    [today],
+  );
 
-  const heroItem = sortedWaiting[0] ?? null;
-  const otherWaiting = sortedWaiting.slice(1);
+  const nextUp = useMemo(() => {
+    if (!queue) return [];
+    return [...queue.inProgress, ...queue.ready].slice(0, 5);
+  }, [queue]);
 
-  // Copied state of hero item
-  const heroCopiedAt = useCopiedAt(heroItem?.request.id ?? '');
+  const riskCounts = useMemo(() => {
+    const all = queue ? [...queue.inProgress, ...queue.ready] : [];
+    const overdue = all.filter((j) => j.isOverdue).length;
+    const atRisk = all.filter((j) => j.isAtRisk && !j.isOverdue).length;
+    return { overdue, atRisk, total: overdue + atRisk };
+  }, [queue]);
 
-  // Attention rail items count
-  const claimsCount = useMemo(() => {
-    return t?.waiting.filter((x) => !!x.request.customerClaimedPaidAt).length ?? 0;
-  }, [t?.waiting]);
+  const awaitingOldest = useMemo(() => {
+    return [...(today?.waiting ?? [])]
+      .sort((a, b) => Date.parse(a.request.createdAt) - Date.parse(b.request.createdAt))
+      .slice(0, 5);
+  }, [today]);
 
-  const isEmpty =
-    t &&
-    Object.values(t.counts).every((n) => n === 0) &&
-    t.waiting.length === 0 &&
-    t.justPaid.length === 0;
+  const recentPaid = useMemo(() => (today?.justPaid ?? []).slice(0, 5), [today]);
+
+  const isBrandNew =
+    !todayLoading &&
+    (today?.justPaid.length ?? 0) === 0 &&
+    (today?.waiting.length ?? 0) === 0 &&
+    nextUp.length === 0;
+
+  function dismissChecklist() {
+    setChecklistHidden(true);
+    try { localStorage.setItem(CHECKLIST_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+  }
+
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Payment link copied');
+    } catch { /* ignore */ }
+  }
 
   return (
-    <>
-      {/* 1. Header on the ground (Spec Section 5.6) */}
-      <header className="pd-today-head">
-        <p className="pd-today-date">{todayDateString}</p>
-        <h1 className="pd-today-greeting">
-          Good afternoon, {provider?.businessName || 'Provider'}
-        </h1>
-        {t && (
-          <div className="pd-today-live" aria-live="off">
-            <span className="pd-today-live-dot" />
-            <span>Live · updated {timeAgo(new Date(q.dataUpdatedAt).toISOString(), now)}</span>
-          </div>
-        )}
-      </header>
-
-      {/* 2. The Money Line (Spec Section 5.6 & Proposed P4) */}
-      <div className="pd-money-line">
-        <div className="pd-money-cell">
-          <p className="pd-money-label">Landing soon</p>
-          <div className="pd-money-val">{formatNaira(landingSoonKobo, 'auto')}</div>
+    <div data-flow-id="DSH-00">
+      {/* Header */}
+      <div className="pf-page-head">
+        <div>
+          <h1 data-flow-id="DSH-01">{lagosGreeting()}, {provider?.businessName ?? 'Studio'}</h1>
+          <p className="pf-page-head__sub">Here’s what needs your attention today.</p>
         </div>
-        <div className="pd-money-divider" />
-        <div className="pd-money-cell">
-          <p className="pd-money-label">Landed today</p>
-          <div className="pd-money-val">{formatNaira(landedTodayKobo, 'auto')}</div>
+        <div className="pf-page-head__actions">
+          <select
+            aria-label="Metrics period"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as typeof period)}
+            data-flow-id="DSH-03"
+            style={{
+              height: 44, padding: '0 12px', borderRadius: 9,
+              border: '1px solid var(--border-strong)', background: '#FFFFFF', fontSize: 13.5, fontWeight: 500,
+            }}
+          >
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all">All time</option>
+          </select>
+          <Link to="/app/new" className="pf-btn pf-btn--primary" data-flow-id="DSH-02">
+            <Icon name="plus" size={16} />
+            <span>New request</span>
+          </Link>
         </div>
       </div>
 
-      {q.isPending && (
-        <div style={{ display: 'grid', gap: 16, marginBottom: 24 }}>
-          <Skeleton h={220} />
-          <Skeleton h={80} />
-          <Skeleton h={80} />
+      {/* 4 Metric Cards (DSH-04 to DSH-07) */}
+      <div className="pf-metrics">
+        <Link to="/app/payments?tab=received" className="pf-metric" data-flow-id="DSH-04">
+          <div className="pf-metric__top">
+            <span>Verified received</span>
+            <Icon name="shield" size={16} />
+          </div>
+          <div className="pf-metric__val">{formatNaira(receivedTotal.toString())}</div>
+          <div className="pf-metric__sub">
+            {receivedTotal === 0n ? 'Your first verified payment will show here.' : `${today?.justPaid.length ?? 0} verified`}
+          </div>
+        </Link>
+
+        <Link to="/app/payments?tab=awaiting" className="pf-metric" data-flow-id="DSH-05">
+          <div className="pf-metric__top">
+            <span>Awaiting payment</span>
+            <Icon name="clock" size={16} />
+          </div>
+          <div className="pf-metric__val">{formatNaira(awaitingTotal.toString())}</div>
+          <div className="pf-metric__sub">{today?.waiting.length ?? 0} open requests</div>
+        </Link>
+
+        <Link to="/app/payments?tab=attention" className="pf-metric" data-flow-id="DSH-06">
+          <div className="pf-metric__top">
+            <span>Needs attention</span>
+            <Icon name="alert" size={16} />
+          </div>
+          <div className={`pf-metric__val ${(today?.counts.needsReview ?? 0) > 0 ? 'pf-metric__val--danger' : ''}`}>
+            {today?.counts.needsReview ?? 0}
+          </div>
+          <div className="pf-metric__sub">
+            {(today?.counts.needsReview ?? 0) > 0 ? 'Review exceptions' : 'No exceptions'}
+          </div>
+        </Link>
+
+        <Link to="/app/queue?filter=risk" className="pf-metric" data-flow-id="DSH-07">
+          <div className="pf-metric__top">
+            <span>At risk / overdue</span>
+            <Icon name="queue" size={16} />
+          </div>
+          <div className={`pf-metric__val ${riskCounts.overdue > 0 ? 'pf-metric__val--danger' : ''}`}>
+            {riskCounts.total}
+          </div>
+          <div className="pf-metric__sub">
+            {riskCounts.overdue} overdue · {riskCounts.atRisk} at risk
+          </div>
+        </Link>
+      </div>
+
+      {/* First-run checklist (DSH-08) */}
+      {!checklistHidden && (
+        <div className="pf-card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }} data-flow-id="DSH-08">
+          <div>
+            <strong style={{ fontSize: 14 }}>Getting started</strong>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <span>{(today?.waiting.length ?? 0) + (today?.justPaid.length ?? 0) > 0 ? '✓' : '☐'} Create first request</span>
+              <span>{(today?.justPaid.length ?? 0) > 0 ? '✓' : '☐'} See first verified payment</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Link to="/app/new" className="pf-btn pf-btn--sm pf-btn--secondary">Create request</Link>
+            <button type="button" onClick={dismissChecklist} aria-label="Dismiss checklist" style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              <Icon name="x" size={16} />
+            </button>
+          </div>
         </div>
       )}
 
-      {q.isError && !t && (
-        <Banner
-          tone="bad"
-          action={
-            <Button variant="line" onClick={() => void q.refetch()}>
-              Try again
-            </Button>
-          }
-        >
-          {describeError(q.error).message}
-        </Banner>
-      )}
-
-      {t && (
+      {isBrandNew ? (
+        <div className="pf-card" style={{ textAlign: 'center', padding: 48 }}>
+          <h2 style={{ marginBottom: 8 }}>Ready for your first payment request</h2>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: 420, margin: '0 auto 20px' }}>
+            Create a request in four fields, share the link with your client, and let verified payments move work into your queue.
+          </p>
+          <Link to="/app/new" className="pf-btn pf-btn--primary">Create your first payment request</Link>
+        </div>
+      ) : (
         <>
-          {/* 3. Attention Rail (Spec Section 5.6) */}
-          {(t.needsReview.length > 0 || claimsCount > 0) && (
-            <div className="pd-rail-chips">
-              {t.needsReview.length > 0 && (
-                <Link to="/review" className="pd-rail-chip pd-rail-chip--urgent">
-                  <span>⚠ {t.needsReview.length} needs review</span>
-                </Link>
-              )}
-              {claimsCount > 0 && (
-                <a href="#hero-stage" className="pd-rail-chip pd-rail-chip--claims">
-                  <span className="pd-tag-pulse-dot" />
-                  <span>
-                    {claimsCount} {claimsCount === 1 ? 'customer says' : 'customers say'} paid
-                  </span>
-                </a>
-              )}
-            </div>
-          )}
-
-          {/* 4. Hero Ticket: The most urgent waiting ticket (Spec Section 5.6) */}
-          {heroItem && (
-            <div className="pd-hero-stage" id="hero-stage">
-              <article className="pd-hero-ticket">
-                <div className="pd-ticket__top">
-                  <div className="pd-ticket__who">
-                    <h3>
-                      <Link to={`/jobs/${heroItem.job.id}`} className="pd-plainlink">
-                        {heroItem.job.customer.name}
-                      </Link>
-                    </h3>
-                    <p>{heroItem.job.service}</p>
-                  </div>
-                  <div>
-                    {heroItem.request.customerClaimedPaidAt ? (
-                      <span className="pd-tag pd-tag--claims">
-                        <span className="pd-tag-pulse-dot" />
-                        <span>Customer says paid</span>
-                      </span>
-                    ) : heroCopiedAt ? (
-                      <span className="pd-tag pd-tag--copied">
-                        Copied {timeAgo(heroCopiedAt)}
-                      </span>
-                    ) : (
-                      <span className="pd-tag pd-tag--waiting">Not copied yet</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Big Countdown Dial */}
-                <div className="pd-hero-dial-wrap">
-                  {heroItem.request.sentAt && heroItem.request.expiresAt && (
-                    <CountdownRing
-                      sentAt={heroItem.request.sentAt}
-                      expiresAt={heroItem.request.expiresAt}
-                      size="hero"
-                    />
-                  )}
-                  <p className="pd-hero-dial-sub">left on this dynamic account</p>
-                </div>
-
-                {/* Notches + Tear line */}
-                <div className="pd-ticket__cut" aria-hidden="true">
-                  <i />
-                  <i />
-                </div>
-
-                {/* Stub: Amount + Bank + CTA */}
-                <div className="pd-ticket__bottom">
-                  <div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-display)',
-                        fontWeight: 800,
-                        fontSize: 32,
-                        color: 'var(--paper-ink)',
-                        letterSpacing: '-0.02em',
-                      }}
-                    >
-                      {formatNaira(heroItem.request.amountKobo)}
+          {/* 7/5 Main Content Split */}
+          <div className="pf-dash-split">
+            {/* Primary Column: Next up (DSH-09) */}
+            <section className="pf-card" data-flow-id="DSH-09">
+              <div className="pf-panel-head">
+                <h2>Next up</h2>
+                <Link to="/app/queue" className="pf-panel-link">Open full queue</Link>
+              </div>
+              {nextUp.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>Nothing ready. Paid jobs appear here.</p>
+              ) : (
+                <div className="pf-list-rows">
+                  {nextUp.map((item) => (
+                    <div key={item.id} className="pf-row">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span className="pd-mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>#{item.rank}</span>
+                          <Link to={`/app/jobs/${item.id}`} style={{ fontWeight: 600, color: 'var(--text-primary)', textDecoration: 'none' }}>
+                            {item.title}
+                          </Link>
+                          <JobStatusChip status={item.workStatus} />
+                          {item.isOverdue && <FlagChip flag="overdue" />}
+                          {item.isAtRisk && <FlagChip flag="at_risk" />}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3 }}>
+                          {item.client.name} · {item.reasonLabel}
+                        </div>
+                      </div>
+                      {item.workStatus === 'ready' && (
+                        <button
+                          type="button"
+                          className="pf-btn pf-btn--sm pf-btn--primary"
+                          disabled={startMut.isPending}
+                          onClick={() => startMut.mutate(item.id)}
+                        >
+                          Start
+                        </button>
+                      )}
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--paper-muted)', fontWeight: 500 }}>
-                      {heroItem.request.bankName ?? 'Wema Bank'} ·{' '}
-                      {heroItem.request.accountNumber ?? 'Account allocated'}
-                    </p>
-                  </div>
+                  ))}
                 </div>
-
-                <div className="pd-hero-cta">
-                  {heroItem.request.customerClaimedPaidAt ? (
-                    <button
-                      type="button"
-                      className="pd-btn-primary pd-btn--block"
-                      onClick={() => {
-                        void qc.invalidateQueries({ queryKey: ['today'] });
-                        void qc.invalidateQueries({ queryKey: ['jobs'] });
-                        toast.info('Checking with bank for payments…');
-                      }}
-                    >
-                      Check now
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="pd-btn-primary pd-btn--block"
-                      disabled={actions.shareAgain.isPending}
-                      onClick={() =>
-                        actions.shareAgain.mutate({
-                          request: heroItem.request,
-                          job: heroItem.job,
-                        })
-                      }
-                    >
-                      {heroCopiedAt ? 'Copy details again' : 'Copy message'}
-                    </button>
-                  )}
-                </div>
-              </article>
-            </div>
-          )}
-
-          {/* 5. Other Waiting Tickets (Horizontal Carousel, Spec Section 5.6) */}
-          {otherWaiting.length > 0 && (
-            <div className="pd-carousel-wrap">
-              <h3 className="pd-carousel-title">
-                Other waiting tickets ({otherWaiting.length})
-              </h3>
-              <div className="pd-carousel">
-                {otherWaiting.map((item) => (
-                  <div key={item.request.id} className="pd-carousel__item">
-                    <ActivePaymentRow request={item.request} job={item.job} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 6. Queues (Spec Section 5.6) */}
-          {/* Just Paid (Mini Receipts Strip) */}
-          {t.justPaid.length > 0 && (
-            <section className="pd-qsection">
-              <h2 className="pd-qsection__h">
-                <span>
-                  Just paid <span className="pd-count">{t.justPaid.length}</span>
-                </span>
-              </h2>
-              <div className="pd-receipt-strip">
-                {t.justPaid.map((x) => (
-                  <SettledPaymentRow key={x.payment.id} payment={x.payment} job={x.job} />
-                ))}
-              </div>
+              )}
             </section>
-          )}
 
-          {/* Reminders due */}
-          {t.dueReminders && t.dueReminders.length > 0 && (
-            <Section title="Reminders due" count={t.dueReminders.length}>
-              {t.dueReminders.map((x) => (
-                <ReminderRow key={x.request.id} request={x.request} job={x.job} />
-              ))}
-            </Section>
-          )}
+            {/* Secondary Column: Awaiting payment (DSH-10) */}
+            <section className="pf-card" data-flow-id="DSH-10">
+              <div className="pf-panel-head">
+                <h2>Awaiting payment</h2>
+                <Link to="/app/payments?tab=awaiting" className="pf-panel-link">View all</Link>
+              </div>
+              {awaitingOldest.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>No unpaid requests.</p>
+              ) : (
+                <div className="pf-list-rows">
+                  {awaitingOldest.map(({ request: r, job: j }) => (
+                    <div key={r.id} className="pf-row" style={{ flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{j.customer.name}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                          {formatNaira(r.amountKobo)} · {j.service}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <a
+                          href={`https://wa.me/${j.customer.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${j.customer.name.split(' ')[0]}, friendly reminder for ${j.service}: ${r.payLink}`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="pf-btn pf-btn--sm pf-btn--secondary"
+                        >
+                          Remind
+                        </a>
+                        <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void copyLink(r.payLink)}>
+                          Copy
+                        </button>
+                        <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => checkMut.mutate(r.id)}>
+                          Check
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
 
-          {/* Balances due */}
-          {t.balancesDue.length > 0 && (
-            <Section title="Balances due" count={t.balancesDue.length}>
-              {t.balancesDue.map((j) => (
-                <BalanceRow key={j.id} job={j} />
-              ))}
-            </Section>
-          )}
-
-          {/* Expired */}
-          {t.expired.length > 0 && (
-            <Section title="Expired" count={t.expired.length}>
-              {t.expired.map((x) => (
-                <ExpiredRow key={x.request.id} request={x.request} job={x.job} />
-              ))}
-            </Section>
-          )}
-
-          {/* Needs Review */}
-          {t.needsReview.length > 0 && (
-            <Section title="Needs review" count={t.needsReview.length} to="/review">
-              {t.needsReview.map((r) => (
-                <ReviewRow key={r.id} item={r} />
-              ))}
-            </Section>
-          )}
+          {/* Lower Content: Recent verified payments (DSH-11) */}
+          <section className="pf-card" data-flow-id="DSH-11">
+            <div className="pf-panel-head">
+              <h2>Recent verified payments</h2>
+              <Link to="/app/payments?tab=received" className="pf-panel-link">Open ledger</Link>
+            </div>
+            {recentPaid.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>No payments yet.</p>
+            ) : (
+              <div className="pf-list-rows">
+                {recentPaid.map(({ payment: p, job: j }) => (
+                  <Link
+                    key={p.id}
+                    to={`/app/payments?tab=received&payment=${p.id}`}
+                    className="pf-row"
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.payerName ?? j.customer.name}</div>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{j.customer.name} · {j.service}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--status-success)' }}>{formatNaira(p.amountKobo)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatTime(p.receivedAt)}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
         </>
       )}
-
-      {/* 7. Empty State: Your day is clear (Spec Section 5.6) */}
-      {isEmpty && (
-        <div className="pd-today-empty">
-          <h2>Your day is clear</h2>
-          <p>
-            Get payment details for a job. It waits here with a clock. When the bank confirms, it
-            moves to Just paid.
-          </p>
-          <LinkButton to="/new" icon="plus">
-            Create payment details
-          </LinkButton>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
