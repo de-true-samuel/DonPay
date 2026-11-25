@@ -3,8 +3,10 @@ import type { ReactNode } from 'react';
 import type { PaymentRequest, PreparedMessage } from '../../contract/contract';
 import { formatTime } from '../../lib/time';
 import { markCopied } from '../requests/copyTracker';
+import { CopyChip } from '../../ui/CopyChip';
 import { CountdownRing } from '../../ui/CountdownRing';
 import { Dialog } from '../../ui/Dialog';
+import { Icon } from '../../ui/Icon';
 import { useToast } from '../../ui/Toast';
 
 export interface SharePayload {
@@ -45,7 +47,6 @@ export function ShareProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<SharePayload | null>(null);
   const [open, setOpen] = useState(false);
   const [copiedState, setCopiedState] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
   const toast = useToast();
 
   const api = useMemo<ShareApi>(
@@ -101,21 +102,6 @@ export function ShareProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function handleCopyChip(fieldKey: string, value: string, label: string) {
-    if (!value) return;
-    const ok = await copyText(value);
-    if (ok) {
-      if (r?.id) markCopied(r.id);
-      setCopiedField(fieldKey);
-      toast.success(`${label} copied`);
-      setTimeout(() => {
-        setCopiedField((curr) => (curr === fieldKey ? null : curr));
-      }, 1400);
-    } else {
-      toast.error(`Couldn’t copy ${label}.`);
-    }
-  }
-
   function markSentAndClose() {
     if (r?.id) markCopied(r.id);
     toast.success('Details marked as sent');
@@ -158,145 +144,113 @@ export function ShareProvider({ children }: { children: ReactNode }) {
             {/* Chat Bubble Message Preview */}
             <div
               style={{
-                background: 'rgba(20, 24, 63, 0.05)',
-                border: '1px solid rgba(20, 24, 63, 0.12)',
-                borderRadius: 16,
+                background: 'var(--bg-2)',
+                border: '1px solid var(--line-2)',
+                borderRadius: 'var(--r-md)',
                 padding: '14px 16px',
                 fontFamily: 'var(--font-ui)',
                 fontSize: 14,
                 lineHeight: 1.5,
-                color: 'var(--paper-ink)',
+                color: 'var(--ink-1)',
                 whiteSpace: 'pre-wrap',
                 cursor: 'pointer',
               }}
-              onClick={() => void copyText(msgObj.text)}
+              onClick={() => void handleCopyMessage()}
               title="Click to copy whole message"
             >
               {msgObj.text}
             </div>
 
-            {/* Primary Action Button: Copy Message (Spec Section 5.5 & 3.3 B) */}
-            <button
-              type="button"
-              className="pd-btn-primary pd-btn--block"
-              style={{
-                background: copiedState ? 'var(--status-success)' : 'var(--action-primary)',
-                color: '#FFFFFF',
-                borderRadius: 9,
-              }}
-              onClick={() => void handleCopyMessage()}
-              data-flow-id="SHR-07"
-            >
-              {copiedState ? 'Copied ✓' : 'Copy message'}
-            </button>
+            {/* Primary Action Button: Copy Message (Volt primary or Mint confirmation display) */}
+            {copiedState ? (
+              <div
+                className="ob-status ob-status--mint"
+                style={{ width: '100%', justifyContent: 'center', minHeight: 48, borderRadius: 'var(--r-md)', fontSize: 14 }}
+                role="status"
+                aria-live="polite"
+                data-flow-id="SHR-07"
+              >
+                <Icon name="shield" size={16} />
+                <span>Message copied</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="pd-btn pd-btn--primary pd-btn--block"
+                onClick={() => void handleCopyMessage()}
+                data-flow-id="SHR-07"
+              >
+                <Icon name="copy" size={16} />
+                <span>Copy message</span>
+              </button>
+            )}
 
-            {/* Itemized copy rows with plain values & chips */}
+            {/* Itemized copy rows with plain values & Ink-flood CopyChips */}
             {r && (
               <div
                 style={{
                   display: 'grid',
-                  gap: 8,
-                  padding: '12px 0',
-                  borderTop: '1px dashed rgba(20, 24, 63, 0.16)',
-                  borderBottom: '1px dashed rgba(20, 24, 63, 0.16)',
+                  gap: 10,
+                  padding: '14px 0',
+                  borderTop: '1px dashed var(--line-2)',
+                  borderBottom: '1px dashed var(--line-2)',
                 }}
               >
                 {r.accountNumber && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div>
-                      <span style={{ fontSize: 12, color: 'var(--paper-muted)', display: 'block' }}>
-                        Account number
-                      </span>
-                      <strong
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 16,
-                          letterSpacing: '0.08em',
-                        }}
-                      >
+                      <span className="ob-overline" style={{ display: 'block' }}>Account number</span>
+                      <strong className="pd-mono" style={{ fontSize: 16, letterSpacing: '0.08em', color: 'var(--ink-1)' }}>
                         {r.accountNumber}
                       </strong>
                     </div>
-                    <button
-                      type="button"
-                      className={`pd-copy-chip ${copiedField === 'acc' ? 'pd-copy-chip--copied' : ''}`}
-                      onClick={() => void handleCopyChip('acc', r.accountNumber!, 'Account number')}
-                    >
-                      {copiedField === 'acc' ? 'Copied ✓' : 'Copy'}
-                    </button>
+                    <CopyChip
+                      value={r.accountNumber}
+                      label="Copy"
+                      copyLabel="Account number"
+                      onCopied={() => { if (r?.id) markCopied(r.id); }}
+                    />
                   </div>
                 )}
 
                 {plainAmount && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div>
-                      <span style={{ fontSize: 12, color: 'var(--paper-muted)', display: 'block' }}>
-                        Amount (plain digits)
-                      </span>
-                      <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 16 }}>
-                        {plainAmount}
-                      </strong>
+                      <span className="ob-overline" style={{ display: 'block' }}>Amount (plain digits)</span>
+                      <strong className="pd-mono" style={{ fontSize: 16, color: 'var(--ink-1)' }}>{plainAmount}</strong>
                     </div>
-                    <button
-                      type="button"
-                      className={`pd-copy-chip ${copiedField === 'amt' ? 'pd-copy-chip--copied' : ''}`}
-                      onClick={() => void handleCopyChip('amt', plainAmount, 'Amount')}
-                    >
-                      {copiedField === 'amt' ? 'Copied ✓' : 'Copy'}
-                    </button>
+                    <CopyChip
+                      value={plainAmount}
+                      label="Copy"
+                      copyLabel="Amount"
+                      onCopied={() => { if (r?.id) markCopied(r.id); }}
+                    />
                   </div>
                 )}
 
                 {msgObj.payLink && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: 12, color: 'var(--paper-muted)', display: 'block' }}>
-                        Payment link
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 13,
-                          color: 'var(--paper-ink)',
-                        }}
-                      >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="ob-overline" style={{ display: 'block' }}>Payment link</span>
+                      <span className="pd-mono" style={{ fontSize: 12.5, color: 'var(--ink-2)', wordBreak: 'break-all' }}>
                         {msgObj.payLink.replace(/^https?:\/\//, '')}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className={`pd-copy-chip ${copiedField === 'link' ? 'pd-copy-chip--copied' : ''}`}
-                      onClick={() => void handleCopyChip('link', msgObj.payLink, 'Payment link')}
-                    >
-                      {copiedField === 'link' ? 'Copied ✓' : 'Copy'}
-                    </button>
+                    <CopyChip
+                      value={msgObj.payLink}
+                      label="Copy"
+                      copyLabel="Payment link"
+                      onCopied={() => { if (r?.id) markCopied(r.id); }}
+                    />
                   </div>
                 )}
 
-                <div style={{ fontSize: 13, color: 'var(--paper-muted)', marginTop: 4 }}>
-                  Bank: <strong>{r.bankName ?? 'Wema Bank'}</strong>
+                <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 4 }}>
+                  Bank: <strong style={{ color: 'var(--ink-1)' }}>{r.bankName ?? 'Wema Bank'}</strong>
                   {r.accountName && (
                     <>
                       {' '}
-                      · Name: <strong>{r.accountName}</strong>
+                      · Name: <strong style={{ color: 'var(--ink-1)' }}>{r.accountName}</strong>
                     </>
                   )}
                 </div>
@@ -319,28 +273,27 @@ export function ShareProvider({ children }: { children: ReactNode }) {
                 target="_blank"
                 rel="noreferrer"
                 data-flow-id="SHR-06"
-                style={{ color: 'var(--action-primary)', fontWeight: 600, textDecoration: 'underline' }}
+                style={{ fontWeight: 600 }}
               >
                 Open WhatsApp
               </a>
-              <span style={{ color: 'var(--line-strong)' }}>·</span>
+              <span style={{ color: 'var(--line-3)' }}>·</span>
               <a
                 href={msgObj.telegramUrl}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: 'var(--action-primary)', textDecoration: 'underline' }}
               >
                 Open Telegram
               </a>
               {msgObj.payLink && (
                 <>
-                  <span style={{ color: 'var(--line-strong)' }}>·</span>
+                  <span style={{ color: 'var(--line-3)' }}>·</span>
                   <a
                     href={`/pay/${msgObj.payLink.split('/').pop()}?preview=1`}
                     target="_blank"
                     rel="noreferrer"
                     data-flow-id="SHR-09"
-                    style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}
+                    style={{ color: 'var(--ink-2)' }}
                   >
                     Preview as your client
                   </a>

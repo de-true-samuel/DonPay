@@ -113,12 +113,16 @@ export function NotificationsPage() {
                     aria-hidden="true"
                     style={{
                       width: 8, height: 8, borderRadius: 999, marginTop: 7, flexShrink: 0,
-                      background: unread ? 'var(--action-primary)' : 'transparent',
+                      background: unread ? 'var(--active-pill-bg)' : 'transparent',
+                      border: unread ? '1px solid var(--volt-lo)' : 'none',
                     }}
                   />
                   <div>
-                    <div style={{ fontWeight: unread ? 650 : 500, fontSize: 14 }}>{n.title}</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{n.body}</div>
+                    <div style={{ fontWeight: unread ? 700 : 500, fontSize: 14, color: unread ? 'var(--ink-1)' : 'var(--ink-2)' }}>
+                      {unread && <span className="pd-sr-only">Unread: </span>}
+                      {n.title}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>{n.body}</div>
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatTime(n.at)}</span>

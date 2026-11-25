@@ -154,23 +154,23 @@ export function OnboardingPage() {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--bg-canvas)', padding: '24px 16px 64px' }} data-flow-id="ONB-00">
+    <div style={{ minHeight: '100dvh', padding: '24px 16px 64px' }} data-flow-id="ONB-00">
       <div style={{ maxWidth: 620, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--nav-bg)', fontWeight: 700, fontSize: 18 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--ink-1)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em' }}>
             <LogoMark size={26} />
             <span>paidar</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13.5 }}>
-            <button type="button" onClick={saveAndExit} data-flow-id="ONB-00c" style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontWeight: 600, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" onClick={saveAndExit} data-flow-id="ONB-00c" className="pf-btn pf-btn--sm pf-btn--quiet">
               Save and exit
             </button>
             <button
               type="button"
               disabled={leaving}
               onClick={() => { setLeaving(true); void signOut().then(() => nav('/auth', { replace: true })); }}
-              style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              className="pf-btn pf-btn--sm pf-btn--quiet"
             >
               {leaving ? 'Signing out…' : 'Sign out'}
             </button>
@@ -185,6 +185,7 @@ export function OnboardingPage() {
             { n: 3, label: '3. How you get paid' },
           ].map((item) => {
             const active = step === item.n;
+            const completed = item.n < step;
             const clickable = item.n <= maxStep;
             return (
               <button
@@ -193,10 +194,15 @@ export function OnboardingPage() {
                 disabled={!clickable}
                 onClick={() => goToStep(item.n)}
                 style={{
-                  flex: 1, padding: '10px 12px', borderRadius: 9, textAlign: 'left', fontSize: 13, fontWeight: 600,
-                  border: `1px solid ${active ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                  background: active ? 'var(--bg-selected)' : '#FFFFFF',
-                  color: active ? 'var(--action-primary)' : clickable ? 'var(--text-primary)' : 'var(--text-muted)',
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 'var(--r-md)',
+                  textAlign: 'left',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: `1px solid ${active ? 'var(--volt)' : completed ? 'var(--mint-bd)' : 'var(--line-1)'}`,
+                  background: active ? 'var(--active-surface)' : completed ? 'var(--mint-bg)' : 'var(--bg-1)',
+                  color: active ? 'var(--active-ink)' : completed ? 'var(--mint-ink)' : clickable ? 'var(--ink-1)' : 'var(--ink-3)',
                   cursor: clickable ? 'pointer' : 'default',
                 }}
               >
@@ -213,7 +219,7 @@ export function OnboardingPage() {
           <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <h1>Your business</h1>
-              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+              <p style={{ color: 'var(--ink-2)', marginTop: 4 }}>
                 This is how clients recognize your business when they open your payment link.
               </p>
             </div>
@@ -228,12 +234,12 @@ export function OnboardingPage() {
             />
 
             {/* Live Account Name Preview (ONB-02) */}
-            <div style={{ background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', borderRadius: 10, padding: 14 }} data-flow-id="ONB-02">
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Live bank-app preview</div>
-              <div style={{ fontSize: 14 }}>
+            <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)', padding: 14 }} data-flow-id="ONB-02">
+              <div className="ob-overline" style={{ marginBottom: 4 }}>Live bank-app preview</div>
+              <div style={{ fontSize: 14, color: 'var(--ink-1)' }}>
                 Account name: <strong>{previewAccountName}</strong>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
                 Final accepted account name depends on Kora’s naming rules.
               </p>
             </div>
@@ -247,23 +253,26 @@ export function OnboardingPage() {
             />
 
             {phone.trim() && (
-              <Switch
-                checked={showPhone}
-                onChange={setShowPhone}
-                label="Show my number on the payment page"
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>Show my number on the payment page</span>
+                <Switch
+                  checked={showPhone}
+                  onChange={setShowPhone}
+                  label="Show my number on the payment page"
+                />
+              </div>
             )}
 
-            <div>
-              <label htmlFor="onb-type" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            <div className="pd-field">
+              <label htmlFor="onb-type" className="pd-label">
                 What do you do? (optional)
               </label>
               <select
                 id="onb-type"
+                className="pd-input"
                 value={bizType}
                 onChange={(e) => setBizType(e.target.value)}
                 data-flow-id="ONB-05"
-                style={{ width: '100%', height: 46, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF' }}
               >
                 <option value="CREATIVE_DESIGN">Creative / Design</option>
                 <option value="DIGITAL_SERVICES">Digital services</option>
@@ -284,7 +293,7 @@ export function OnboardingPage() {
           <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <h1>When do you work?</h1>
-              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+              <p style={{ color: 'var(--ink-2)', marginTop: 4 }}>
                 Used to flag when upcoming job deadlines exceed your available hours.
               </p>
             </div>
@@ -317,11 +326,12 @@ export function OnboardingPage() {
               {DAYS.map((d) => {
                 const s = hours[d.key];
                 return (
-                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-default)' }}>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, minWidth: 80 }}>
+                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line-1)' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, minWidth: 80, color: 'var(--ink-1)' }}>
                       <input
                         type="checkbox"
                         checked={s.enabled}
+                        style={{ accentColor: 'var(--volt)' }}
                         onChange={(e) => {
                           setPreset('custom');
                           setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], enabled: e.target.checked } }));
@@ -333,42 +343,44 @@ export function OnboardingPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <input
                           type="time"
+                          className="pd-input"
                           value={s.start}
                           onChange={(e) => {
                             setPreset('custom');
                             setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], start: e.target.value } }));
                           }}
-                          style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border-strong)' }}
+                          style={{ width: 'auto', minHeight: 38, padding: '4px 10px' }}
                         />
-                        <span>to</span>
+                        <span style={{ color: 'var(--ink-3)' }}>to</span>
                         <input
                           type="time"
+                          className="pd-input"
                           value={s.end}
                           onChange={(e) => {
                             setPreset('custom');
                             setHours((prev) => ({ ...prev, [d.key]: { ...prev[d.key], end: e.target.value } }));
                           }}
-                          style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border-strong)' }}
+                          style={{ width: 'auto', minHeight: 38, padding: '4px 10px' }}
                         />
                       </div>
                     ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Off</span>
+                      <span style={{ color: 'var(--ink-3)', fontSize: 13 }}>Off</span>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9, fontSize: 13.5 }} data-flow-id="ONB-10">
-              You have about <strong>{weeklyHours} working hours</strong> a week.
+            <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-1)', padding: 12, borderRadius: 'var(--r-md)', fontSize: 13.5, color: 'var(--ink-2)' }} data-flow-id="ONB-10">
+              You have about <strong className="pd-mono" style={{ color: 'var(--ink-1)' }}>{weeklyHours} working hours</strong> a week.
             </div>
 
-            {hoursErr && <p style={{ color: 'var(--status-danger)', fontSize: 13 }}>{hoursErr}</p>}
+            {hoursErr && <p className="pd-error" role="alert">{hoursErr}</p>}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setStep(1)} data-flow-id="ONB-00b">Back</button>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <button type="button" onClick={() => { setHours(PRESET_MF); setStep(3); setMaxStep(3); }} style={{ border: 0, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }} data-flow-id="ONB-12">
+                <button type="button" className="pf-btn pf-btn--sm pf-btn--quiet" onClick={() => { setHours(PRESET_MF); setStep(3); setMaxStep(3); }} data-flow-id="ONB-12">
                   Skip, use defaults
                 </button>
                 <button type="button" className="pf-btn pf-btn--primary" onClick={handleStep2} data-flow-id="ONB-11">Continue</button>
@@ -382,36 +394,30 @@ export function OnboardingPage() {
           <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <h1>How you get paid</h1>
-              <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+              <p style={{ color: 'var(--ink-2)', marginTop: 4 }}>
                 Set your defaults for new payment requests. You can override these per job.
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-flow-id="ONB-13">
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Default payment terms</div>
+              <div className="pd-label">Default payment terms</div>
               {[
                 { val: 'FULL' as const, title: 'Pay in full first (default)', desc: 'Job becomes Ready once the full amount is verified.' },
                 { val: 'DEPOSIT' as const, title: 'Deposit', desc: 'Collect a deposit upfront; request the balance on delivery.' },
                 { val: 'PAY_ON_DELIVERY' as const, title: 'Pay on delivery', desc: 'Job starts Ready immediately; request payment when delivered.' },
               ].map((opt) => (
-                <label key={opt.val} style={{
-                  display: 'flex', gap: 10, padding: 12, borderRadius: 9, cursor: 'pointer',
-                  border: `1px solid ${terms === opt.val ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                  background: terms === opt.val ? 'var(--bg-selected)' : '#FFFFFF',
-                }}>
+                <label key={opt.val} className={`pd-choice ${terms === opt.val ? 'is-on' : ''}`}>
                   <input type="radio" name="terms" checked={terms === opt.val} onChange={() => setTerms(opt.val)} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{opt.title}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{opt.desc}</div>
-                  </div>
+                  <span className="pd-choice__title">{opt.title}</span>
+                  <span className="pd-choice__text">{opt.desc}</span>
                 </label>
               ))}
             </div>
 
             {terms === 'DEPOSIT' && (
               <div data-flow-id="ONB-14">
-                <label htmlFor="dep-pct" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  Deposit percentage: <strong>{depositPct}%</strong>
+                <label htmlFor="dep-pct" className="pd-label" style={{ display: 'block', marginBottom: 6 }}>
+                  Deposit percentage: <strong className="pd-mono">{depositPct}%</strong>
                 </label>
                 <input
                   id="dep-pct"
@@ -421,27 +427,21 @@ export function OnboardingPage() {
                   step={5}
                   value={depositPct}
                   onChange={(e) => setDepositPct(Number(e.target.value))}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', accentColor: 'var(--volt)' }}
                 />
               </div>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-flow-id="ONB-15">
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Who pays the processing fee?</div>
+              <div className="pd-label">Who pays the processing fee?</div>
               {[
                 { val: 'OWNER' as const, title: 'I do (default)', desc: 'Your client pays the exact quoted price.' },
                 { val: 'CLIENT' as const, title: 'My client does', desc: 'Exact fee shown on the payment page.' },
               ].map((opt) => (
-                <label key={opt.val} style={{
-                  display: 'flex', gap: 10, padding: 12, borderRadius: 9, cursor: 'pointer',
-                  border: `1px solid ${feeBearer === opt.val ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                  background: feeBearer === opt.val ? 'var(--bg-selected)' : '#FFFFFF',
-                }}>
+                <label key={opt.val} className={`pd-choice ${feeBearer === opt.val ? 'is-on' : ''}`}>
                   <input type="radio" name="fee" checked={feeBearer === opt.val} onChange={() => setFeeBearer(opt.val)} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{opt.title}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{opt.desc}</div>
-                  </div>
+                  <span className="pd-choice__title">{opt.title}</span>
+                  <span className="pd-choice__text">{opt.desc}</span>
                 </label>
               ))}
             </div>

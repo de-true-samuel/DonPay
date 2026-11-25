@@ -8,6 +8,7 @@ import { lagosLocalToIso, formatDateTime, nowLagosLocal, timeAgo, tomorrowLagosL
 import { CountdownRing } from '../../ui/CountdownRing';
 import { Dialog } from '../../ui/Dialog';
 import { Button, TextField } from '../../ui/primitives';
+import { FlagChip } from '../../ui/StatusChip';
 import { StatusPill } from '../../ui/Trust';
 import { TicketCard } from '../../ui/TicketCard';
 import { useToast } from '../../ui/Toast';
@@ -48,25 +49,25 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
         title={linkToJob ? <Link to={`/jobs/${job.id}`} className="pd-plainlink">{heading}</Link> : heading}
         subtitle={`${KIND_LABEL[r.kind]} · ${statusLine(r, copiedAt)}`}
         amountKobo={r.amountKobo}
+        state={
+          r.status === 'PAID'
+            ? 'paid'
+            : r.status === 'EXPIRED'
+              ? 'expired'
+              : r.status === 'CANCELLED'
+                ? 'cancelled'
+                : r.status === 'SENT' && r.customerClaimedPaidAt
+                  ? 'claims'
+                  : r.status === 'SENT'
+                    ? 'waiting'
+                    : r.status === 'DRAFT'
+                      ? 'draft'
+                      : 'reminder'
+        }
         status={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             <StatusPill status={r.status} />
-            {r.status === 'SENT' && r.customerClaimedPaidAt && (
-              <span
-                className="pd-trust"
-                style={{
-                  background: '#FEF08A',
-                  color: '#854D0E',
-                  border: '1px solid #FDE047',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  padding: '2px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                Customer says paid ({timeAgo(r.customerClaimedPaidAt)})
-              </span>
-            )}
+            {r.status === 'SENT' && r.customerClaimedPaidAt && <FlagChip flag="customer_claimed" />}
           </div>
         }
         aside={r.status === 'SENT' && r.sentAt && r.expiresAt ? <CountdownRing sentAt={r.sentAt} expiresAt={r.expiresAt} /> : undefined}

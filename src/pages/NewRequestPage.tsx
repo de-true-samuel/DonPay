@@ -13,6 +13,8 @@ import { formatPhone } from '../lib/phone';
 import { lagosDateToIso } from '../lib/time';
 import { useUnsavedGuard } from '../lib/useUnsavedGuard';
 import { Icon } from '../ui/Icon';
+import { Status } from '../ui/StatusChip';
+import { TicketCard } from '../ui/TicketCard';
 import { useToast } from '../ui/Toast';
 
 type Terms = 'FULL' | 'DEPOSIT' | 'PAY_ON_DELIVERY';
@@ -289,15 +291,15 @@ export function NewRequestPage() {
               Client
             </label>
             {known || selectedClient ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 9, background: 'var(--bg-selected)', border: '1px solid #C9D5FF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 'var(--r-md)', background: 'var(--active-surface)', border: '1px solid var(--volt)' }}>
                 <div>
-                  <strong>{(known ?? selectedClient)!.name}</strong>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 13, marginLeft: 8 }}>
+                  <strong style={{ color: 'var(--ink-1)' }}>{(known ?? selectedClient)!.name}</strong>
+                  <span className="pd-mono" style={{ color: 'var(--ink-2)', fontSize: 13, marginLeft: 8 }}>
                     {formatPhone((known ?? selectedClient)!.phone)}
                   </span>
                 </div>
                 {!customerId && (
-                  <button type="button" onClick={() => setSelectedClient(null)} style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontWeight: 600, cursor: 'pointer' }}>
+                  <button type="button" className="pf-btn pf-btn--sm pf-btn--quiet" onClick={() => setSelectedClient(null)}>
                     Change
                   </button>
                 )}
@@ -308,31 +310,32 @@ export function NewRequestPage() {
                   id="new-client"
                   ref={refs.name}
                   type="text"
+                  className="pd-input"
                   value={form.name}
                   onChange={(e) => updateField('name', e.target.value)}
                   onBlur={() => markBlur('name')}
                   placeholder="Search or enter client name (e.g. Ada Obi)"
                   aria-describedby={showErr('name') ? 'err-name' : undefined}
                   data-flow-id="NEW-01"
-                  style={{ width: '100%', height: 48, padding: '0 12px', borderRadius: 9, border: `1px solid ${showErr('name') ? 'var(--status-danger)' : 'var(--border-strong)'}` }}
+                  style={{ borderColor: showErr('name') ? 'var(--flare)' : undefined }}
                 />
-                {showErr('name') && <p id="err-name" style={{ color: 'var(--status-danger)', fontSize: 12.5 }}>{showErr('name')}</p>}
+                {showErr('name') && <p id="err-name" className="pd-error" role="alert">{showErr('name')}</p>}
 
                 {suggestions.length > 0 && (
-                  <div style={{ border: '1px solid var(--border-default)', borderRadius: 9, overflow: 'hidden' }}>
+                  <div style={{ border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)', background: 'var(--bg-2)', boxShadow: 'var(--e3)', overflow: 'hidden' }}>
                     {suggestions.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => setSelectedClient(c)}
                         style={{
-                          width: '100%', textAlign: 'left', padding: '10px 12px', border: 0,
-                          borderBottom: '1px solid var(--border-default)', background: '#FFFFFF', cursor: 'pointer',
+                          width: '100%', textAlign: 'left', padding: '10px 14px', border: 0,
+                          borderBottom: '1px solid var(--line-1)', background: 'transparent', color: 'var(--ink-1)', cursor: 'pointer',
                           display: 'flex', justifyContent: 'space-between',
                         }}
                       >
                         <strong>{c.name}</strong>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{formatPhone(c.phone)}</span>
+                        <span className="pd-mono" style={{ color: 'var(--ink-2)', fontSize: 13 }}>{formatPhone(c.phone)}</span>
                       </button>
                     ))}
                   </div>
@@ -443,12 +446,7 @@ export function NewRequestPage() {
                     key={chip.label}
                     type="button"
                     onClick={() => { updateField('noDeadline', false); updateField('due', target); }}
-                    style={{
-                      padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                      border: `1px solid ${active ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                      background: active ? 'var(--bg-selected)' : '#FFFFFF',
-                      color: active ? 'var(--action-primary)' : 'var(--text-primary)',
-                    }}
+                    className={`pf-btn pf-btn--sm ${active ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
                   >
                     {chip.label}
                   </button>
@@ -460,35 +458,31 @@ export function NewRequestPage() {
                 id="new-due"
                 ref={refs.due}
                 type="date"
+                className="pd-input"
                 disabled={form.noDeadline}
                 min={lagosDatePlus(0)}
                 value={form.noDeadline ? '' : form.due}
                 onChange={(e) => updateField('due', e.target.value)}
                 onBlur={() => markBlur('due')}
-                style={{
-                  height: 44, padding: '0 12px', borderRadius: 9,
-                  border: `1px solid ${showErr('due') ? 'var(--status-danger)' : 'var(--border-strong)'}`,
-                }}
+                style={{ width: 'auto', minHeight: 44, borderColor: showErr('due') ? 'var(--flare)' : undefined }}
               />
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }} data-flow-id="NEW-06">
-                <input type="checkbox" checked={form.noDeadline} onChange={(e) => updateField('noDeadline', e.target.checked)} />
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--ink-2)', cursor: 'pointer' }} data-flow-id="NEW-06">
+                <input type="checkbox" checked={form.noDeadline} onChange={(e) => updateField('noDeadline', e.target.checked)} style={{ accentColor: 'var(--volt)' }} />
                 <span>No deadline</span>
               </label>
             </div>
-            {showErr('due') && <p style={{ color: 'var(--status-danger)', fontSize: 12.5, marginTop: 4 }}>{showErr('due')}</p>}
+            {showErr('due') && <p className="pd-error" style={{ marginTop: 4 }}>{showErr('due')}</p>}
           </div>
 
           {/* Collapsed "More details" Disclosure (NEW-07 to NEW-13) */}
-          <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14 }}>
+          <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 14 }}>
             <button
               type="button"
               onClick={toggleMore}
               aria-expanded={moreOpen}
               data-flow-id="NEW-07"
-              style={{
-                border: 0, background: 'transparent', padding: 0, color: 'var(--action-primary)',
-                fontWeight: 600, fontSize: 13.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}
+              className="pf-btn pf-btn--sm pf-btn--quiet"
+              style={{ padding: 0 }}
             >
               <Icon name="chevron" size={16} />
               <span>{moreOpen ? 'Hide extra details' : 'More details (hours, deposit terms, notes)'}</span>
@@ -497,24 +491,25 @@ export function NewRequestPage() {
             {moreOpen && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                  <div>
-                    <label htmlFor="new-title" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Title (optional)</label>
+                  <div className="pd-field">
+                    <label htmlFor="new-title" className="pd-label">Title (optional)</label>
                     <input
                       id="new-title"
                       type="text"
+                      className="pd-input"
                       maxLength={80}
                       value={form.title}
                       onChange={(e) => updateField('title', e.target.value)}
                       placeholder="Defaults to first 60 chars"
                       data-flow-id="NEW-08"
-                      style={{ width: '100%', height: 42, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                     />
                   </div>
-                  <div>
-                    <label htmlFor="new-hours" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Estimated hours</label>
+                  <div className="pd-field">
+                    <label htmlFor="new-hours" className="pd-label">Estimated hours</label>
                     <input
                       id="new-hours"
                       type="number"
+                      className="pd-input"
                       min={0.5}
                       max={200}
                       step={0.5}
@@ -522,14 +517,13 @@ export function NewRequestPage() {
                       onChange={(e) => updateField('estimatedHours', e.target.value)}
                       placeholder="e.g. 4"
                       data-flow-id="NEW-09"
-                      style={{ width: '100%', height: 42, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                     />
-                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Optional, powers queue risk warnings.</span>
+                    <span className="pd-hint">Optional, powers queue risk warnings.</span>
                   </div>
                 </div>
 
                 <div data-flow-id="NEW-10">
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Payment terms</div>
+                  <div className="pd-label" style={{ marginBottom: 6 }}>Payment terms</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {[
                       { v: 'FULL' as const, l: 'Pay in full first' },
@@ -540,12 +534,7 @@ export function NewRequestPage() {
                         key={opt.v}
                         type="button"
                         onClick={() => updateField('terms', opt.v)}
-                        style={{
-                          padding: '8px 12px', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          border: `1px solid ${form.terms === opt.v ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                          background: form.terms === opt.v ? 'var(--bg-selected)' : '#FFFFFF',
-                          color: form.terms === opt.v ? 'var(--action-primary)' : 'var(--text-primary)',
-                        }}
+                        className={`pf-btn pf-btn--sm ${form.terms === opt.v ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
                       >
                         {opt.l}
                       </button>
@@ -555,8 +544,8 @@ export function NewRequestPage() {
 
                 {form.terms === 'DEPOSIT' && (
                   <div data-flow-id="NEW-11">
-                    <label htmlFor="new-dep-pct" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                      Deposit percentage: <strong>{form.depositPct}%</strong>
+                    <label htmlFor="new-dep-pct" className="pd-label" style={{ display: 'block', marginBottom: 4 }}>
+                      Deposit percentage: <strong className="pd-mono">{form.depositPct}%</strong>
                     </label>
                     <input
                       id="new-dep-pct"
@@ -566,13 +555,13 @@ export function NewRequestPage() {
                       step={5}
                       value={form.depositPct}
                       onChange={(e) => updateField('depositPct', Number(e.target.value))}
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', accentColor: 'var(--volt)' }}
                     />
                   </div>
                 )}
 
                 <div data-flow-id="NEW-12">
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Who pays the processing fee?</div>
+                  <div className="pd-label" style={{ marginBottom: 6 }}>Who pays the processing fee?</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {[
                       { v: 'OWNER' as const, l: 'I do' },
@@ -582,12 +571,7 @@ export function NewRequestPage() {
                         key={opt.v}
                         type="button"
                         onClick={() => updateField('feeBearer', opt.v)}
-                        style={{
-                          padding: '8px 12px', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          border: `1px solid ${form.feeBearer === opt.v ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                          background: form.feeBearer === opt.v ? 'var(--bg-selected)' : '#FFFFFF',
-                          color: form.feeBearer === opt.v ? 'var(--action-primary)' : 'var(--text-primary)',
-                        }}
+                        className={`pf-btn pf-btn--sm ${form.feeBearer === opt.v ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
                       >
                         {opt.l}
                       </button>
@@ -595,67 +579,63 @@ export function NewRequestPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="new-notes" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                <div className="pd-field">
+                  <label htmlFor="new-notes" className="pd-label">
                     Private notes (never visible to the client)
                   </label>
                   <textarea
                     id="new-notes"
                     rows={2}
+                    className="pd-input pd-input--area"
                     maxLength={1000}
                     value={form.notes}
                     onChange={(e) => updateField('notes', e.target.value)}
                     data-flow-id="NEW-13"
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                   />
                 </div>
               </div>
             )}
           </div>
 
-          <button type="submit" disabled={create.isPending} className="pf-btn pf-btn--primary" style={{ height: 48 }} data-flow-id="NEW-15">
+          <button type="submit" disabled={create.isPending} className="pf-btn pf-btn--primary" data-flow-id="NEW-15">
             {create.isPending ? 'Creating link…' : form.terms === 'PAY_ON_DELIVERY' ? 'Create job' : 'Create & get link'}
           </button>
         </form>
 
-        {/* Live Summary Card (NEW-14) */}
-        <aside className="pf-card" style={{ position: 'sticky', top: 88, maxWidth: 380 }} data-flow-id="NEW-14">
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Live summary
-          </div>
-          {totalBig > 0n ? (
-            form.terms === 'DEPOSIT' && depositKobo && balanceKobo ? (
-              <>
-                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{formatNaira(depositKobo)} now</div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginBottom: 10 }}>
-                  {formatNaira(depositKobo)} deposit now · {formatNaira(balanceKobo)} balance on delivery
+        {/* Live Draft Signal Ticket Preview (§6.5: distinct draft state, no countdown, no account allocated yet) */}
+        <aside style={{ position: 'sticky', top: 88, maxWidth: 400 }} data-flow-id="NEW-14">
+          <TicketCard
+            ghost
+            state="draft"
+            title={(known ?? selectedClient)?.name || form.name.trim() || 'Client name'}
+            subtitle={form.title.trim() || form.service.trim() || 'Service description preview'}
+            amountKobo={
+              totalBig > 0n
+                ? form.terms === 'DEPOSIT' && depositKobo
+                  ? depositKobo
+                  : v.total!
+                : '0'
+            }
+            status={<Status tone="slate" icon="minus-circle" label="Draft · not sent" />}
+            footer={
+              <div style={{ display: 'grid', gap: 6, fontSize: 12.5, color: 'var(--ink-2)' }}>
+                {totalBig > 0n && form.terms === 'DEPOSIT' && depositKobo && balanceKobo && (
+                  <p>
+                    {formatNaira(depositKobo)} deposit first · {formatNaira(balanceKobo)} balance on delivery
+                  </p>
+                )}
+                {form.terms === 'PAY_ON_DELIVERY' && (
+                  <p>Job starts Ready immediately. Request payment on delivery.</p>
+                )}
+                <p style={{ color: 'var(--ink-3)' }}>
+                  {form.feeBearer === 'CLIENT'
+                    ? 'Processing fee added on client page.'
+                    : 'You cover the Kora processing fee.'}{' '}
+                  Account number is allocated after submission.
                 </p>
-              </>
-            ) : form.terms === 'PAY_ON_DELIVERY' ? (
-              <>
-                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Pay on delivery</div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginBottom: 10 }}>
-                  Job starts Ready immediately. Request {formatNaira(v.total!)} when delivered.
-                </p>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Your client pays {formatNaira(v.total!)}</div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginBottom: 10 }}>
-                  Job enters your Ready queue once payment is verified.
-                </p>
-              </>
-            )
-          ) : (
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginBottom: 10 }}>
-              Enter an amount to preview what your client pays.
-            </p>
-          )}
-          <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 10, fontSize: 12.5, color: 'var(--text-muted)' }}>
-            {form.feeBearer === 'CLIENT'
-              ? 'Processing fee shown on the payment page.'
-              : 'You cover the Kora processing fee.'}
-          </div>
+              </div>
+            }
+          />
         </aside>
       </div>
 

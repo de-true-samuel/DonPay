@@ -10,16 +10,21 @@ import type { ReadyRule } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { useUnsavedGuard } from '../lib/useUnsavedGuard';
 import { Icon } from '../ui/Icon';
+import { HoldConfirmButton } from '../ui/HoldButton';
 import { Banner, Switch } from '../ui/primitives';
+import { Status } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
+import { useFxTier, useTheme, type FxPref, type ThemePref } from '../theme/theme';
+import { playPaymentAudio, readAudioPref, writeAudioPref, type AudioPref } from '../lib/feedback';
 
-type SectionKey = 'profile' | 'hours' | 'defaults' | 'notifications' | 'kora' | 'security' | 'data' | 'danger';
+type SectionKey = 'profile' | 'appearance' | 'hours' | 'defaults' | 'notifications' | 'kora' | 'security' | 'data' | 'danger';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'profile', label: 'Business profile' },
+  { key: 'appearance', label: 'Theme & visual effects' },
   { key: 'hours', label: 'Working hours' },
   { key: 'defaults', label: 'Payment defaults' },
-  { key: 'notifications', label: 'Notifications' },
+  { key: 'notifications', label: 'Notifications & audio' },
   { key: 'kora', label: 'Kora connection' },
   { key: 'security', label: 'Account & security' },
   { key: 'data', label: 'Data' },
@@ -39,6 +44,9 @@ export function SettingsPage() {
   const toast = useToast();
 
   const [section, setSection] = useState<SectionKey>('profile');
+  const { pref: themePref, resolved: resolvedTheme, setPref: setThemePref } = useTheme();
+  const { fxPref, resolvedFx, setFxPref } = useFxTier();
+  const [audioPref, setAudioPref] = useState<AudioPref>(() => readAudioPref());
 
   // A. Business profile
   const [bizName, setBizName] = useState(provider?.businessName ?? '');
@@ -166,75 +174,152 @@ export function SettingsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20, alignItems: 'start' }}>
         {/* Left Settings Navigation */}
         <nav className="pf-card" style={{ padding: 10, maxWidth: 280 }} aria-label="Settings sections">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setSection(s.key)}
-              style={{
-                width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: 0, cursor: 'pointer',
-                fontSize: 13.5, fontWeight: 600,
-                background: section === s.key ? 'var(--bg-selected)' : 'transparent',
-                color: s.key === 'danger' ? 'var(--status-danger)' : section === s.key ? 'var(--action-primary)' : 'var(--text-primary)',
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
+          {SECTIONS.map((s) => {
+            const active = section === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setSection(s.key)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--r-sm)',
+                  border: active ? '1px solid var(--volt)' : '1px solid transparent',
+                  cursor: 'pointer',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  background: active ? 'var(--active-surface)' : 'transparent',
+                  color: s.key === 'danger' ? 'var(--flare-ink)' : active ? 'var(--active-ink)' : 'var(--ink-2)',
+                }}
+              >
+                {s.label}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Right Content Pane */}
         <div style={{ gridColumn: 'span 2', minWidth: 280 }}>
+          {section === 'appearance' && (
+            <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Appearance & Performance</div>
+                <h2>Theme & visual effects</h2>
+              </div>
+
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div className="pd-label">Theme</div>
+                <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+                  Obsidian is Paidar’s default instrument look. Daylight switches to a bright slate surface; System follows your device setting ({resolvedTheme}).
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { v: 'obsidian', l: 'Obsidian' },
+                    { v: 'daylight', l: 'Daylight' },
+                    { v: 'system', l: 'System' },
+                  ] as Array<{ v: ThemePref; l: string }>).map((opt) => {
+                    const active = themePref === opt.v;
+                    return (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => { setThemePref(opt.v); toast.success(`Theme set to ${opt.l}`); }}
+                        className={`pf-btn pf-btn--sm ${active ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                      >
+                        {opt.l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--line-1)', paddingTop: 16 }}>
+                <div className="pd-label">Visual effects</div>
+                <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+                  Active tier: <strong className="pd-mono" style={{ color: 'var(--ink-1)' }}>{resolvedFx.toUpperCase()}</strong>. Minimal removes ambient aurora, grain, and glass blur while keeping every payment detail and countdown exact.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { v: 'auto', l: 'Auto' },
+                    { v: 'full', l: 'Full' },
+                    { v: 'lite', l: 'Lite' },
+                    { v: 'min', l: 'Minimal' },
+                  ] as Array<{ v: FxPref; l: string }>).map((opt) => {
+                    const active = fxPref === opt.v;
+                    return (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => { setFxPref(opt.v); toast.success(`Visual effects set to ${opt.l}`); }}
+                        className={`pf-btn pf-btn--sm ${active ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                      >
+                        {opt.l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {section === 'profile' && (
             <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2>Business profile</h2>
               <div>
-                <label htmlFor="set-biz" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Business name</label>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Identity</div>
+                <h2>Business profile</h2>
+              </div>
+              <div className="pd-field">
+                <label htmlFor="set-biz" className="pd-label">Business name</label>
                 <input
                   id="set-biz"
                   type="text"
+                  className="pd-input"
                   value={bizName}
                   onChange={(e) => setBizName(e.target.value)}
                   data-flow-id="SET-01"
-                  style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                 />
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                <p className="pd-hint">
                   Applies to new payment accounts. Links already shared keep the old name until they refresh.
                 </p>
               </div>
 
-              <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9, border: '1px solid var(--border-default)' }} data-flow-id="SET-02">
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Live account-name preview</div>
-                <div style={{ fontSize: 14, marginTop: 2 }}>Account name: <strong>{previewAccountName}</strong></div>
+              <div style={{ background: 'var(--bg-2)', padding: 14, borderRadius: 'var(--r-md)', border: '1px solid var(--line-2)' }} data-flow-id="SET-02">
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Live account-name preview</div>
+                <div style={{ fontSize: 14, color: 'var(--ink-1)' }}>Account name: <strong>{previewAccountName}</strong></div>
               </div>
 
-              <div>
-                <label htmlFor="set-phone" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>WhatsApp / phone</label>
+              <div className="pd-field">
+                <label htmlFor="set-phone" className="pd-label">WhatsApp / phone</label>
                 <input
                   id="set-phone"
                   type="tel"
+                  className="pd-input"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0803 123 4567"
                   data-flow-id="SET-03"
-                  style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                 />
               </div>
 
-              <Switch
-                checked={showPhone}
-                onChange={(v) => { setShowPhone(v); toast.success('Preference updated.'); }}
-                label="Show my number on the payment page"
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>Show my number on the payment page</span>
+                <Switch
+                  checked={showPhone}
+                  onChange={(v) => { setShowPhone(v); toast.success('Preference updated.'); }}
+                  label="Show my number on the payment page"
+                />
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }} data-flow-id="SET-06">
-                <div style={{ background: 'var(--bg-surface-subtle)', padding: 10, borderRadius: 8 }}>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Currency</div>
-                  <strong>NGN (₦)</strong>
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-1)', padding: 12, borderRadius: 'var(--r-sm)' }}>
+                  <div className="ob-overline">Currency</div>
+                  <strong className="pd-mono">NGN (₦)</strong>
                 </div>
-                <div style={{ background: 'var(--bg-surface-subtle)', padding: 10, borderRadius: 8 }}>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Timezone</div>
-                  <strong>Africa/Lagos</strong>
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-1)', padding: 12, borderRadius: 'var(--r-sm)' }}>
+                  <div className="ob-overline">Timezone</div>
+                  <strong className="pd-mono">Africa/Lagos</strong>
                 </div>
               </div>
 
@@ -291,12 +376,7 @@ export function SettingsPage() {
                       key={opt.v}
                       type="button"
                       onClick={() => setRule(opt.v)}
-                      style={{
-                        padding: '8px 12px', borderRadius: 9, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                        border: `1px solid ${rule === opt.v ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                        background: rule === opt.v ? 'var(--bg-selected)' : '#FFFFFF',
-                        color: rule === opt.v ? 'var(--action-primary)' : 'var(--text-primary)',
-                      }}
+                      className={`pf-btn pf-btn--sm ${rule === opt.v ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
                     >
                       {opt.l}
                     </button>
@@ -305,26 +385,21 @@ export function SettingsPage() {
               </div>
 
               <div data-flow-id="SET-08">
-                <label htmlFor="set-dep-pct" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                  Default deposit %: <strong>{depositPct}%</strong>
+                <label htmlFor="set-dep-pct" className="pd-label" style={{ display: 'block', marginBottom: 4 }}>
+                  Default deposit %: <strong className="pd-mono">{depositPct}%</strong>
                 </label>
-                <input id="set-dep-pct" type="range" min={10} max={90} step={5} value={depositPct} onChange={(e) => setDepositPct(Number(e.target.value))} style={{ width: '100%' }} />
+                <input id="set-dep-pct" type="range" min={10} max={90} step={5} value={depositPct} onChange={(e) => setDepositPct(Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--volt)' }} />
               </div>
 
               <div data-flow-id="SET-09">
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Who pays the processing fee?</div>
+                <div className="pd-label" style={{ marginBottom: 6 }}>Who pays the processing fee?</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {[{ v: 'OWNER' as const, l: 'I pay' }, { v: 'CLIENT' as const, l: 'My client pays' }].map((o) => (
                     <button
                       key={o.v}
                       type="button"
                       onClick={() => setFeeBearer(o.v)}
-                      style={{
-                        padding: '8px 12px', borderRadius: 9, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                        border: `1px solid ${feeBearer === o.v ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                        background: feeBearer === o.v ? 'var(--bg-selected)' : '#FFFFFF',
-                        color: feeBearer === o.v ? 'var(--action-primary)' : 'var(--text-primary)',
-                      }}
+                      className={`pf-btn pf-btn--sm ${feeBearer === o.v ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
                     >
                       {o.l}
                     </button>
@@ -334,14 +409,14 @@ export function SettingsPage() {
 
               <div data-flow-id="SET-10">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label htmlFor="set-tpl" style={{ fontSize: 13, fontWeight: 600 }}>WhatsApp message template</label>
-                  <button type="button" onClick={() => { setTemplate(DEFAULT_TEMPLATE); setTemplateErr(''); }} data-flow-id="SET-11" style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontSize: 12.5, cursor: 'pointer' }}>
+                  <label htmlFor="set-tpl" className="pd-label">WhatsApp message template</label>
+                  <button type="button" className="pf-btn pf-btn--sm pf-btn--quiet" onClick={() => { setTemplate(DEFAULT_TEMPLATE); setTemplateErr(''); }} data-flow-id="SET-11">
                     Reset to default
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                   {TEMPLATE_VARS.map((v) => (
-                    <button key={v} type="button" onClick={() => insertVar(v)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-default)', background: 'var(--bg-surface-subtle)', fontSize: 12, cursor: 'pointer' }}>
+                    <button key={v} type="button" onClick={() => insertVar(v)} className="pd-chip" style={{ minHeight: 34, padding: '0 10px', fontSize: 12 }}>
                       + {v}
                     </button>
                   ))}
@@ -349,11 +424,11 @@ export function SettingsPage() {
                 <textarea
                   id="set-tpl"
                   rows={3}
+                  className="pd-input pd-input--area"
                   value={template}
                   onChange={(e) => { setTemplate(e.target.value); setTemplateErr(''); }}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${templateErr ? 'var(--status-danger)' : 'var(--border-strong)'}` }}
                 />
-                {templateErr && <p style={{ color: 'var(--status-danger)', fontSize: 12.5, marginTop: 4 }}>{templateErr}</p>}
+                {templateErr && <p className="pd-error" style={{ marginTop: 4 }}>{templateErr}</p>}
               </div>
 
               <button type="button" className="pf-btn pf-btn--primary" disabled={saveProfile.isPending} onClick={saveDefaults}>
@@ -364,27 +439,57 @@ export function SettingsPage() {
 
           {section === 'notifications' && (
             <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2>Notifications</h2>
-              <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} data-flow-id="SET-12">
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Alerts & Audio</div>
+                <h2>Notifications & payment audio</h2>
+              </div>
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-2)', padding: 12, borderRadius: 'var(--r-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} data-flow-id="SET-12">
                 <div>
-                  <strong>Verified payment received (In-app)</strong>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Always enabled for financial safety.</div>
+                  <strong style={{ color: 'var(--ink-1)' }}>Verified payment received (In-app)</strong>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Always enabled for financial safety.</div>
                 </div>
                 <Icon name="lock" size={16} />
               </div>
 
-              <div>
-                <label htmlFor="set-due-rem" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Due-soon reminder</label>
-                <select id="set-due-rem" value={dueReminderDays} onChange={(e) => setDueReminderDays(e.target.value)} data-flow-id="SET-13" style={{ height: 42, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF' }}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div className="pd-label">Payment Audio (Paid Ping)</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {([
+                    { v: 'bell', l: 'Subtle Bell' },
+                    { v: 'drum', l: 'Deep Drum' },
+                    { v: 'silent', l: 'Silent (vibration only)' },
+                  ] as Array<{ v: AudioPref; l: string }>).map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      className={`pf-btn pf-btn--sm ${audioPref === opt.v ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                      onClick={() => {
+                        setAudioPref(opt.v);
+                        writeAudioPref(opt.v);
+                        playPaymentAudio(opt.v);
+                      }}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pd-field">
+                <label htmlFor="set-due-rem" className="pd-label">Due-soon reminder</label>
+                <select id="set-due-rem" className="pd-input" value={dueReminderDays} onChange={(e) => setDueReminderDays(e.target.value)} data-flow-id="SET-13" style={{ maxWidth: 220 }}>
                   <option value="1">1 day before due</option>
                   <option value="2">2 days before due</option>
                   <option value="3">3 days before due</option>
                 </select>
               </div>
 
-              <Switch checked={digestOn} onChange={setDigestOn} label="Daily summary digest" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>Daily summary digest</span>
+                <Switch checked={digestOn} onChange={setDigestOn} label="Daily summary digest" />
+              </div>
               {digestOn && (
-                <input type="time" value={digestTime} onChange={(e) => setDigestTime(e.target.value)} style={{ height: 40, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border-strong)', maxWidth: 160 }} />
+                <input type="time" className="pd-input" value={digestTime} onChange={(e) => setDigestTime(e.target.value)} style={{ maxWidth: 160 }} />
               )}
 
               <button type="button" className="pf-btn pf-btn--primary" onClick={() => saveProfile.mutate()}>
@@ -395,24 +500,25 @@ export function SettingsPage() {
 
           {section === 'kora' && (
             <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2>Kora connection</h2>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Bank Infrastructure</div>
+                <h2>Kora connection</h2>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-flow-id="SET-14">
-                <span style={{ padding: '4px 10px', borderRadius: 8, background: 'var(--status-success-tint)', color: 'var(--status-success)', fontSize: 13, fontWeight: 600 }}>
-                  Connected · Test mode
-                </span>
+                <Status tone="solar" icon="clock" label="Connected · Test mode" />
               </div>
 
               <div data-flow-id="SET-15">
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Webhook URL</div>
+                <div className="pd-label" style={{ marginBottom: 4 }}>Webhook URL</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="text" readOnly value={webhookUrl} className="pd-mono" style={{ flex: 1, height: 42, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-default)', background: 'var(--bg-surface-subtle)', fontSize: 12.5 }} />
+                  <input type="text" readOnly value={webhookUrl} className="pd-input pd-mono" style={{ flex: 1, fontSize: 12.5 }} />
                   <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void copyWebhook()}>Copy</button>
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Telegram payment alerts</div>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+              <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 14 }}>
+                <div className="pd-label" style={{ marginBottom: 6 }}>Telegram payment alerts</div>
+                <p style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 }}>
                   {provider.telegramLinked ? 'Telegram bot is linked to this workspace.' : 'Link Telegram to receive instant verified payment pings.'}
                 </p>
                 {!provider.telegramLinked && (
@@ -422,7 +528,7 @@ export function SettingsPage() {
                 )}
               </div>
 
-              <button type="button" disabled title="Live payments aren't available yet." data-flow-id="SET-18" className="pf-btn pf-btn--secondary" style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+              <button type="button" disabled title="Live payments aren't available yet." data-flow-id="SET-18" className="pf-btn pf-btn--secondary">
                 Switch to live (Unavailable in sandbox)
               </button>
             </div>
@@ -430,8 +536,11 @@ export function SettingsPage() {
 
           {section === 'security' && (
             <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2>Account & security</h2>
-              <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Sessions</div>
+                <h2>Account & security</h2>
+              </div>
+              <p style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>
                 Manage active sessions across your devices.
               </p>
               <button
@@ -447,7 +556,10 @@ export function SettingsPage() {
 
           {section === 'data' && (
             <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h2>Data</h2>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 4 }}>Workspace Data</div>
+                <h2>Data</h2>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button type="button" className="pf-btn pf-btn--secondary" disabled={removeSampleMut.isPending} onClick={() => removeSampleMut.mutate()} data-flow-id="SET-23">
                   {removeSampleMut.isPending ? 'Removing…' : 'Remove sample data'}
@@ -468,8 +580,8 @@ export function SettingsPage() {
           )}
 
           {section === 'danger' && (
-            <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 14, borderColor: '#F5C2C7' }}>
-              <h2 style={{ color: 'var(--status-danger)' }}>Danger zone</h2>
+            <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 14, borderColor: 'var(--flare-bd)' }}>
+              <h2 style={{ color: 'var(--flare-ink)' }}>Danger zone</h2>
               <Banner tone="warn">
                 Deleting your account removes personal profile data. Verified financial records (payments and receipts) are retained as required by law and anonymised where permitted.
               </Banner>
@@ -483,31 +595,29 @@ export function SettingsPage() {
 
       {deleteDialogOpen && (
         <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setDeleteDialogOpen(false)}>
-          <div role="dialog" aria-modal="true" className="pf-card" style={{ maxWidth: 440, width: '100%' }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ color: 'var(--status-danger)', marginBottom: 8 }}>Delete account?</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Open payment requests will be cancelled first. Type <strong>DELETE</strong> below to confirm.
+          <div role="dialog" aria-modal="true" className="ob-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ color: 'var(--flare-ink)', marginBottom: 8 }}>Delete account?</h2>
+            <p style={{ fontSize: 13.5, color: 'var(--ink-2)', marginBottom: 12 }}>
+              Open payment requests will be cancelled first. Type <strong>DELETE</strong> below, then hold to confirm.
             </p>
             <input
               type="text"
+              className="pd-input pd-mono"
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
               placeholder="Type DELETE"
-              style={{ width: '100%', height: 42, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', marginBottom: 14 }}
+              style={{ marginBottom: 16 }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
               <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setDeleteDialogOpen(false)}>Cancel</button>
-              <button
-                type="button"
-                className="pf-btn pf-btn--danger"
+              <HoldConfirmButton
+                label="Delete forever"
                 disabled={deleteConfirm !== 'DELETE'}
-                onClick={async () => {
+                onConfirm={async () => {
                   await api('/api/me', { method: 'DELETE' });
                   await signOut();
                 }}
-              >
-                Delete forever
-              </button>
+              />
             </div>
           </div>
         </div>

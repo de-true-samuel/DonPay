@@ -131,23 +131,22 @@ export function JobsPage() {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             type="search"
+            className="pd-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search job or client…"
             aria-label="Search jobs"
             data-flow-id="JBL-01"
-            style={{
-              flex: 1, minWidth: 220, maxWidth: 320, height: 40, padding: '0 12px',
-              borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF',
-            }}
+            style={{ flex: 1, minWidth: 220, maxWidth: 320, minHeight: 42 }}
           />
 
           <select
             aria-label="Filter by client"
+            className="pd-input"
             value={clientFilter}
             onChange={(e) => setClientFilter(e.target.value)}
             data-flow-id="JBL-04"
-            style={{ height: 40, padding: '0 10px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF', fontSize: 13 }}
+            style={{ width: 'auto', minHeight: 42, fontSize: 13 }}
           >
             <option value="">All clients</option>
             {clients.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -155,10 +154,11 @@ export function JobsPage() {
 
           <select
             aria-label="Sort jobs"
+            className="pd-input"
             value={sort}
             onChange={(e) => setSort(e.target.value as typeof sort)}
             data-flow-id="JBL-05"
-            style={{ height: 40, padding: '0 10px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF', fontSize: 13 }}
+            style={{ width: 'auto', minHeight: 42, fontSize: 13 }}
           >
             <option value="due">Due date (soonest)</option>
             <option value="newest">Newest</option>
@@ -174,12 +174,8 @@ export function JobsPage() {
                 key={c.value}
                 type="button"
                 onClick={() => setStatus(c.value)}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  border: `1px solid ${active ? 'var(--action-primary)' : 'var(--border-default)'}`,
-                  background: active ? 'var(--bg-selected)' : '#FFFFFF',
-                  color: active ? 'var(--action-primary)' : 'var(--text-secondary)',
-                }}
+                className={`pd-chip ${active ? 'is-on' : ''}`}
+                style={{ minHeight: 38 }}
               >
                 {c.label}
               </button>
@@ -189,11 +185,12 @@ export function JobsPage() {
             type="button"
             onClick={() => setRiskFilter(riskFilter === 'overdue' ? 'none' : 'overdue')}
             data-flow-id="JBL-03"
+            className="pd-chip"
             style={{
-              padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              border: `1px solid ${riskFilter === 'overdue' ? 'var(--status-danger)' : 'var(--border-default)'}`,
-              background: riskFilter === 'overdue' ? 'var(--status-danger-tint)' : '#FFFFFF',
-              color: riskFilter === 'overdue' ? 'var(--status-danger)' : 'var(--text-secondary)',
+              minHeight: 38,
+              borderColor: riskFilter === 'overdue' ? 'var(--flare-bd)' : undefined,
+              background: riskFilter === 'overdue' ? 'var(--flare-bg)' : undefined,
+              color: riskFilter === 'overdue' ? 'var(--flare-ink)' : undefined,
             }}
           >
             Overdue
@@ -201,11 +198,12 @@ export function JobsPage() {
           <button
             type="button"
             onClick={() => setRiskFilter(riskFilter === 'at_risk' ? 'none' : 'at_risk')}
+            className="pd-chip"
             style={{
-              padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              border: `1px solid ${riskFilter === 'at_risk' ? 'var(--status-warning)' : 'var(--border-default)'}`,
-              background: riskFilter === 'at_risk' ? 'var(--status-warning-tint)' : '#FFFFFF',
-              color: riskFilter === 'at_risk' ? 'var(--status-warning)' : 'var(--text-secondary)',
+              minHeight: 38,
+              borderColor: riskFilter === 'at_risk' ? 'var(--solar-bd)' : undefined,
+              background: riskFilter === 'at_risk' ? 'var(--solar-bg)' : undefined,
+              color: riskFilter === 'at_risk' ? 'var(--solar-ink)' : undefined,
             }}
           >
             At risk

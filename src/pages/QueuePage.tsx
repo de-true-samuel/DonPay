@@ -70,12 +70,12 @@ export function QueuePage() {
 
   const cap = queue?.capacity;
   const barColor = !cap
-    ? 'var(--action-primary)'
+    ? 'var(--volt)'
     : cap.utilizationPercent > 100
-      ? 'var(--status-danger)'
+      ? 'var(--flare)'
       : cap.utilizationPercent >= 90
-        ? 'var(--status-warning)'
-        : 'var(--action-primary)';
+        ? 'var(--solar)'
+        : 'var(--volt)';
 
   function toggleRisk() {
     const next = new URLSearchParams(params);
@@ -201,13 +201,11 @@ export function QueuePage() {
           </button>
           <select
             aria-label="Filter by client"
+            className="pd-input"
             value={clientFilter}
             onChange={(e) => setClientFilter(e.target.value)}
             data-flow-id="QUE-11"
-            style={{
-              height: 36, padding: '0 10px', borderRadius: 9, border: '1px solid var(--border-strong)',
-              background: '#FFFFFF', fontSize: 13,
-            }}
+            style={{ width: 'auto', minHeight: 40, fontSize: 13 }}
           >
             <option value="">All clients</option>
             {clients.map(([id, name]) => (
@@ -219,7 +217,7 @@ export function QueuePage() {
 
       {/* Why this order popover/card */}
       {whyOpen && (
-        <div className="pf-card" style={{ marginBottom: 16, background: 'var(--bg-selected)', borderColor: '#C9D5FF' }}>
+        <div className="pf-card" style={{ marginBottom: 16, background: 'var(--bg-2)', borderColor: 'var(--line-2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong>How Paidar orders your queue</strong>
             <button type="button" onClick={() => setWhyOpen(false)} style={{ border: 0, background: 'transparent', cursor: 'pointer' }}>

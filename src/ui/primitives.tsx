@@ -15,7 +15,7 @@ export function Button({
   return (
     <button {...rest} disabled={disabled || busy} aria-busy={busy || undefined}
       className={cls('pd-btn', `pd-btn--${variant}`, block && 'pd-btn--block', className)}>
-      {icon && <Icon name={icon} size={18} />}
+      {busy ? <Icon name="loader" size={18} /> : icon ? <Icon name={icon} size={18} /> : null}
       <span>{children}</span>
     </button>
   );
@@ -45,8 +45,14 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       <label htmlFor={id} className="pd-label">{label}</label>
       <input ref={ref} id={id} aria-invalid={error ? true : undefined} aria-describedby={note}
         className={cls('pd-input', error && 'pd-input--bad', className)} {...rest} />
-      {error ? <p id={`${id}-e`} className="pd-error" role="alert">{error}</p>
-        : hint ? <p id={`${id}-h`} className="pd-hint">{hint}</p> : null}
+      {error ? (
+        <p id={`${id}-e`} className="pd-error" role="alert">
+          <Icon name="alert" size={15} />
+          <span>{error}</span>
+        </p>
+      ) : hint ? (
+        <p id={`${id}-h`} className="pd-hint">{hint}</p>
+      ) : null}
     </div>
   );
 });
@@ -82,7 +88,7 @@ export function ChoiceCards<T extends string>({ legend, value, options, onChange
 export function Banner({ tone = 'info', action, children }: { tone?: 'info' | 'warn' | 'bad'; action?: ReactNode; children: ReactNode }) {
   return (
     <div className={cls('pd-banner', `pd-banner--${tone}`)} role={tone === 'bad' ? 'alert' : 'status'}>
-      <Icon name={tone === 'info' ? 'clock' : 'alert'} size={18} />
+      <Icon name={tone === 'info' ? 'info' : 'alert'} size={18} />
       <p>{children}</p>
       {action}
     </div>
@@ -93,9 +99,22 @@ export function Skeleton({ w = '100%', h = 16 }: { w?: number | string; h?: numb
   return <div className="pd-skel" style={{ width: w, height: h }} aria-hidden="true" />;
 }
 
-export function EmptyState({ title, action, children }: { title: string; action?: ReactNode; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  icon = 'clock',
+  action,
+  children,
+}: {
+  title: string;
+  icon?: IconName;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
-    <section className="pd-empty">
+    <section className="pd-empty ob-tile">
+      <div className="ob-empty__icon">
+        <Icon name={icon} size={32} />
+      </div>
       <h2>{title}</h2>
       {children && <p>{children}</p>}
       {action}
@@ -169,11 +188,11 @@ export function ViewTabs<T extends string>({ label, value, options, onChange }: 
   label: string; value: T; onChange: (v: T) => void; options: Array<{ value: T; label: string }>;
 }) {
   return (
-    <nav className="pd-vtabs" aria-label={label}>
+    <div className="pd-vtabs" role="tablist" aria-label={label}>
       {options.map((o) => (
-        <button key={o.value} type="button" className={cls('pd-vtab', o.value === value && 'is-on')}
-          aria-current={o.value === value ? 'true' : undefined} onClick={() => onChange(o.value)}>{o.label}</button>
+        <button key={o.value} type="button" role="tab" aria-selected={o.value === value}
+          className={cls('pd-vtab', o.value === value && 'is-on')} onClick={() => onChange(o.value)}>{o.label}</button>
       ))}
-    </nav>
+    </div>
   );
 }

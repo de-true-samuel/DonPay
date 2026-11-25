@@ -3,11 +3,17 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '../api/endpoints';
 import type { PublicRequest } from '../contract/contract';
+import { hapticClaim } from '../lib/feedback';
 import { useDocumentTitle } from '../lib/hooks';
-import { formatNaira } from '../lib/money';
+import { formatNaira, toBig } from '../lib/money';
 import { formatTime } from '../lib/time';
+import { CopyChip } from '../ui/CopyChip';
+import { CountdownRing } from '../ui/CountdownRing';
 import { Icon } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
+import { Money } from '../ui/Money';
+import { Status } from '../ui/StatusChip';
+import { TicketCard } from '../ui/TicketCard';
 
 const DEMO_REQUEST: PublicRequest = {
   status: 'SENT',
@@ -44,7 +50,6 @@ export function PublicPayPage() {
 
   const [demoPaid, setDemoPaid] = useState(false);
   const [demoClaimed, setDemoClaimed] = useState(false);
-  const [copiedAcct, setCopiedAcct] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [announcement, setAnnouncement] = useState('');
   const mountMs = useRef(Date.now());
@@ -106,6 +111,7 @@ export function PublicPayPage() {
 
   const claimMut = useMutation({
     mutationFn: async () => {
+      hapticClaim();
       if (isDemo) {
         setDemoClaimed(true);
         return { ok: true };
@@ -124,15 +130,6 @@ export function PublicPayPage() {
     },
   });
 
-  async function copyAccount(acct: string) {
-    try {
-      await navigator.clipboard.writeText(acct);
-      setCopiedAcct(true);
-      setAnnouncement('Account number copied.');
-      setTimeout(() => setCopiedAcct(false), 2000);
-    } catch { /* ignore */ }
-  }
-
   const rawStatus = req?.status as string | undefined;
   const isExpired = rawStatus === 'EXPIRED' || (rawStatus === 'SENT' && !!req?.expiresAt && remainingMs <= 0);
   const isNotReady = rawStatus === 'DRAFT' || rawStatus === 'SCHEDULED' || rawStatus === 'NOT_REQUESTED';
@@ -140,11 +137,13 @@ export function PublicPayPage() {
   const isCancelled = rawStatus === 'CANCELLED' || rawStatus === 'REFUNDED';
   const isProcessing = !isPaid && !isExpired && !isCancelled && !!req?.customerClaimedPaidAt;
 
+  const plainDigits = req ? (toBig(req.amountKobo) / 100n).toString() : '';
+  const sentIso = req?.expiresAt ? new Date(Date.parse(req.expiresAt) - 60 * 60_000).toISOString() : new Date().toISOString();
+
   return (
     <main
       style={{
         minHeight: '100dvh',
-        background: 'var(--bg-canvas)',
         padding: '20px 16px 48px',
         display: 'flex',
         flexDirection: 'column',
@@ -152,246 +151,235 @@ export function PublicPayPage() {
       }}
       data-flow-id="PGE-00"
     >
-      {/* Screen-reader assertive status announcements */}
+      {/* Screen-reader assertive timer announcements & polite live verification */}
       <div className="pd-sr-only" aria-live="assertive" aria-atomic="true">
         {announcement}
-        {isPaid ? 'Payment verified.' : ''}
+      </div>
+      <div className="pd-sr-only" aria-live="polite" aria-atomic="true">
+        {isPaid ? `Payment of ${formatNaira(req?.amountKobo ?? '0')} verified.` : ''}
       </div>
 
-      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Header bar */}
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Lean Customer Header Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--nav-bg)', fontWeight: 700, fontSize: 17 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink-1)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, letterSpacing: '-0.03em' }}>
             <LogoMark size={24} />
             <span>paidar</span>
           </div>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-            background: 'var(--status-warning-tint)', color: 'var(--status-warning)', border: '1px solid #F3D19E',
-          }}>
+          <span className="ob-status ob-status--solar" style={{ borderRadius: 'var(--r-pill)', fontSize: 12 }}>
             <Icon name="flask" size={14} />
-            Test mode
+            <span>Test mode</span>
           </span>
         </div>
 
-        {/* Preview-only warning banner (Spec §9.6) */}
+        {/* Preview-only banner (Spec §9.6) */}
         {isPreview && (
-          <div
-            role="note"
-            style={{
-              padding: '10px 14px', borderRadius: 9,
-              background: 'var(--status-info-tint)', color: 'var(--status-info)',
-              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8,
-            }}
-          >
+          <div role="note" className="ob-status ob-status--ion" style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--r-md)' }}>
             <Icon name="info" size={16} />
             <span>Preview only. Nothing is charged.</span>
           </div>
         )}
 
         {isLoading && (
-          <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, border: '1px solid var(--border-default)' }}>
-            <p style={{ color: 'var(--text-secondary)' }}>Loading payment details…</p>
+          <div className="ob-tile" style={{ padding: 24 }}>
+            <p style={{ color: 'var(--ink-2)' }}>Loading payment details…</p>
           </div>
         )}
 
         {isError && (
-          <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, border: '1px solid var(--border-default)' }}>
+          <div className="ob-tile" style={{ padding: 24 }}>
             <h1 style={{ fontSize: 20, marginBottom: 8 }}>Payment link not found</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>
+            <p style={{ color: 'var(--ink-2)' }}>
               This link may be invalid or no longer available. Please ask the business for an updated payment link.
             </p>
           </div>
         )}
 
         {req && (
-          <section
-            style={{
-              background: '#FFFFFF',
-              borderRadius: 14,
-              padding: 22,
-              border: '1px solid var(--border-default)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 18,
-            }}
-          >
-            {/* Business & Amount Header */}
-            <div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                Payment request from <strong style={{ color: 'var(--text-primary)' }}>{req.businessName}</strong>
-              </p>
-              <h1 style={{ fontSize: 34, lineHeight: '40px', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
-                {formatNaira(req.amountKobo)}
-              </h1>
-              <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 14 }}>{req.service}</p>
-            </div>
-
-            {/* State: Paid / Verified */}
-            {isPaid && (
-              <div
-                style={{
-                  background: 'var(--status-success-tint)',
-                  borderRadius: 12,
-                  padding: 16,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--status-success)', fontWeight: 700, fontSize: 16 }}>
-                  <Icon name="shield" size={20} />
-                  <span>Payment verified</span>
-                </div>
-                <p style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>
-                  Confirmed through the payment provider’s transaction records{req.paidAt ? ` on ${formatTime(req.paidAt)}` : ''}.
-                </p>
-                <Link
-                  to={`/receipt/${token}`}
-                  style={{
-                    height: 44, borderRadius: 9, background: 'var(--status-success)', color: '#FFFFFF',
-                    textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}
-                >
-                  <Icon name="external" size={16} />
-                  <span>View verified receipt</span>
-                </Link>
-              </div>
-            )}
-
-            {/* State: Not Ready */}
-            {isNotReady && (
-              <div style={{ background: 'var(--bg-surface-subtle)', borderRadius: 12, padding: 16, border: '1px solid var(--border-default)' }}>
-                <p style={{ fontWeight: 600, marginBottom: 4 }}>Not ready for payment yet</p>
-                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
-                  {req.businessName} hasn’t released this payment request yet. Check back when they send you the link.
-                </p>
-              </div>
-            )}
-
-            {/* State: Cancelled / Refunded */}
-            {isCancelled && (
-              <div style={{ background: 'var(--status-neutral-tint)', borderRadius: 12, padding: 16 }}>
-                <p style={{ fontWeight: 600, marginBottom: 4 }}>Payment request closed</p>
-                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
-                  This payment request is no longer active. Do not transfer to any previous account details.
-                </p>
-              </div>
-            )}
-
-            {/* State: Expired Attempt (Request stays open) */}
-            {!isPaid && !isCancelled && !isNotReady && isExpired && (
-              <div style={{ background: 'var(--status-warning-tint)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <p style={{ fontWeight: 600, color: 'var(--status-warning)' }}>Temporary account expired</p>
-                <p style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>
-                  Your payment request remains open. Generate a fresh bank account below before transferring.
-                </p>
-                {!isPreview && (
-                  <button
-                    type="button"
-                    disabled={attemptMut.isPending}
-                    onClick={() => attemptMut.mutate()}
-                    style={{
-                      height: 44, borderRadius: 9, border: 0, background: 'var(--action-primary)',
-                      color: '#FFFFFF', fontWeight: 600, cursor: 'pointer',
-                    }}
+          <TicketCard
+            hero={!isExpired && !isCancelled && !isNotReady}
+            state={
+              isPaid
+                ? 'paid'
+                : isCancelled
+                  ? 'cancelled'
+                  : isExpired
+                    ? 'expired'
+                    : isNotReady
+                      ? 'draft'
+                      : isProcessing
+                        ? 'claims'
+                        : 'waiting'
+            }
+            stamp={isPaid ? 'PAID' : isExpired ? 'EXPIRED' : isCancelled ? 'CANCELLED' : undefined}
+            title={req.businessName}
+            subtitle={`${req.customerFirstName ? `For ${req.customerFirstName} · ` : ''}${req.service}`}
+            amountKobo={req.amountKobo}
+            aside={
+              !isPaid && !isCancelled && !isNotReady && !isExpired && req.expiresAt ? (
+                <CountdownRing sentAt={sentIso} expiresAt={req.expiresAt} size="md" />
+              ) : undefined
+            }
+            status={
+              isPaid ? (
+                <Status tone="mint" icon="shield" label="Verified" />
+              ) : isCancelled ? (
+                <Status tone="slate" icon="x-circle" label="Closed" struck />
+              ) : isExpired ? (
+                <Status tone="slate" icon="minus-circle" label="Expired" />
+              ) : isNotReady ? (
+                <Status tone="slate" icon="minus-circle" label="Not ready" />
+              ) : isProcessing ? (
+                <Status tone="solar" icon="radar" label="Checking bank" pulse />
+              ) : (
+                <Status tone="ion" icon="zap" label="Account active" />
+              )
+            }
+            footer={
+              req.businessPhone ? (
+                <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                  <span style={{ color: 'var(--ink-3)' }}>Questions for {req.businessName}?</span>
+                  <a
+                    href={`https://wa.me/${req.businessPhone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 600 }}
                   >
-                    {attemptMut.isPending ? 'Generating…' : 'Generate new account'}
-                  </button>
-                )}
-              </div>
-            )}
+                    Message on WhatsApp
+                  </a>
+                </div>
+              ) : undefined
+            }
+          >
+            <div style={{ padding: '0 22px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Paid State */}
+              {isPaid && (
+                <div style={{ background: 'var(--mint-bg)', border: '1px solid var(--mint-bd)', borderRadius: 'var(--r-md)', padding: 16, display: 'grid', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mint-ink)', fontWeight: 700, fontSize: 15 }}>
+                    <Icon name="shield" size={20} />
+                    <span>Payment verified</span>
+                  </div>
+                  <p style={{ fontSize: 13.5, color: 'var(--ink-1)' }}>
+                    Confirmed through Kora’s transaction records{req.paidAt ? ` on ${formatTime(req.paidAt)}` : ''}.
+                  </p>
+                  <Link to={`/receipt/${token}`} className="pf-btn pf-btn--secondary" style={{ width: '100%' }}>
+                    <Icon name="external" size={16} />
+                    <span>Download receipt</span>
+                  </Link>
+                </div>
+              )}
 
-            {/* State: Active Kora Account Attempt */}
-            {!isPaid && !isCancelled && !isNotReady && !isExpired && req.accountNumber && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {isProcessing && (
-                  <div style={{ background: 'var(--status-info-tint)', color: 'var(--status-info)', padding: '12px 14px', borderRadius: 9, fontSize: 13.5, fontWeight: 600 }}>
-                    We’re checking the payment with the payment provider. This usually takes a moment.
-                  </div>
-                )}
+              {/* Not Ready */}
+              {isNotReady && (
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-1)', borderRadius: 'var(--r-md)', padding: 16 }}>
+                  <p style={{ fontWeight: 600, color: 'var(--ink-1)', marginBottom: 4 }}>Not ready for payment yet</p>
+                  <p style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>
+                    {req.businessName} hasn’t released this payment request yet. Check back when they send you the link.
+                  </p>
+                </div>
+              )}
 
-                <div style={{ background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bank name</div>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{req.bankName ?? '—'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Account name</div>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{req.accountName ?? req.businessName}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Account number</div>
-                      <div className="pd-mono" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '0.04em' }}>
-                        {req.accountNumber}
-                      </div>
-                    </div>
+              {/* Cancelled / Refunded */}
+              {isCancelled && (
+                <div style={{ background: 'var(--slate-bg)', border: '1px solid var(--slate-bd)', borderRadius: 'var(--r-md)', padding: 16 }}>
+                  <p style={{ fontWeight: 600, color: 'var(--ink-1)', marginBottom: 4 }}>Payment request closed</p>
+                  <p style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>
+                    This payment request is no longer active. Do not transfer to any previous account details.
+                  </p>
+                </div>
+              )}
+
+              {/* Expired State */}
+              {!isPaid && !isCancelled && !isNotReady && isExpired && (
+                <div style={{ background: 'var(--slate-bg)', border: '1px solid var(--slate-bd)', borderRadius: 'var(--r-md)', padding: 16, display: 'grid', gap: 12 }}>
+                  <p style={{ fontWeight: 600, color: 'var(--ink-1)' }}>Temporary account expired</p>
+                  <p style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>
+                    This dynamic transfer window is no longer valid. Your payment request remains open—generate a fresh transfer account before paying.
+                  </p>
+                  {!isPreview && (
                     <button
                       type="button"
-                      onClick={() => copyAccount(req.accountNumber!)}
-                      style={{
-                        minHeight: 44, padding: '0 14px', borderRadius: 9, border: '1px solid var(--border-strong)',
-                        background: '#FFFFFF', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer',
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                      }}
+                      className="pf-btn pf-btn--primary"
+                      disabled={attemptMut.isPending}
+                      onClick={() => attemptMut.mutate()}
                     >
-                      <Icon name={copiedAcct ? 'check' : 'copy'} size={16} />
-                      <span>{copiedAcct ? 'Copied' : 'Copy'}</span>
+                      {attemptMut.isPending ? 'Generating…' : 'Generate new account'}
                     </button>
-                  </div>
+                  )}
                 </div>
+              )}
 
-                {req.expiresAt && (
-                  <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: '18px' }}>
-                    Payment instructions expire in <strong className="pd-mono">{formatCountdown(remainingMs)}</strong>. Your payment request remains open. You can generate another set of instructions if this attempt expires.
-                  </p>
-                )}
+              {/* Active Kora Transfer Instructions */}
+              {!isPaid && !isCancelled && !isNotReady && !isExpired && req.accountNumber && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {isProcessing && (
+                    <div className="ob-status ob-status--solar" style={{ width: '100%', padding: '12px 14px', borderRadius: 'var(--r-md)', whiteSpace: 'normal' }}>
+                      <Icon name="radar" size={16} pulse />
+                      <span>We’re checking with the bank for your transfer. Leave this page open for automatic confirmation.</span>
+                    </div>
+                  )}
 
-                <button
-                  type="button"
-                  disabled={claimMut.isPending}
-                  onClick={() => claimMut.mutate()}
-                  style={{
-                    width: '100%', height: 48, borderRadius: 9, border: 0,
-                    background: 'var(--action-primary)', color: '#FFFFFF', fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  {claimMut.isPending ? 'Checking status…' : "I've paid"}
-                </button>
+                  <div style={{ background: 'var(--bg-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)', padding: 16, display: 'grid', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <div>
+                        <div className="ob-overline">Exact Amount</div>
+                        <Money kobo={req.amountKobo} size="md" />
+                      </div>
+                      <CopyChip value={plainDigits} label="Copy amount" copyLabel="Amount" />
+                    </div>
 
-                {isDemo && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 10, borderTop: '1px solid var(--line-1)' }}>
+                      <div>
+                        <div className="ob-overline">Bank Name</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)', marginTop: 2 }}>{req.bankName ?? 'Wema Bank'}</div>
+                      </div>
+                      <div>
+                        <div className="ob-overline">Account Name</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)', marginTop: 2 }}>{req.accountName ?? req.businessName}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 10, borderTop: '1px solid var(--line-1)' }}>
+                      <div>
+                        <div className="ob-overline">Dynamic Account Number</div>
+                        <div className="pd-mono" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--ink-1)', marginTop: 2 }}>
+                          {req.accountNumber}
+                        </div>
+                      </div>
+                      <CopyChip value={req.accountNumber} label="Copy" copyLabel="Account number" />
+                    </div>
+                  </div>
+
+                  {req.expiresAt && (
+                    <p style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+                      Transfer the exact amount via bank app or USSD within <strong className="pd-mono" style={{ color: 'var(--solar-ink)' }}>{formatCountdown(remainingMs)}</strong>. Single-use dynamic account.
+                    </p>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => setDemoPaid(true)}
-                    style={{
-                      width: '100%', height: 44, borderRadius: 9,
-                      border: '1px dashed var(--border-strong)', background: '#FFFFFF',
-                      color: 'var(--text-secondary)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-                    }}
+                    disabled={claimMut.isPending}
+                    onClick={() => claimMut.mutate()}
+                    className="pf-btn pd-btn--hero pf-btn--primary"
+                    style={{ width: '100%' }}
                   >
-                    Simulate verified payment (Demo only)
+                    {claimMut.isPending ? 'Checking status…' : 'I have transferred the money'}
                   </button>
-                )}
-              </div>
-            )}
 
-            {/* Contact business footer */}
-            {req.businessPhone && (
-              <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Questions for {req.businessName}?</span>
-                <a
-                  href={`https://wa.me/${req.businessPhone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 600, textDecoration: 'none' }}
-                >
-                  Message on WhatsApp
-                </a>
-              </div>
-            )}
-          </section>
+                  {isDemo && (
+                    <button
+                      type="button"
+                      onClick={() => setDemoPaid(true)}
+                      className="pf-btn pf-btn--secondary"
+                      style={{ width: '100%', borderStyle: 'dotted', borderColor: 'var(--ultra-bd)', color: 'var(--ultra-ink)' }}
+                    >
+                      Simulate verified payment (Demo only)
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </TicketCard>
         )}
       </div>
     </main>

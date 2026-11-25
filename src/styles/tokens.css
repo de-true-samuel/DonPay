@@ -1,139 +1,319 @@
+/* Obsidian Signal UI Design System — Foundations & Tokens (§3) */
+
 @font-face {
-  font-family: "Geist";
-  src: url("/fonts/Geist-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
+  font-family: 'Naira';
+  src: local('JetBrains Mono SemiBold'), url('/fonts/jbmono-600-latin-ext.woff2') format('woff2');
+  font-weight: 600;
+  unicode-range: U+20A6;
   font-display: swap;
 }
 
-:root {
-  /* Precision Futurism 2.0 — Core Palette (Spec §3.1) */
-  --nav-bg: #111B33;          /* Midnight Navy */
-  --nav-hover: #172443;       /* Deep Navy */
-  --action-primary: #5368F8;  /* Electric Cobalt */
-  --action-primary-hover: #4357E7;
-  --bg-selected: #EAF0FF;     /* Ice Blue */
+:root,
+:root[data-theme='obsidian'] {
+  color-scheme: dark;
 
-  --bg-canvas: #F5F7FB;
-  --bg-surface: #FFFFFF;
-  --bg-surface-subtle: #F8FAFD;
-  --border-default: #E5EAF2;
-  --border-strong: #CDD5E2;
+  /* Surfaces, darkest to lightest (§3.2) */
+  --bg-void: #05060A;
+  --bg-canvas: #090B11;
+  --bg-1: #0E111A;
+  --bg-2: #141926;
+  --bg-3: #1B2132;
+  --bg-4: #242B40;
+  --glass: rgba(14, 17, 26, 0.62);
+  --glass-strong: rgba(14, 17, 26, 0.84);
+  --scrim: rgba(3, 4, 8, 0.64);
 
-  --text-primary: #172033;
-  --text-secondary: #647087;
-  --text-muted: #8792A5;
+  /* Hairlines */
+  --line-1: rgba(255, 255, 255, 0.06);
+  --line-2: rgba(255, 255, 255, 0.10);
+  --line-3: rgba(255, 255, 255, 0.18);
 
-  /* Semantic Status Tokens (always pair with icon + text label) */
-  --status-success: #15966B;
-  --status-success-tint: #E8F6F0;
-  --status-warning: #B7791F;
-  --status-warning-tint: #FFF5E4;
-  --status-danger: #D94B59;
-  --status-danger-tint: #FDECEF;
-  --status-info: #3486D7;
-  --status-info-tint: #EAF4FE;
-  --status-neutral: #697586;
-  --status-neutral-tint: #EFF2F6;
-  --status-scheduled: #6657C8;
-  --status-scheduled-tint: #F0EDFF;
+  /* Ink (text) */
+  --ink-1: #F4F6FB;
+  --ink-2: #B8C0D4;
+  --ink-3: #7C869D;
+  --ink-4: #4C556B;
 
-  /* Typography (Spec §4.1) */
-  --font-display: "Geist", "Inter", system-ui, -apple-system, sans-serif;
-  --font-ui: "Geist", "Inter", system-ui, -apple-system, sans-serif;
-  --font-body: "Geist", "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Brand: VOLT */
+  --volt: #C8FF3D;
+  --volt-hi: #DCFF75;
+  --volt-lo: #A6E01E;
+  --volt-ink: #0A1000;
+  --volt-a08: rgba(200, 255, 61, 0.08);
+  --volt-a16: rgba(200, 255, 61, 0.16);
+  --volt-a35: rgba(200, 255, 61, 0.35);
 
-  /* Radii & Spacing (Spec §5.1 & §5.2) */
-  --r-card: 14px;
-  --r-control: 9px;
-  --r-chip: 8px;
-  --r-ticket: 14px;
-  --r-button: 9px;
-  --r-sheet: 16px;
-  --r-slip: 12px;
+  /* Semantic families: solid / tint / border */
+  --mint: #2EF2A6;
+  --mint-bg: rgba(46, 242, 166, 0.12);
+  --mint-bd: rgba(46, 242, 166, 0.30);
 
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
-  --sp-16: 64px;
-  --sp-20: 80px;
+  --solar: #FFB020;
+  --solar-bg: rgba(255, 176, 32, 0.12);
+  --solar-bd: rgba(255, 176, 32, 0.30);
+
+  --flare: #FF5A6E;
+  --flare-bg: rgba(255, 90, 110, 0.12);
+  --flare-bd: rgba(255, 90, 110, 0.32);
+
+  --ion: #38D5FF;
+  --ion-bg: rgba(56, 213, 255, 0.12);
+  --ion-bd: rgba(56, 213, 255, 0.30);
+
+  --ultra: #9A7BFF;
+  --ultra-bg: rgba(154, 123, 255, 0.14);
+  --ultra-bd: rgba(154, 123, 255, 0.32);
+
+  --slate: #8B94A8;
+  --slate-bg: rgba(139, 148, 168, 0.12);
+  --slate-bd: rgba(139, 148, 168, 0.26);
+
+  /* Semantic text-over-surface defaults */
+  --mint-ink: var(--mint);
+  --solar-ink: var(--solar);
+  --flare-ink: var(--flare);
+  --ion-ink: var(--ion);
+  --ultra-ink: var(--ultra);
+  --slate-ink: var(--slate);
+
+  /* Gradients (§3.4) */
+  --grad-volt: linear-gradient(135deg, #E6FF6B 0%, #C8FF3D 45%, #8EF05A 100%);
+  --grad-foil: linear-gradient(115deg, #C8FF3D 0%, #38D5FF 28%, #9A7BFF 55%, #FF5A6E 80%, #C8FF3D 100%);
+  --grad-mint: linear-gradient(135deg, #2EF2A6 0%, #38D5FF 100%);
+  --grad-hair: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 38%, rgba(200, 255, 61, 0) 62%, rgba(200, 255, 61, 0.28) 100%);
+  --grad-sheen: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.10) 46%, transparent 62%);
+
+  /* Elevation & Glows (§3.8) */
+  --e1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.40);
+  --e2: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --e3: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--line-2);
+  --glow-volt: 0 0 0 1px rgba(200, 255, 61, 0.55), 0 0 22px rgba(200, 255, 61, 0.38), 0 10px 36px rgba(200, 255, 61, 0.18);
+  --glow-mint: 0 0 0 1px rgba(46, 242, 166, 0.50), 0 0 22px rgba(46, 242, 166, 0.35), 0 10px 36px rgba(46, 242, 166, 0.16);
+  --glow-flare: 0 0 0 1px rgba(255, 90, 110, 0.50), 0 0 22px rgba(255, 90, 110, 0.35);
+  --glow-solar: 0 0 0 1px rgba(255, 176, 32, 0.50), 0 0 22px rgba(255, 176, 32, 0.32);
+
+  /* Active accent semantics (overridden cleanly in Daylight per §3.5) */
+  --active-ink: var(--volt);
+  --active-surface: var(--volt-a08);
+  --active-pill-bg: var(--volt);
+  --active-pill-ink: var(--volt-ink);
+  --btn-primary-bg: var(--grad-volt);
+  --btn-primary-ink: var(--volt-ink);
+  --btn-primary-ring: var(--glow-volt);
+
+  /* Typography (§3.6) */
+  --font-display: 'Naira', 'Unbounded', 'Manrope', system-ui, sans-serif;
+  --font-ui: 'Naira', 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: var(--font-ui);
+  --font-mono: 'Naira', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing (§3.7) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 48px;
+  --s-10: 64px;
+  --s-11: 80px;
+  --s-12: 96px;
+  --s-13: 128px;
+
+  --sp-1: var(--s-1);
+  --sp-2: var(--s-2);
+  --sp-3: var(--s-3);
+  --sp-4: var(--s-4);
+  --sp-5: var(--s-5);
+  --sp-6: var(--s-6);
+  --sp-8: var(--s-7);
+  --sp-10: var(--s-8);
+  --sp-12: var(--s-9);
+  --sp-16: var(--s-10);
+  --sp-20: var(--s-11);
+
+  /* Radii (§3.7) */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-ticket: 24px;
+  --r-pill: 999px;
+
+  --r-card: var(--r-lg);
+  --r-control: var(--r-md);
+  --r-chip: var(--r-sm);
+  --r-button: var(--r-md);
+  --r-sheet: var(--r-xl);
+  --r-slip: var(--r-lg);
+  --r-s: var(--r-sm);
+  --r-m: var(--r-md);
+  --r-l: var(--r-lg);
 
   /* Layout Shell */
   --sidebar-w: 248px;
   --sidebar-w-collapsed: 76px;
-  --header-h: 68px;
+  --header-h: 64px;
   --tabbar-h: 64px;
-  --content-max-w: 1600px;
+  --content-max-w: 1360px;
   --content-w: 720px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 
-  /* Motion (Spec §7.5) */
-  --ease-micro: 140ms ease-out;
-  --ease-small: 180ms ease-out;
-  --ease-medium: 220ms ease-out;
-  --ease-slam: 240ms ease-out;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* Motion (§3.12) */
+  --dur-1: 90ms;
+  --dur-2: 140ms;
+  --dur-3: 220ms;
+  --dur-4: 360ms;
+  --dur-5: 640ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-inout: cubic-bezier(.65, 0, .35, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --ease: var(--ease-out);
+  --ease-micro: var(--dur-2) var(--ease-out);
+  --ease-small: var(--dur-3) var(--ease-out);
+  --ease-medium: var(--dur-4) var(--ease-out);
+  --ease-slam: 220ms var(--ease-spring);
 
-  /* Tag pairs */
-  --tag-warn-bg: var(--status-warning-tint);
-  --tag-warn-ink: #7A4E0B;
-  --tag-copied-bg: var(--bg-selected);
-  --tag-copied-ink: #293BB8;
-  --tag-paid-bg: var(--status-success-tint);
-  --tag-paid-ink: #0E6B4B;
-  --tag-urgent-bg: var(--status-danger-tint);
-  --tag-urgent-ink: #A32634;
+  /* Migration & Semantic Bridge (§8.3) */
+  --nav-bg: var(--bg-1);
+  --nav-hover: var(--bg-2);
+  --action-primary: var(--volt);
+  --action-primary-hover: var(--volt-hi);
+  --bg-selected: var(--active-surface);
+  --bg-surface: var(--bg-1);
+  --bg-surface-subtle: var(--bg-2);
+  --border-default: var(--line-1);
+  --border-strong: var(--line-2);
+  --text-primary: var(--ink-1);
+  --text-secondary: var(--ink-2);
+  --text-muted: var(--ink-3);
 
-  /* Compatibility aliases for un-migrated pages during Phases 3-5 */
+  --status-success: var(--mint-ink);
+  --status-success-tint: var(--mint-bg);
+  --status-warning: var(--solar-ink);
+  --status-warning-tint: var(--solar-bg);
+  --status-danger: var(--flare-ink);
+  --status-danger-tint: var(--flare-bg);
+  --status-info: var(--ion-ink);
+  --status-info-tint: var(--ion-bg);
+  --status-neutral: var(--slate-ink);
+  --status-neutral-tint: var(--slate-bg);
+  --status-scheduled: var(--ultra-ink);
+  --status-scheduled-tint: var(--ultra-bg);
+
   --ground: var(--bg-canvas);
-  --ink-on-ground: var(--text-primary);
-  --muted-on-ground: var(--text-secondary);
-  --paper: var(--bg-surface);
-  --paper-ink: var(--text-primary);
-  --paper-muted: var(--text-secondary);
-  --cta: var(--action-primary);
-  --cta-edge: var(--action-primary-hover);
-  --calm: var(--action-primary);
-  --warn: var(--status-warning);
-  --urgent: var(--status-danger);
-  --ok: var(--status-success);
-  --off-tick: var(--border-strong);
-  --ink: var(--text-primary);
-  --ink-2: var(--text-secondary);
-  --ink-3: var(--text-muted);
-  --surface: var(--bg-surface);
-  --line: var(--border-default);
-  --line-strong: var(--border-strong);
-  --violet: var(--action-primary);
-  --violet-soft: var(--bg-selected);
-  --violet-ink: #293BB8;
-  --mint: var(--status-success);
-  --mint-soft: var(--status-success-tint);
-  --mint-ink: #0E6B4B;
-  --amber-soft: var(--status-warning-tint);
-  --amber-ink: #7A4E0B;
-  --red-soft: var(--status-danger-tint);
-  --red-ink: #A32634;
-  --r-s: var(--r-chip);
-  --r-m: var(--r-slip);
-  --r-l: var(--r-button);
-  --paper-glass: rgba(255, 255, 255, 0.94);
-  --skel-hi: rgba(23, 32, 51, 0.06);
-  --amber-line: var(--status-warning);
-  --red-line: var(--status-danger);
-  --solid-ok: var(--status-success);
-  --solid-bad: var(--status-danger);
-  --fab-bg: var(--action-primary);
-  --fab-fg: #FFFFFF;
-  --toast-bg: var(--nav-bg);
+  --ink-on-ground: var(--ink-1);
+  --muted-on-ground: var(--ink-2);
+  --paper: var(--bg-1);
+  --paper-ink: var(--ink-1);
+  --paper-muted: var(--ink-2);
+  --cta: var(--volt);
+  --cta-edge: var(--volt-lo);
+  --calm: var(--ion);
+  --warn: var(--solar);
+  --urgent: var(--flare);
+  --ok: var(--mint);
+  --off-tick: var(--line-2);
+  --ink: var(--ink-1);
+  --surface: var(--bg-1);
+  --line: var(--line-1);
+  --line-strong: var(--line-2);
+  --violet: var(--volt);
+  --violet-soft: var(--active-surface);
+  --violet-ink: var(--active-ink);
+  --on-violet: var(--volt-ink);
+  --mint-soft: var(--mint-bg);
+  --amber-soft: var(--solar-bg);
+  --amber-ink: var(--solar-ink);
+  --red-soft: var(--flare-bg);
+  --red-ink: var(--flare-ink);
+  --tag-warn-bg: var(--solar-bg);
+  --tag-warn-ink: var(--solar-ink);
+  --tag-copied-bg: var(--active-surface);
+  --tag-copied-ink: var(--active-ink);
+  --tag-paid-bg: var(--mint-bg);
+  --tag-paid-ink: var(--mint-ink);
+  --tag-urgent-bg: var(--flare-bg);
+  --tag-urgent-ink: var(--flare-ink);
+  --paper-glass: var(--glass);
+  --skel-hi: rgba(255, 255, 255, 0.08);
+  --amber-line: var(--solar-bd);
+  --red-line: var(--flare-bd);
+  --solid-ok: var(--mint-bg);
+  --solid-bad: var(--flare-bg);
+  --fab-bg: var(--volt);
+  --fab-fg: var(--volt-ink);
+  --toast-bg: var(--bg-2);
+  --night: var(--bg-1);
+  --lavender: var(--ink-2);
+}
 
+/* Daylight theme overrides (§3.5) */
+:root[data-theme='daylight'] {
   color-scheme: light;
+
+  --bg-void: #E9ECF3;
+  --bg-canvas: #F2F4F9;
+  --bg-1: #FFFFFF;
+  --bg-2: #F7F8FC;
+  --bg-3: #EDF0F7;
+  --bg-4: #E1E6F0;
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.90);
+  --scrim: rgba(10, 13, 20, 0.45);
+
+  --line-1: rgba(10, 13, 20, 0.07);
+  --line-2: rgba(10, 13, 20, 0.12);
+  --line-3: rgba(10, 13, 20, 0.20);
+
+  --ink-1: #0B0F1A;
+  --ink-2: #2F384D;
+  --ink-3: #5C667D;
+  --ink-4: #98A1B5;
+
+  --mint-ink: #0A8F62;
+  --solar-ink: #9A5B00;
+  --flare-ink: #C0283D;
+  --ion-ink: #0B7FA6;
+  --ultra-ink: #5B3FD6;
+  --slate-ink: #5C667D;
+
+  --grad-hair: linear-gradient(135deg, rgba(10, 13, 20, 0.10) 0%, rgba(10, 13, 20, 0) 40%, rgba(200, 255, 61, 0) 60%, rgba(166, 224, 30, 0.35) 100%);
+  --grad-sheen: linear-gradient(115deg, transparent 30%, rgba(10, 13, 20, 0.06) 46%, transparent 62%);
+
+  /* Daylight shadows replace glows (§3.5) */
+  --e1: 0 1px 2px rgba(10, 13, 20, 0.06);
+  --e2: 0 1px 2px rgba(10, 13, 20, 0.06), 0 8px 24px rgba(10, 13, 20, 0.08);
+  --e3: 0 4px 12px rgba(10, 13, 20, 0.08), 0 20px 44px rgba(10, 13, 20, 0.14), 0 0 0 1px var(--line-2);
+  --glow-volt: 0 0 0 3px rgba(200, 255, 61, 0.55);
+  --glow-mint: 0 1px 2px rgba(10, 143, 98, 0.14), 0 8px 22px rgba(10, 143, 98, 0.14);
+  --glow-flare: 0 1px 2px rgba(192, 40, 61, 0.14), 0 8px 22px rgba(192, 40, 61, 0.14);
+  --glow-solar: 0 1px 2px rgba(154, 91, 0, 0.14), 0 8px 22px rgba(154, 91, 0, 0.14);
+
+  /* Daylight Volt-on-light rules: dark ink + Volt pill or underline */
+  --active-ink: #0B0F1A;
+  --active-surface: rgba(200, 255, 61, 0.24);
+  --active-pill-bg: #C8FF3D;
+  --active-pill-ink: #0B0F1A;
+  --btn-primary-bg: #0B0F1A;
+  --btn-primary-ink: #F4F6FB;
+  --btn-primary-ring: 0 0 0 3px rgba(200, 255, 61, 0.55);
+}
+
+/* Tier glow degradation (§3.14) */
+:root[data-fx='lite'] {
+  --glow-volt: 0 0 0 1px rgba(200, 255, 61, 0.55), 0 0 11px rgba(200, 255, 61, 0.28), 0 5px 18px rgba(200, 255, 61, 0.14);
+  --glow-mint: 0 0 0 1px rgba(46, 242, 166, 0.50), 0 0 11px rgba(46, 242, 166, 0.26), 0 5px 18px rgba(46, 242, 166, 0.12);
+  --glow-flare: 0 0 0 1px rgba(255, 90, 110, 0.50), 0 0 11px rgba(255, 90, 110, 0.24);
+  --glow-solar: 0 0 0 1px rgba(255, 176, 32, 0.50), 0 0 11px rgba(255, 176, 32, 0.24);
+}
+:root[data-fx='min'] {
+  --glow-volt: 0 0 0 1px rgba(200, 255, 61, 0.65);
+  --glow-mint: 0 0 0 1px rgba(46, 242, 166, 0.65);
+  --glow-flare: 0 0 0 1px rgba(255, 90, 110, 0.65);
+  --glow-solar: 0 0 0 1px rgba(255, 176, 32, 0.65);
 }

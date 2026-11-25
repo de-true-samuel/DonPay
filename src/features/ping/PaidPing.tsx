@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { hapticPaidPing } from '../../lib/feedback';
 import { Icon } from '../../ui/Icon';
 import { Money } from '../../ui/Money';
 import { useToday } from '../today/useToday';
@@ -7,8 +8,9 @@ import { useToday } from '../today/useToday';
 interface Ping { id: string; name: string; service: string; amountKobo: string; ready: boolean; jobId: string }
 
 /**
- * The paid moment. Compares each poll of Today with the payments already seen, so only payments that
- * arrive while the app is open ping. The first poll just records what's already there.
+ * The Paid Ping (§4.8):
+ * Raised glass notice with Mint shield-check marker, money-md tabular display,
+ * expanding payment shockwave rings on live arrival, haptic pulse, and optional Bell/Drum audio.
  */
 export function PaidPingLayer() {
   const { data } = useToday();
@@ -29,7 +31,7 @@ export function PaidPingLayer() {
       })),
       ...p,
     ].slice(0, 3));
-    navigator.vibrate?.(80);
+    hapticPaidPing();
   }, [data]);
 
   const dismiss = (id: string) => setPings((p) => p.filter((x) => x.id !== id));
@@ -46,13 +48,16 @@ function PingItem({ ping, onDismiss }: { ping: Ping; onDismiss: () => void }) {
   latest.current = onDismiss;
   useEffect(() => { const t = setTimeout(() => latest.current(), 8000); return () => clearTimeout(t); }, []);
   return (
-    <div className="pd-ping-toast">
+    <div className="pd-ping-toast ob-glass">
       <span className="pd-ping-toast__disc" aria-hidden="true">
-        <span className="pd-ping"><i /><i /></span>
-        <Icon name="check" size={22} />
+        <span className="ob-shockwave">
+          <i className="ob-shockwave__ring ob-shockwave__ring--1" />
+          <i className="ob-shockwave__ring ob-shockwave__ring--2" />
+        </span>
+        <Icon name="shield" size={20} />
       </span>
       <button type="button" className="pd-ping-toast__body" onClick={() => { onDismiss(); nav(`/app/payments?tab=received&payment=${ping.id}`); }}>
-        <strong>{ping.name} paid <Money kobo={ping.amountKobo} size="sm" /></strong>
+        <strong>{ping.name} paid <Money kobo={ping.amountKobo} size="md" tone="mint" /></strong>
         <span>{ping.service}{ping.ready ? ' · Ready to start' : ''}</span>
       </button>
       <button type="button" className="pd-iconbtn pd-iconbtn--light" aria-label="Dismiss" onClick={onDismiss}><Icon name="x" size={18} /></button>

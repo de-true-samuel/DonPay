@@ -9,6 +9,10 @@ import { formatTime } from '../lib/time';
 import { Icon } from '../ui/Icon';
 import { FlagChip, JobStatusChip } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
+import { Money } from '../ui/Money';
+import { Status } from '../ui/StatusChip';
+import { TicketCard } from '../ui/TicketCard';
+import { CountdownRing } from '../ui/CountdownRing';
 
 const CHECKLIST_DISMISSED_KEY = 'paidar.checklist.dismissed';
 
@@ -86,6 +90,20 @@ export function TodayPage() {
 
   const recentPaid = useMemo(() => (today?.justPaid ?? []).slice(0, 5), [today]);
 
+  // Priority Hero Waiting Ticket: customer-claimed first, then earliest expiry (§6.4)
+  const heroWaiting = useMemo(() => {
+    const list = today?.waiting ?? [];
+    if (!list.length) return null;
+    return [...list].sort((a, b) => {
+      const ca = a.request.customerClaimedPaidAt ? 0 : 1;
+      const cb = b.request.customerClaimedPaidAt ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      const ea = a.request.expiresAt ? Date.parse(a.request.expiresAt) : Number.MAX_SAFE_INTEGER;
+      const eb = b.request.expiresAt ? Date.parse(b.request.expiresAt) : Number.MAX_SAFE_INTEGER;
+      return ea - eb;
+    })[0];
+  }, [today]);
+
   const isBrandNew =
     !todayLoading &&
     (today?.justPaid.length ?? 0) === 0 &&
@@ -118,10 +136,8 @@ export function TodayPage() {
             value={period}
             onChange={(e) => setPeriod(e.target.value as typeof period)}
             data-flow-id="DSH-03"
-            style={{
-              height: 44, padding: '0 12px', borderRadius: 9,
-              border: '1px solid var(--border-strong)', background: '#FFFFFF', fontSize: 13.5, fontWeight: 500,
-            }}
+            className="pd-input"
+            style={{ width: 'auto', minHeight: 44, padding: '0 14px', fontSize: 13.5, fontWeight: 600 }}
           >
             <option value="week">This week</option>
             <option value="month">This month</option>
@@ -134,6 +150,71 @@ export function TodayPage() {
           </Link>
         </div>
       </div>
+
+      {/* Money Line Flux Meter & Hero Waiting Ticket (§4.7 & §6.4) */}
+      {!isBrandNew && (
+        <div className="ob-flux-grid">
+          <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="ob-overline">Money Line · Africa/Lagos</span>
+              <Status tone={navigator.onLine ? 'mint' : 'solar'} icon={navigator.onLine ? 'shield' : 'clock'} label={navigator.onLine ? 'Live' : 'Offline'} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 6 }}>Landing soon</div>
+                <Money kobo={awaitingTotal.toString()} size="xl" tone="solar" animate />
+                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 6 }}>{today?.waiting.length ?? 0} active requests</div>
+              </div>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 6 }}>Landed ({period})</div>
+                <Money kobo={receivedTotal.toString()} size="xl" tone="mint" animate />
+                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 6 }}>{today?.justPaid.length ?? 0} bank-verified credits</div>
+              </div>
+            </div>
+          </div>
+
+          {heroWaiting ? (
+            <TicketCard
+              hero
+              state={heroWaiting.request.customerClaimedPaidAt ? 'claims' : 'waiting'}
+              title={<Link to={`/app/jobs/${heroWaiting.job.id}`} className="pd-plainlink">{heroWaiting.job.customer.name}</Link>}
+              subtitle={heroWaiting.job.service}
+              amountKobo={heroWaiting.request.amountKobo}
+              aside={
+                heroWaiting.request.sentAt && heroWaiting.request.expiresAt ? (
+                  <CountdownRing sentAt={heroWaiting.request.sentAt} expiresAt={heroWaiting.request.expiresAt} size="sm" />
+                ) : undefined
+              }
+              status={
+                heroWaiting.request.customerClaimedPaidAt ? (
+                  <Status tone="solar" icon="radar" label="Customer says paid" pulse />
+                ) : (
+                  <Status tone="solar" icon="clock" label="Awaiting payment" />
+                )
+              }
+              footer={
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {heroWaiting.request.customerClaimedPaidAt && (
+                    <button type="button" className="pf-btn pf-btn--sm pf-btn--primary" onClick={() => checkMut.mutate(heroWaiting.request.id)}>
+                      Check now
+                    </button>
+                  )}
+                  <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void copyLink(heroWaiting.request.payLink)}>
+                    Copy link
+                  </button>
+                </div>
+              }
+            />
+          ) : (
+            <div className="pf-card" style={{ display: 'grid', placeItems: 'center', textAlign: 'center' }}>
+              <div>
+                <div className="ob-overline" style={{ marginBottom: 6 }}>Active Watch</div>
+                <p style={{ color: 'var(--ink-2)', fontSize: 14 }}>No live payment requests waiting right now.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4 Metric Cards (DSH-04 to DSH-07) */}
       <div className="pf-metrics">
@@ -319,10 +400,10 @@ export function TodayPage() {
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{p.payerName ?? j.customer.name}</div>
                       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{j.customer.name} · {j.service}</div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--status-success)' }}>{formatNaira(p.amountKobo)}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatTime(p.receivedAt)}</div>
-                    </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <Money kobo={p.amountKobo} size="sm" tone="mint" />
+                        <div className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{formatTime(p.receivedAt)}</div>
+                      </div>
                   </Link>
                 ))}
               </div>

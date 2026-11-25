@@ -12,6 +12,7 @@ import { AuthPage } from './pages/AuthPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { TodayPage } from './pages/TodayPage';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { useSpotlightController } from './theme/theme';
 
 const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(() => load().then((m) => ({ default: m[name] })));
@@ -59,6 +60,7 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  useSpotlightController();
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -123,6 +125,7 @@ export default function App() {
           </ClerkGate>
         </BrowserRouter>
       </QueryClientProvider>
+      <div className="ob-grain" aria-hidden="true" />
     </ErrorBoundary>
   );
 }

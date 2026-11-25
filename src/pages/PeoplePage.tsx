@@ -68,29 +68,28 @@ export function PeoplePage() {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
         <input
           type="search"
+          className="pd-input"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Search name, phone, or email…"
           aria-label="Search clients"
           data-flow-id="CLT-01"
-          style={{
-            flex: 1, minWidth: 220, maxWidth: 340, height: 40, padding: '0 12px',
-            borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF',
-          }}
+          style={{ flex: 1, minWidth: 220, maxWidth: 340, minHeight: 42 }}
         />
         <select
           aria-label="Sort clients"
+          className="pd-input"
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
           data-flow-id="CLT-03"
-          style={{ height: 40, padding: '0 10px', borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF', fontSize: 13 }}
+          style={{ width: 'auto', minHeight: 42, fontSize: 13 }}
         >
           <option value="name">Sort: Name</option>
           <option value="recent">Sort: Most recent job</option>
           <option value="outstanding">Sort: Outstanding amount</option>
         </select>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }} data-flow-id="CLT-04">
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }} data-flow-id="CLT-04">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} style={{ accentColor: 'var(--volt)' }} />
           <span>Show archived</span>
         </label>
       </div>
@@ -110,7 +109,7 @@ export function PeoplePage() {
 
       {list.data && items.length === 0 && (
         <div className="pf-card" style={{ textAlign: 'center', padding: 36 }} data-flow-id="CLT-07">
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 14 }}>
+          <p style={{ color: 'var(--ink-2)', marginBottom: 14 }}>
             {q ? `No client matches “${q}”.` : "No clients yet. They're added when you create a request."}
           </p>
           <button type="button" className="pf-btn pf-btn--primary" onClick={() => setAdding(true)}>
@@ -128,14 +127,9 @@ export function PeoplePage() {
               <Link
                 key={c.id}
                 to={`/app/clients/${c.id}`}
-                className="pf-card"
+                className={`pd-jobrow ${c.id === openId ? 'is-active' : ''}`}
                 data-flow-id="CLT-05"
-                style={{
-                  textDecoration: 'none', color: 'inherit', padding: 16,
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-                  borderColor: c.id === openId ? 'var(--action-primary)' : 'var(--border-default)',
-                  opacity: isArchived ? 0.6 : 1,
-                }}
+                style={{ opacity: isArchived ? 0.6 : 1 }}
               >
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>

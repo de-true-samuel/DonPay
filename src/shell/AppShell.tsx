@@ -132,10 +132,10 @@ export function AppShell() {
           <a href="#main" className="pd-skip">Skip to content</a>
           <PaidPingLayer />
 
-          {/* Desktop Sidebar (>=1024px, Midnight Navy) */}
+          {/* Desktop Sidebar (>=1024px, Obsidian Signal --bg-1) */}
           <aside className={cls('pf-sidebar', collapsed && 'is-collapsed')} aria-label="Sidebar navigation">
             <Link to="/app" className="pf-sidebar__brand" aria-label="Paidar, go to Dashboard">
-              <LogoMark size={26} tone="dark" />
+              <LogoMark size={26} />
               {!collapsed && <span>paidar</span>}
             </Link>
 
@@ -151,16 +151,20 @@ export function AppShell() {
                   key={item.to}
                   to={item.to}
                   end={item.end}
-                  title={collapsed ? item.label : undefined}
+                  data-tooltip={collapsed ? item.label : undefined}
                   aria-label={item.label}
                   className={({ isActive }) => cls('pf-nav-item', isActive && 'is-active')}
                 >
-                  <Icon name={item.icon} size={20} />
-                  <span className="pf-nav-item__label">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className={cls('pf-nav-badge', item.badgeDanger && 'pf-nav-badge--danger')}>
-                      {item.badge > 99 ? '99+' : item.badge}
-                    </span>
+                  {({ isActive }) => (
+                    <>
+                      <Icon name={item.icon} size={20} glow={isActive} />
+                      <span className="pf-nav-item__label">{item.label}</span>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <span className={cls('pf-nav-badge', item.badgeDanger && 'pf-nav-badge--danger')}>
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
+                    </>
                   )}
                 </NavLink>
               ))}
@@ -220,43 +224,29 @@ export function AppShell() {
                   >
                     <Icon name="notifications" size={20} />
                     {unreadBellCount > 0 && (
-                      <span
-                        style={{
-                          position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, padding: '0 4px',
-                          borderRadius: 999, background: 'var(--status-danger)', color: '#FFFFFF',
-                          fontSize: 10, fontWeight: 700, lineHeight: '16px', textAlign: 'center',
-                        }}
-                      >
+                      <span className="ob-bell-badge">
                         {unreadBellCount > 99 ? '99+' : unreadBellCount}
                       </span>
                     )}
                   </button>
 
                   {bellOpen && (
-                    <div
-                      role="dialog"
-                      aria-label="Recent notifications"
-                      style={{
-                        position: 'absolute', right: 0, top: 48, width: 320, maxWidth: '90vw',
-                        background: '#FFFFFF', border: '1px solid var(--border-default)',
-                        borderRadius: 12, boxShadow: '0 10px 28px rgba(17, 27, 51, 0.14)', zIndex: 50, overflow: 'hidden',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border-default)' }}>
-                        <strong style={{ fontSize: 13.5 }}>Notifications</strong>
+                    <div role="dialog" aria-label="Recent notifications" className="ob-popover">
+                      <div className="ob-popover__head">
+                        <strong style={{ fontSize: 13.5, color: 'var(--ink-1)' }}>Notifications</strong>
                         {recentNotices.length > 0 && (
                           <button
                             type="button"
+                            className="pf-btn pf-btn--sm pf-btn--quiet"
                             onClick={() => setReadBellIds(new Set(recentNotices.map((n) => n.id)))}
-                            style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                           >
                             Mark all read
                           </button>
                         )}
                       </div>
-                      <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                      <div className="ob-popover__list">
                         {recentNotices.length === 0 ? (
-                          <p style={{ padding: 16, fontSize: 13, color: 'var(--text-secondary)' }}>You’re all caught up.</p>
+                          <p style={{ padding: 16, fontSize: 13, color: 'var(--ink-2)' }}>You’re all caught up.</p>
                         ) : (
                           recentNotices.map((n) => (
                             <Link
@@ -266,11 +256,7 @@ export function AppShell() {
                                 setReadBellIds((prev) => new Set(prev).add(n.id));
                                 setBellOpen(false);
                               }}
-                              style={{
-                                display: 'block', padding: '10px 14px', borderBottom: '1px solid var(--border-default)',
-                                textDecoration: 'none', color: 'var(--text-primary)', fontSize: 13,
-                                fontWeight: readBellIds.has(n.id) ? 400 : 600,
-                              }}
+                              className={cls('ob-popover__row', !readBellIds.has(n.id) && 'is-unread')}
                             >
                               {n.text}
                             </Link>
@@ -280,11 +266,7 @@ export function AppShell() {
                       <Link
                         to="/app/notifications"
                         onClick={() => setBellOpen(false)}
-                        style={{
-                          display: 'block', textAlign: 'center', padding: '10px 14px',
-                          fontSize: 13, fontWeight: 600, color: 'var(--action-primary)', textDecoration: 'none',
-                          background: 'var(--bg-surface-subtle)',
-                        }}
+                        className="ob-popover__foot"
                       >
                         View all notifications
                       </Link>
@@ -381,20 +363,17 @@ export function AppShell() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Test mode information"
-                style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, maxWidth: 420, width: '100%', border: '1px solid var(--border-default)' }}
+                className="ob-modal-card"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 style={{ marginBottom: 8 }}>Test mode is active</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+                <p style={{ color: 'var(--ink-2)', marginBottom: 18 }}>
                   No real money moves in test mode. Virtual accounts and payment verifications are simulated in sandbox so you can test the full payment-to-work flow safely.
                 </p>
                 <button
                   type="button"
+                  className="pf-btn pf-btn--primary"
                   onClick={() => setTestModalOpen(false)}
-                  style={{
-                    height: 44, padding: '0 18px', borderRadius: 9, border: 0,
-                    background: 'var(--action-primary)', color: '#FFFFFF', fontWeight: 600, cursor: 'pointer',
-                  }}
                 >
                   Got it
                 </button>

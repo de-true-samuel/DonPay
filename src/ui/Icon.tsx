@@ -14,14 +14,17 @@ import {
   Info,
   LayoutDashboard,
   ListOrdered,
+  Loader,
   Lock,
   LogOut,
+  MinusCircle,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Pause,
   Pencil,
   Plus,
+  Radio,
   RefreshCw,
   RotateCcw,
   Search,
@@ -30,8 +33,11 @@ import {
   ShieldCheck,
   Users,
   X,
+  XCircle,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
+import { cls } from '../lib/cls';
 
 export type IconName =
   | 'today'
@@ -48,6 +54,8 @@ export type IconName =
   | 'flask'
   | 'clock'
   | 'x'
+  | 'x-circle'
+  | 'minus-circle'
   | 'send'
   | 'chevron'
   | 'gear'
@@ -65,7 +73,11 @@ export type IconName =
   | 'pause'
   | 'ban'
   | 'refund'
-  | 'calendar';
+  | 'undo'
+  | 'calendar'
+  | 'radar'
+  | 'zap'
+  | 'loader';
 
 const ICONS: Record<IconName, LucideIcon> = {
   today: LayoutDashboard,
@@ -82,6 +94,8 @@ const ICONS: Record<IconName, LucideIcon> = {
   flask: FlaskConical,
   clock: Clock,
   x: X,
+  'x-circle': XCircle,
+  'minus-circle': MinusCircle,
   send: Send,
   chevron: ChevronRight,
   gear: Settings,
@@ -99,10 +113,36 @@ const ICONS: Record<IconName, LucideIcon> = {
   pause: Pause,
   ban: Ban,
   refund: RotateCcw,
+  undo: RotateCcw,
   calendar: Calendar,
+  radar: Radio,
+  zap: Zap,
+  loader: Loader,
 };
 
-export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+/** Single Lucide icon set at 1.5px stroke (1.25px for illustrative 32px+ sizes) per §3.11. */
+export function Icon({
+  name,
+  size = 20,
+  glow,
+  pulse,
+  className,
+}: {
+  name: IconName;
+  size?: number;
+  glow?: boolean;
+  pulse?: boolean;
+  className?: string;
+}) {
   const Cmp = ICONS[name];
-  return <Cmp size={size} strokeWidth={1.75} aria-hidden="true" focusable="false" />;
+  const stroke = size >= 32 ? 1.25 : 1.5;
+  return (
+    <Cmp
+      size={size}
+      strokeWidth={stroke}
+      aria-hidden="true"
+      focusable="false"
+      className={cls('ob-icon', glow && 'ob-icon--active', pulse && 'ob-icon--pulse', className)}
+    />
+  );
 }

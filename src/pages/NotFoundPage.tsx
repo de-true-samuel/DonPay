@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useDocumentTitle } from '../lib/hooks';
 import { LogoMark } from '../ui/Logo';
+import { Status } from '../ui/StatusChip';
 
 export function NotFoundPage() {
   useDocumentTitle('Page not found');
@@ -15,12 +16,13 @@ export function NotFoundPage() {
       }}
       data-flow-id="GLB-20"
     >
-      <div className="pf-card" style={{ maxWidth: 460, width: '100%', textAlign: 'center', padding: 32 }}>
-        <div style={{ display: 'inline-flex', marginBottom: 14 }}>
-          <LogoMark size={32} />
-        </div>
-        <h1 style={{ fontSize: 24, marginBottom: 8 }}>We can’t find that page.</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 20 }}>
+      <div className="pf-card" style={{ maxWidth: 480, width: '100%', textAlign: 'center', padding: 32, display: 'grid', gap: 16, justifyItems: 'center' }}>
+        <LogoMark size={36} />
+        <Status tone="slate" icon="minus-circle" label="404 · Not found" />
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.05, letterSpacing: '-0.03em' }}>
+          We can’t find that page.
+        </h1>
+        <p style={{ color: 'var(--ink-2)' }}>
           The link may have expired or the page may have moved.
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>

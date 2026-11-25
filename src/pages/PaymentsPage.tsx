@@ -225,7 +225,7 @@ export function PaymentsPage() {
         <button type="button" role="tab" aria-selected={tab === 'attention'} className={`pf-tab-btn ${tab === 'attention' ? 'is-active' : ''}`} onClick={() => setTab('attention')}>
           <span>Needs attention</span>
           {attentionCount > 0 && (
-            <span style={{ background: 'var(--status-danger)', color: '#FFFFFF', borderRadius: 999, padding: '1px 7px', fontSize: 11 }}>
+            <span className="pf-nav-badge pf-nav-badge--danger">
               {attentionCount}
             </span>
           )}
@@ -255,16 +255,16 @@ export function PaymentsPage() {
 
           {(reviewData?.items.length ?? 0) === 0 ? (
             <div className="pf-card" style={{ textAlign: 'center', padding: 36 }} data-flow-id="ATT-04">
-              <p style={{ color: 'var(--text-secondary)' }}>Nothing needs your attention.</p>
+              <p style={{ color: 'var(--ink-2)' }}>Nothing needs your attention.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {reviewData!.items.map((item) => (
-                <div key={item.id} className="pf-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div key={item.id} className="pd-rcard" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                   <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{REVIEW_LABEL[item.kind]}</div>
-                    <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 4 }}>{item.message}</p>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--ink-1)' }}>{REVIEW_LABEL[item.kind]}</div>
+                    <p style={{ fontSize: 13.5, color: 'var(--ink-2)', marginBottom: 4 }}>{item.message}</p>
+                    <span className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
                       {formatTime(item.createdAt)}
                       {item.resolution ? ` · Handled: ${item.resolution}` : ''}
                     </span>
@@ -287,15 +287,13 @@ export function PaymentsPage() {
           <div style={{ marginBottom: 14 }}>
             <input
               type="search"
+              className="pd-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search client, job, payer name, or reference…"
               aria-label="Search payments"
               data-flow-id="PMT-03"
-              style={{
-                width: '100%', maxWidth: 380, height: 42, padding: '0 14px',
-                borderRadius: 9, border: '1px solid var(--border-strong)', background: '#FFFFFF',
-              }}
+              style={{ maxWidth: 380, minHeight: 42 }}
             />
           </div>
 

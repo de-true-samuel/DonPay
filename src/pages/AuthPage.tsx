@@ -104,14 +104,14 @@ export function AuthPage() {
         {phase === 'checking' && (
           <div style={{ padding: '24px 0' }}>
             <h1 style={{ fontSize: 24, marginBottom: 6 }}>Opening your workspace…</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Checking your sign-in link.</p>
+            <p style={{ color: 'var(--ink-2)' }}>Checking your sign-in link.</p>
           </div>
         )}
 
         {phase === 'failed' && (
           <div>
             <h1 style={{ fontSize: 24, marginBottom: 8 }}>Link didn’t work</h1>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 18 }}>{failMsg}</p>
+            <p className="pd-error" style={{ marginBottom: 18 }}>{failMsg}</p>
             <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setPhase('idle')}>
               Back to log in
             </button>
@@ -128,34 +128,32 @@ export function AuthPage() {
             ) : (
               <div>
                 <h1 style={{ fontSize: 26, marginBottom: 6 }}>Log in</h1>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: 22 }}>
+                <p style={{ color: 'var(--ink-2)', marginBottom: 22 }}>
                   Access your payment requests, work queue, and ledger.
                 </p>
 
                 <form onSubmit={(e) => void submitWorkspace(e)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {DEV_LOGIN ? (
-                    <div>
-                      <label htmlFor="lgn-biz" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                    <div className="pd-field">
+                      <label htmlFor="lgn-biz" className="pd-label">
                         Business or studio name
                       </label>
                       <input
                         id="lgn-biz"
                         type="text"
+                        className="pd-input"
                         value={businessName}
                         onChange={(e) => { setBusinessName(e.target.value); setErr(''); }}
                         placeholder="e.g. Tolu's Glam Studio"
-                        style={{ width: '100%', height: 46, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                       />
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                         {PRESETS.map((p) => (
                           <button
                             key={p}
                             type="button"
+                            className="pd-chip"
+                            style={{ minHeight: 36, fontSize: 12.5, padding: '0 12px' }}
                             onClick={() => { setBusinessName(p); void submitWorkspace(undefined, p); }}
-                            style={{
-                              padding: '4px 10px', borderRadius: 999, border: '1px solid var(--border-default)',
-                              background: 'var(--bg-surface-subtle)', fontSize: 12, cursor: 'pointer',
-                            }}
                           >
                             {p}
                           </button>
@@ -164,25 +162,23 @@ export function AuthPage() {
                     </div>
                   ) : (
                     <>
-                      <div>
-                        <label htmlFor="lgn-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                          Email
-                        </label>
+                      <div className="pd-field">
+                        <label htmlFor="lgn-email" className="pd-label">Email</label>
                         <input
                           id="lgn-email"
                           type="email"
+                          className="pd-input"
                           autoComplete="username"
                           value={email}
                           onChange={(e) => { setEmail(e.target.value); setErr(''); }}
                           placeholder="tunde@studio.ng"
                           data-flow-id="LGN-01"
-                          style={{ width: '100%', height: 46, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
                         />
                       </div>
 
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                          <label htmlFor="lgn-pw" style={{ fontSize: 13, fontWeight: 600 }}>Password</label>
+                      <div className="pd-field">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label htmlFor="lgn-pw" className="pd-label">Password</label>
                           <Link
                             to={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
                             data-flow-id="LGN-05"
@@ -195,11 +191,12 @@ export function AuthPage() {
                           <input
                             id="lgn-pw"
                             type={showPw ? 'text' : 'password'}
+                            className="pd-input"
                             autoComplete="current-password"
                             value={password}
                             onChange={(e) => { setPassword(e.target.value); setErr(''); }}
                             data-flow-id="LGN-02"
-                            style={{ width: '100%', height: 46, padding: '0 64px 0 12px', borderRadius: 9, border: '1px solid var(--border-strong)' }}
+                            style={{ paddingRight: 68 }}
                           />
                           <button
                             type="button"
@@ -208,7 +205,7 @@ export function AuthPage() {
                             data-flow-id="LGN-03"
                             style={{
                               position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                              border: 0, background: 'transparent', color: 'var(--action-primary)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '6px 8px',
+                              border: 0, background: 'transparent', color: 'var(--active-ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '6px 8px',
                             }}
                           >
                             {showPw ? 'Hide' : 'Show'}
@@ -216,21 +213,21 @@ export function AuthPage() {
                         </div>
                       </div>
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }} data-flow-id="LGN-04">
-                        <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }} data-flow-id="LGN-04">
+                        <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} style={{ accentColor: 'var(--volt)' }} />
                         <span>Keep me signed in</span>
                       </label>
                     </>
                   )}
 
-                  {err && <p role="alert" style={{ color: 'var(--status-danger)', fontSize: 13 }}>{err}</p>}
+                  {err && <p role="alert" className="pd-error">{err}</p>}
 
-                  <button type="submit" disabled={busy} className="pf-btn pf-btn--primary" style={{ height: 48 }} data-flow-id="LGN-06">
+                  <button type="submit" disabled={busy} className="pf-btn pf-btn--primary" data-flow-id="LGN-06">
                     {busy ? 'Signing in…' : 'Log in'}
                   </button>
                 </form>
 
-                <p style={{ marginTop: 20, fontSize: 13.5, color: 'var(--text-secondary)', textAlign: 'center' }}>
+                <p style={{ marginTop: 20, fontSize: 13.5, color: 'var(--ink-2)', textAlign: 'center' }}>
                   New here? <Link to="/signup" data-flow-id="LGN-08">Create an account</Link>
                 </p>
               </div>

@@ -1,4 +1,6 @@
-/* Precision Futurism 2.0 — Operational Surfaces (Dashboard, Queue, Payments) */
+/* ==========================================================================
+   OBSIDIAN SIGNAL — OPERATIONAL SURFACES & BENTO GRIDS (§3.9, §4.10, §4.12)
+   ========================================================================== */
 
 .pf-page-head {
   display: flex;
@@ -9,7 +11,7 @@
   margin-bottom: 20px;
 }
 .pf-page-head__sub {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   margin-top: 4px;
   font-size: 14px;
 }
@@ -20,111 +22,126 @@
   flex-wrap: wrap;
 }
 
-.pf-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 16px;
-  border-radius: var(--r-control);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  border: 1px solid transparent;
-  transition: background-color 140ms ease-out, border-color 140ms ease-out;
-}
-.pf-btn--sm {
-  height: 36px;
-  padding: 0 12px;
-  font-size: 13px;
-}
-.pf-btn--primary {
-  background: var(--action-primary);
-  color: #FFFFFF;
-}
-.pf-btn--primary:hover {
-  background: var(--action-primary-hover);
-}
-.pf-btn--secondary {
-  background: var(--bg-surface);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-.pf-btn--secondary:hover {
-  background: var(--bg-surface-subtle);
-}
-.pf-btn--danger {
-  background: var(--status-danger);
-  color: #FFFFFF;
-}
-
 .pf-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-card);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 42%), var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
   padding: 20px;
+  color: var(--ink-1);
+  box-shadow: var(--e2);
+}
+:root[data-theme='daylight'] .pf-card {
+  background: var(--bg-1);
+}
+.pf-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--grad-hair);
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
+.pf-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), var(--volt-a08), transparent 60%);
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+:root[data-fx='full'] .pf-card:hover::after {
+  opacity: 1;
 }
 
-/* 4-column metric row */
+/* Metric Bento Row */
 .pf-metrics {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 @media (min-width: 640px) {
-  .pf-metrics { grid-template-columns: repeat(2, 1fr); }
+  .pf-metrics { grid-template-columns: repeat(2, 1fr); gap: 16px; }
 }
 @media (min-width: 1024px) {
-  .pf-metrics { grid-template-columns: repeat(4, 1fr); }
+  .pf-metrics { grid-template-columns: repeat(4, 1fr); gap: 16px; }
 }
 
 .pf-metric {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-card);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 42%), var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
   padding: 18px 20px;
   text-decoration: none;
-  color: inherit;
+  color: var(--ink-1);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+  box-shadow: var(--e2);
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
+}
+:root[data-theme='daylight'] .pf-metric {
+  background: var(--bg-1);
 }
 .pf-metric:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-surface-subtle);
+  transform: translateY(-2px);
+  border-color: var(--line-3);
+  background: var(--bg-2);
 }
 .pf-metric__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .pf-metric__val {
-  font-size: 28px;
-  line-height: 34px;
-  font-weight: 650;
+  font-family: var(--font-mono);
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
+  color: var(--ink-1);
 }
 .pf-metric__val--danger {
-  color: var(--status-danger);
+  color: var(--flare-ink);
 }
 .pf-metric__sub {
   font-size: 12.5px;
-  color: var(--text-secondary);
+  color: var(--ink-2);
 }
 
-/* 7/5 Dashboard split */
+/* Dashboard Money Line (Flux Meter §4.7 & §6.4) */
+.ob-flux-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+@media (min-width: 1024px) {
+  .ob-flux-grid {
+    grid-template-columns: 7fr 5fr;
+    align-items: stretch;
+  }
+}
+
+/* 7/5 Split */
 .pf-dash-split {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 20px;
 }
 @media (min-width: 1024px) {
@@ -142,20 +159,23 @@
   margin-bottom: 14px;
 }
 .pf-panel-head h2 {
-  font-size: 16px;
-  line-height: 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 .pf-panel-link {
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
-  color: var(--action-primary);
+  color: var(--active-ink);
 }
 
 .pf-list-rows {
   display: flex;
   flex-direction: column;
-  divide-y: 1px solid var(--border-default);
 }
 .pf-row {
   display: flex;
@@ -163,48 +183,62 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-top: 1px solid var(--border-default);
+  border-top: 1px solid var(--line-1);
 }
-.pf-row:first-child {
-  border-top: 0;
-  padding-top: 4px;
-}
-.pf-row:last-child {
+.pf-row:first-child { border-top: 0; padding-top: 4px; }
+.pf-row:last-child { padding-bottom: 4px; }
+
+/* Mobile horizontal snap rail for waiting tickets (§6.4) */
+.ob-wait-rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
   padding-bottom: 4px;
 }
+.ob-wait-rail > * {
+  flex: 0 0 84%;
+  scroll-snap-align: start;
+}
+@media (min-width: 768px) {
+  .ob-wait-rail {
+    display: flex;
+    flex-direction: column;
+    overflow-x: visible;
+    gap: 0;
+  }
+  .ob-wait-rail > * {
+    flex: initial;
+  }
+}
 
-/* Capacity Strip */
+/* Capacity Instrument Strip (§6.12) */
 .pf-capacity {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-card);
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
   padding: 16px 20px;
   margin-bottom: 20px;
   cursor: pointer;
+  box-shadow: var(--e2);
 }
 .pf-capacity__bar {
   height: 8px;
-  background: var(--bg-surface-subtle);
-  border-radius: 999px;
+  background: var(--bg-3);
+  border-radius: var(--r-pill);
   overflow: hidden;
   margin-top: 10px;
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--line-1);
 }
 .pf-capacity__fill {
   height: 100%;
-  border-radius: 999px;
-  transition: width 220ms ease-out;
+  border-radius: var(--r-pill);
+  transition: width var(--dur-3) var(--ease-out);
 }
 
-/* Tables on Desktop / Cards on Mobile */
-.pf-table-wrap {
-  display: none;
-}
-.pf-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+/* Tables & Mobile Stack (§4.12) */
+.pf-table-wrap { display: none; }
+.pf-card-list { display: flex; flex-direction: column; gap: 10px; }
 @media (min-width: 640px) {
   .pf-table-wrap { display: block; overflow-x: auto; }
   .pf-card-list { display: none; }
@@ -213,74 +247,98 @@
 .pf-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 13.5px;
+  background: var(--bg-1);
 }
 .pf-table th {
   text-align: left;
-  padding: 10px 14px;
-  background: var(--bg-surface-subtle);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  border-bottom: 1px solid var(--border-default);
+  padding: 12px 16px;
+  background: var(--bg-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line-1);
 }
 .pf-table td {
-  padding: 14px;
-  border-bottom: 1px solid var(--border-default);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-1);
   vertical-align: middle;
+  color: var(--ink-2);
 }
 .pf-table tr:hover td {
-  background: var(--bg-surface-subtle);
+  background: var(--bg-2);
+  color: var(--ink-1);
 }
 .pf-table tr.is-clickable {
   cursor: pointer;
 }
 
-/* Right Drawer (Desktop) / Full-screen Sheet (Mobile) */
+/* Right Drawer / Mobile Bottom Sheet (§4.10) */
 .pf-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(17, 27, 51, 0.45);
+  background: var(--scrim);
   z-index: 60;
   display: flex;
   justify-content: flex-end;
+  align-items: flex-end;
 }
 .pf-drawer {
   width: 100%;
-  max-width: 520px;
-  height: 100%;
-  background: var(--bg-surface);
-  border-left: 1px solid var(--border-default);
-  padding: 24px;
+  max-height: 92dvh;
+  background: var(--bg-1);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--e3);
+  padding: 24px 20px calc(24px + var(--safe-b));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  animation: ob-panel-enter var(--dur-4) var(--ease-out) both;
+}
+@media (min-width: 768px) {
+  .pf-drawer-backdrop { align-items: stretch; }
+  .pf-drawer {
+    max-width: 520px;
+    max-height: 100dvh;
+    height: 100%;
+    border-top: 0;
+    border-left: 1px solid var(--line-2);
+    border-radius: 0;
+    padding: 24px;
+  }
 }
 
-/* Tabs */
+/* Tabs with Sliding Indicator Look (§3.12) */
 .pf-tabs {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border-default);
+  gap: 6px;
+  border-bottom: 1px solid var(--line-1);
   margin-bottom: 16px;
   overflow-x: auto;
 }
 .pf-tab-btn {
-  padding: 10px 14px;
+  padding: 12px 14px;
+  min-height: 44px;
   border: 0;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--ink-3);
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   white-space: nowrap;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-3) var(--ease-out);
 }
+.pf-tab-btn:hover { color: var(--ink-1); }
 .pf-tab-btn.is-active {
-  color: var(--action-primary);
-  border-bottom-color: var(--action-primary);
+  color: var(--active-ink);
+  border-bottom-color: var(--volt);
 }
