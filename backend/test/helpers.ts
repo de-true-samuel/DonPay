@@ -34,6 +34,7 @@ export const testConfig: AppConfig = {
   telegramWebhookSecret: 'tg-secret',
   adminSecret: 'admin-secret',
   clerk: null,
+  proxySecret: null,
 };
 
 /** Programmable Kora: allocates accounts, and lets tests decide what a charge query returns. */

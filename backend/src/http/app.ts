@@ -163,12 +163,26 @@ export function createApp(opts: AppOptions) {
     return next();
   });
 
+  /**
+   * The visitor's IP. Normally Cloudflare's cf-connecting-ip. When the frontend Worker forwards a request
+   * (frontend/worker/index.js), every request would carry the Worker's IP, so it passes the real one in
+   * x-paidar-client-ip; that header is trusted only with the shared proxy secret, so nobody can spoof it.
+   */
+  const clientIp = (c: Context<AppEnv>): string | null => {
+    const secret = c.get('deps').config.proxySecret;
+    if (secret && c.req.header('x-paidar-proxy') === secret) {
+      const forwarded = c.req.header('x-paidar-client-ip');
+      if (forwarded) return forwarded;
+    }
+    return c.req.header('cf-connecting-ip') ?? null;
+  };
+
   /** Per-IP rate limit, namespaced per scope (BE-17: payment page, claim, sign-in). */
   const rateLimited =
     (scope: string): MiddlewareHandler<AppEnv> =>
     async (c, next) => {
       if (opts.rateLimit) {
-        const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
+        const ip = clientIp(c) ?? 'unknown';
         if (!(await opts.rateLimit(c, `${scope}:${ip}`))) throw new AppError('RATE_LIMITED', 'Too many requests. Please wait a moment.');
       }
       return next();
@@ -448,7 +462,7 @@ export function createApp(opts: AppOptions) {
     if (c.req.header('x-requested-with') !== CSRF_HEADER_VALUE) {
       throw new AppError('CSRF_HEADER_MISSING', `Send the header "X-Requested-With: ${CSRF_HEADER_VALUE}"`);
     }
-    const res = await claimPaid(d(c), t, { ip: c.req.header('cf-connecting-ip') ?? null, userAgent: c.req.header('user-agent') ?? null });
+    const res = await claimPaid(d(c), t, { ip: clientIp(c), userAgent: c.req.header('user-agent') ?? null });
     return c.json(res, 202);
   });
   app.get('/p/:token', publicRateLimit, async (c) => {

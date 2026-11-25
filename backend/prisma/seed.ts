@@ -48,6 +48,7 @@ async function main() {
       telegramWebhookSecret: null,
       adminSecret: null,
       clerk: null,
+      proxySecret: null,
     },
     now: () => now,
     log: silentLogger,
