@@ -38,7 +38,14 @@ export async function verifyReference(deps: Deps, reference: string, webhookEven
 /** Record a charge that Kora has confirmed as successful. Idempotent per request. */
 export async function recordVerifiedCharge(deps: Deps, charge: KoraCharge, webhookEventId: string | null): Promise<VerifyOutcome> {
   const started = Date.now();
-  const req = await deps.db.paymentRequest.findUnique({ where: { koraReference: charge.reference }, select: { id: true, providerId: true } });
+  let req = await deps.db.paymentRequest.findUnique({ where: { koraReference: charge.reference }, select: { id: true, providerId: true } });
+  if (!req) {
+    const attempt = await deps.db.chargeAttempt.findUnique({
+      where: { koraReference: charge.reference },
+      include: { request: { select: { id: true, providerId: true } } },
+    });
+    if (attempt) req = attempt.request;
+  }
   if (!req) {
     await flagUnmatched(deps, charge, webhookEventId);
     return { outcome: 'unmatched' };
@@ -83,8 +90,37 @@ export async function recordVerifiedCharge(deps: Deps, charge: KoraCharge, webho
         receivedAt: now,
       },
     });
-    await tx.paymentRequest.update({ where: { id: request.id }, data: { status: 'PAID', paidAt: now } });
+    const netKobo = charge.feeKobo != null ? accepted - charge.feeKobo : null;
+    await tx.paymentRequest.update({
+      where: { id: request.id },
+      data: {
+        status: 'PAID',
+        paidAt: now,
+        acceptedAmountKobo: accepted,
+        feeKobo: charge.feeKobo ?? null,
+        netKobo,
+      },
+    });
+    await tx.chargeAttempt.updateMany({
+      where: { requestId: request.id, koraReference: charge.reference },
+      data: { status: 'SUCCEEDED' },
+    });
     const after = computeJobFinancials({ ...job, payments: [...job.payments, { amountKobo: accepted, source: 'KORA_VERIFIED' }] });
+    if (after.readyToStart && job.workStatus === 'AWAITING_PAYMENT') {
+      await tx.job.update({ where: { id: job.id }, data: { workStatus: 'READY' } });
+    }
+    await tx.activityEvent.create({
+      data: {
+        providerId: request.providerId,
+        jobId: job.id,
+        requestId: request.id,
+        actor: 'KORA',
+        category: 'PAYMENTS',
+        eventType: 'PAYMENT_VERIFIED',
+        summary: 'Verified payment received from Kora',
+        detail: charge.transactionReference ?? charge.reference,
+      },
+    });
 
     const flags: string[] = [];
     const review = async (kind: ReviewKind, detail: Record<string, unknown>, message: string) => {

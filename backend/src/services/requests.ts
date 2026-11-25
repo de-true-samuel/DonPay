@@ -144,6 +144,32 @@ export async function sendRequest(deps: Deps, providerId: string, requestId: str
       // A concurrent send won the race; return whatever it stored.
       const current = await loadRequest(deps, providerId, requestId);
       if (current.status !== 'SENT') throw invalidState(`A ${current.status.toLowerCase()} request can't be sent`);
+    } else {
+      await deps.db.chargeAttempt.upsert({
+        where: { koraReference: reference },
+        update: {},
+        create: {
+          requestId: r.id,
+          koraReference: reference,
+          bankName: account.bankName,
+          accountNumber: account.accountNumber,
+          accountName: account.accountName,
+          status: 'ACCOUNT_ACTIVE',
+          expiresAt: account.expiresAt,
+        },
+      });
+      await deps.db.activityEvent.create({
+        data: {
+          providerId,
+          jobId: r.jobId,
+          requestId: r.id,
+          actor: 'OWNER',
+          category: 'PAYMENTS',
+          eventType: 'REQUEST_SENT',
+          summary: 'Payment link and temporary account issued',
+          detail: `${account.bankName} · ${reference}`,
+        },
+      });
     }
   } catch (err) {
     if (isUniqueViolation(err, 'one_open_request_per_job')) {

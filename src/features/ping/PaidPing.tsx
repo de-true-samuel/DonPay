@@ -44,14 +44,14 @@ function PingItem({ ping, onDismiss }: { ping: Ping; onDismiss: () => void }) {
   const nav = useNavigate();
   const latest = useRef(onDismiss);
   latest.current = onDismiss;
-  useEffect(() => { const t = setTimeout(() => latest.current(), 9000); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => latest.current(), 8000); return () => clearTimeout(t); }, []);
   return (
     <div className="pd-ping-toast">
       <span className="pd-ping-toast__disc" aria-hidden="true">
         <span className="pd-ping"><i /><i /></span>
         <Icon name="check" size={22} />
       </span>
-      <button type="button" className="pd-ping-toast__body" onClick={() => { onDismiss(); nav(`/jobs/${ping.jobId}`); }}>
+      <button type="button" className="pd-ping-toast__body" onClick={() => { onDismiss(); nav(`/app/payments?tab=received&payment=${ping.id}`); }}>
         <strong>{ping.name} paid <Money kobo={ping.amountKobo} size="sm" /></strong>
         <span>{ping.service}{ping.ready ? ' · Ready to start' : ''}</span>
       </button>

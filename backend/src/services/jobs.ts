@@ -69,6 +69,17 @@ export async function createJob(deps: Deps, providerId: string, input: CreateJob
     await tx.paymentRequest.create({
       data: { providerId, jobId: job.id, kind: first.kind, amountKobo: first.amountKobo, publicToken: randomToken(16) },
     });
+    await tx.activityEvent.create({
+      data: {
+        providerId,
+        jobId: job.id,
+        clientId: customerId,
+        actor: 'OWNER',
+        category: 'STATUS',
+        eventType: 'JOB_CREATED',
+        summary: `Job created: ${job.service}`,
+      },
+    });
     return job.id;
   });
   deps.log.info('job.created', { providerId, jobId });

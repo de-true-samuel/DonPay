@@ -18,6 +18,7 @@ const lazyPage = <K extends string>(load: () => Promise<Record<K, ComponentType>
 const QueuePage = lazyPage(() => import('./pages/QueuePage'), 'QueuePage');
 const JobsPage = lazyPage(() => import('./pages/JobsPage'), 'JobsPage');
 const JobPage = lazyPage(() => import('./pages/JobPage'), 'JobPage');
+const EditJobPage = lazyPage(() => import('./pages/EditJobPage'), 'EditJobPage');
 const PeoplePage = lazyPage(() => import('./pages/PeoplePage'), 'PeoplePage');
 const CustomerPage = lazyPage(() => import('./pages/CustomerPage'), 'CustomerPage');
 const SearchPage = lazyPage(() => import('./pages/SearchPage'), 'SearchPage');
@@ -30,6 +31,12 @@ const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'), 'NotFoundPag
 const LandingPage = lazyPage(() => import('./pages/LandingPage'), 'LandingPage');
 const PublicPayPage = lazyPage(() => import('./pages/PublicPayPage'), 'PublicPayPage');
 const PublicReceiptPage = lazyPage(() => import('./pages/PublicReceiptPage'), 'PublicReceiptPage');
+const SignupPage = lazyPage(() => import('./pages/AuthSuitePages'), 'SignupPage');
+const VerifyEmailPage = lazyPage(() => import('./pages/AuthSuitePages'), 'VerifyEmailPage');
+const ForgotPasswordPage = lazyPage(() => import('./pages/AuthSuitePages'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyPage(() => import('./pages/AuthSuitePages'), 'ResetPasswordPage');
+const ServerErrorPage = lazyPage(() => import('./pages/SystemPages'), 'ServerErrorPage');
+const MaintenancePage = lazyPage(() => import('./pages/SystemPages'), 'MaintenancePage');
 
 function LegacyPayRedirect() {
   const { token } = useParams();
@@ -66,10 +73,16 @@ export default function App() {
                   <Route path="/receipt/:token" element={<PublicReceiptPage />} />
                   <Route path="/p/:token" element={<LegacyPayRedirect />} />
 
-                  {/* Auth */}
+                  {/* Auth & System Pages */}
                   <Route path="/auth" element={<AuthPage />} />
-                  <Route path="/login" element={<Navigate to="/auth" replace />} />
-                  <Route path="/signup" element={<Navigate to="/auth" replace />} />
+                  <Route path="/login" element={<AuthPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route path="/500" element={<ServerErrorPage />} />
+                  <Route path="/maintenance" element={<MaintenancePage />} />
+                  <Route path="/404" element={<NotFoundPage />} />
 
                   <Route element={<RequireAuth />}>
                     <Route path="/onboarding" element={<OnboardingPage />} />
@@ -79,6 +92,7 @@ export default function App() {
                         <Route path="/app" element={<TodayPage />} />
                         <Route path="/app/queue" element={<QueuePage />} />
                         <Route path="/app/new" element={<NewRequestPage />} />
+                        <Route path="/app/jobs/:id/edit" element={<EditJobPage />} />
                         <Route path="/app/jobs" element={<MasterDetail base="app/jobs" list={<JobsPage />} empty="Pick a job to see its payments, timeline and next step." />}>
                           <Route path=":id" element={<JobPage />} />
                         </Route>

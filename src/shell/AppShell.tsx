@@ -11,7 +11,7 @@ import { LogoMark } from '../ui/Logo';
 import { Skeleton } from '../ui/primitives';
 import { ToastProvider } from '../ui/Toast';
 import { AccountMenu } from './AccountMenu';
-import { ConnectionBanner, RiskBanner, UpdateBanner } from './Banners';
+import { ConnectionBanner, RiskBanner, UpdateBanner, VerifyEmailBanner } from './Banners';
 
 const SIDEBAR_KEY = 'paidar.sidebar.collapsed';
 
@@ -59,6 +59,9 @@ export function AppShell() {
   });
   const [moreOpen, setMoreOpen] = useState(false);
   const [testModalOpen, setTestModalOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [readBellIds, setReadBellIds] = useState<Set<string>>(() => new Set());
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const { data: today } = useQuery({
     queryKey: ['today'],
@@ -66,6 +69,31 @@ export function AppShell() {
     staleTime: 15_000,
   });
   const attentionCount = today?.counts.needsReview ?? 0;
+
+  const recentNotices = [
+    ...(today?.justPaid ?? []).map((p) => ({
+      id: `pay_${p.payment.id}`,
+      text: `${p.job.customer.name} paid for ${p.job.service}`,
+      to: `/app/payments?tab=received&payment=${p.payment.id}`,
+    })),
+    ...(today?.needsReview ?? []).map((r) => ({
+      id: `rev_${r.id}`,
+      text: r.message,
+      to: '/app/payments?tab=attention',
+    })),
+  ].slice(0, 10);
+  const unreadBellCount = recentNotices.filter((n) => !readBellIds.has(n.id)).length;
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBellOpen(false); };
+    const onClick = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousedown', onClick);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mousedown', onClick); };
+  }, [bellOpen]);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -107,7 +135,7 @@ export function AppShell() {
           {/* Desktop Sidebar (>=1024px, Midnight Navy) */}
           <aside className={cls('pf-sidebar', collapsed && 'is-collapsed')} aria-label="Sidebar navigation">
             <Link to="/app" className="pf-sidebar__brand" aria-label="Paidar, go to Dashboard">
-              <LogoMark size={26} />
+              <LogoMark size={26} tone="dark" />
               {!collapsed && <span>paidar</span>}
             </Link>
 
@@ -180,21 +208,96 @@ export function AppShell() {
                   <span>New request</span>
                 </Link>
 
-                <Link
-                  to="/app/notifications"
-                  className="pf-icon-btn"
-                  aria-label="Notifications"
-                  title="Notifications"
-                  data-flow-id="GLB-05"
-                >
-                  <Icon name="notifications" size={20} />
-                </Link>
+                {/* Notification Bell Dropdown (GLB-05) */}
+                <div ref={bellRef} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="pf-icon-btn"
+                    aria-label="Notifications"
+                    aria-expanded={bellOpen}
+                    onClick={() => setBellOpen((v) => !v)}
+                    data-flow-id="GLB-05"
+                  >
+                    <Icon name="notifications" size={20} />
+                    {unreadBellCount > 0 && (
+                      <span
+                        style={{
+                          position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, padding: '0 4px',
+                          borderRadius: 999, background: 'var(--status-danger)', color: '#FFFFFF',
+                          fontSize: 10, fontWeight: 700, lineHeight: '16px', textAlign: 'center',
+                        }}
+                      >
+                        {unreadBellCount > 99 ? '99+' : unreadBellCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {bellOpen && (
+                    <div
+                      role="dialog"
+                      aria-label="Recent notifications"
+                      style={{
+                        position: 'absolute', right: 0, top: 48, width: 320, maxWidth: '90vw',
+                        background: '#FFFFFF', border: '1px solid var(--border-default)',
+                        borderRadius: 12, boxShadow: '0 10px 28px rgba(17, 27, 51, 0.14)', zIndex: 50, overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border-default)' }}>
+                        <strong style={{ fontSize: 13.5 }}>Notifications</strong>
+                        {recentNotices.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setReadBellIds(new Set(recentNotices.map((n) => n.id)))}
+                            style={{ border: 0, background: 'transparent', color: 'var(--action-primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                        {recentNotices.length === 0 ? (
+                          <p style={{ padding: 16, fontSize: 13, color: 'var(--text-secondary)' }}>You’re all caught up.</p>
+                        ) : (
+                          recentNotices.map((n) => (
+                            <Link
+                              key={n.id}
+                              to={n.to}
+                              onClick={() => {
+                                setReadBellIds((prev) => new Set(prev).add(n.id));
+                                setBellOpen(false);
+                              }}
+                              style={{
+                                display: 'block', padding: '10px 14px', borderBottom: '1px solid var(--border-default)',
+                                textDecoration: 'none', color: 'var(--text-primary)', fontSize: 13,
+                                fontWeight: readBellIds.has(n.id) ? 400 : 600,
+                              }}
+                            >
+                              {n.text}
+                            </Link>
+                          ))
+                        )}
+                      </div>
+                      <Link
+                        to="/app/notifications"
+                        onClick={() => setBellOpen(false)}
+                        style={{
+                          display: 'block', textAlign: 'center', padding: '10px 14px',
+                          fontSize: 13, fontWeight: 600, color: 'var(--action-primary)', textDecoration: 'none',
+                          background: 'var(--bg-surface-subtle)',
+                        }}
+                      >
+                        View all notifications
+                      </Link>
+                    </div>
+                  )}
+                </div>
 
                 <AccountMenu />
               </div>
             </header>
 
             <RiskBanner />
+            <VerifyEmailBanner />
             <ConnectionBanner />
             <UpdateBanner />
 

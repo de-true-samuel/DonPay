@@ -1,27 +1,30 @@
-import { useId } from 'react';
-
-/** Radar-ping mark. tone="dark" is for dark backgrounds. Each instance has its own gradient id so sweeps never collide. */
-export function LogoMark({ size = 40, tone = 'light' }: { size?: number; tone?: 'light' | 'dark' }) {
-  const reactId = useId();
-  const gradId = `pd-sw-${reactId.replace(/:/g, '')}`;
-  const dot = tone === 'dark' ? '#F5F2FF' : '#140B2B';
-  const sweep = tone === 'dark' ? '#C9B8FF' : '#6D28D9';
+/**
+ * Paidar brand mark (Spec §2.2):
+ * Compact geometric "P" built from two connected points suggesting an incoming
+ * payment moving into an actionable work state. Recognizable at 20px and 32px.
+ */
+export function LogoMark({ size = 28, tone = 'light' }: { size?: number; tone?: 'light' | 'dark' }) {
+  const primary = tone === 'dark' ? '#FFFFFF' : '#111B33';
+  const accent = tone === 'dark' ? '#8192FF' : '#5368F8';
   return (
-    <svg width={size} height={size} viewBox="0 0 160 160" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7C3AED" stopOpacity="0.15" />
-          <stop offset="1" stopColor="#7C3AED" stopOpacity="0.6" />
-        </linearGradient>
-      </defs>
-      <circle cx="80" cy="80" r="70" fill="none" stroke="#7C3AED" strokeOpacity="0.35" strokeWidth="5" />
-      <circle cx="80" cy="80" r="50" fill="none" stroke="#7C3AED" strokeOpacity="0.6" strokeWidth="5" />
-      <circle cx="80" cy="80" r="30" fill="none" stroke="#7C3AED" strokeOpacity="0.9" strokeWidth="5" />
-      <path d="M80 80 L80 10 A70 70 0 0 1 140.6 45 Z" fill={`url(#${gradId})`} />
-      <line x1="80" y1="80" x2="80" y2="10" stroke={sweep} strokeWidth="5" strokeLinecap="round" />
-      <circle cx="102.5" cy="41" r="13" fill="#2EE6A6" fillOpacity="0.25" />
-      <circle cx="102.5" cy="41" r="7" fill="#2EE6A6" />
-      <circle cx="80" cy="80" r="6" fill={dot} />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/* Continuous geometric stem + top bar into payment node */}
+      <path
+        d="M8 26V7.5C8 6.67157 8.67157 6 9.5 6H18.5C22.6421 6 26 9.35786 26 13.5C26 17.6421 22.6421 21 18.5 21H12.5"
+        stroke={primary}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Verified payment-to-work dot */}
+      <circle cx="17.5" cy="13.5" r="3" fill={accent} />
     </svg>
   );
 }

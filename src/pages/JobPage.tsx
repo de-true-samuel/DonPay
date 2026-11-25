@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiRequestError } from '../api/client';
 import { describeError } from '../api/errors';
-import { jobsApi } from '../api/endpoints';
-import { CancelJobDialog, EditJobDialog, ManualPaymentDialog } from '../features/jobs/JobDialogs';
+import { jobsApi, queueApi } from '../api/endpoints';
+import { CancelJobDialog } from '../features/jobs/JobDialogs';
 import { JobTimeline } from '../features/jobs/JobTimeline';
 import { RequestCard } from '../features/requests/RequestCard';
 import { useRequestActions } from '../features/requests/useRequestActions';
@@ -13,24 +13,57 @@ import { formatNaira } from '../lib/money';
 import { formatDate } from '../lib/time';
 import { buildJobTimeline } from '../lib/timeline';
 import { Icon } from '../ui/Icon';
-import { Banner, Button, EmptyState, LinkButton, Skeleton } from '../ui/primitives';
-import { JobStatusPill, ReadyBadge } from '../ui/Trust';
+import { Banner, Button, EmptyState, Skeleton } from '../ui/primitives';
+import { FlagChip, JobStatusChip, PaymentStatusChip } from '../ui/StatusChip';
+import { useToast } from '../ui/Toast';
 
-type Dlg = 'edit' | 'manual' | 'cancel' | null;
+type TabKey = 'overview' | 'payments' | 'activity';
 
 export function JobPage() {
   const { id = '' } = useParams();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const qc = useQueryClient();
+  const toast = useToast();
   const a = useRequestActions();
-  const [dlg, setDlg] = useState<Dlg>(null);
+
+  const initialTab: TabKey =
+    loc.hash === '#payments' ? 'payments' : loc.hash === '#activity' ? 'activity' : 'overview';
+  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [activityFilter, setActivityFilter] = useState<'all' | 'payments' | 'edits'>('all');
+
   const q = useQuery({
     queryKey: ['job', id],
     queryFn: () => jobsApi.get(id),
     refetchInterval: (query) => (query.state.data?.openRequest?.status === 'SENT' ? 10_000 : false),
   });
-  const items = useMemo(() => (q.data ? buildJobTimeline(q.data) : []), [q.data]);
-  useDocumentTitle(q.data ? q.data.customer.name : 'Job');
 
-  if (q.isPending)
+  const { data: queue } = useQuery({
+    queryKey: ['queue'],
+    queryFn: () => queueApi.get(),
+  });
+
+  const transitionMut = useMutation({
+    mutationFn: ({ action, reason }: { action: 'start' | 'complete' | 'hold' | 'resume' | 'override-ready'; reason?: string }) =>
+      queueApi.transition(id, action, reason),
+    onSuccess: (_res, vars) => {
+      void qc.invalidateQueries({ queryKey: ['job', id] });
+      void qc.invalidateQueries({ queryKey: ['queue'] });
+      void qc.invalidateQueries({ queryKey: ['today'] });
+      toast.success(`Job updated (${vars.action}).`);
+      setOverrideOpen(false);
+      setOverrideReason('');
+    },
+    onError: (err) => toast.error((err as Error).message || 'Could not update job.'),
+  });
+
+  const items = useMemo(() => (q.data ? buildJobTimeline(q.data) : []), [q.data]);
+  useDocumentTitle(q.data ? `${q.data.service} · ${q.data.customer.name}` : 'Job');
+
+  if (q.isPending) {
     return (
       <div className="pd-stack" aria-busy="true">
         <Skeleton h={34} w="55%" />
@@ -38,29 +71,19 @@ export function JobPage() {
         <Skeleton h={140} />
       </div>
     );
+  }
 
   if (q.isError || !q.data) {
     const missing = q.error instanceof ApiRequestError && q.error.status === 404;
     return missing ? (
       <EmptyState
-        title="That ticket doesn’t exist."
-        action={
-          <LinkButton to="/today" variant="line">
-            Back to Today
-          </LinkButton>
-        }
+        title="That job doesn’t exist."
+        action={<Link to="/app/jobs" className="pf-btn pf-btn--secondary">Back to Jobs</Link>}
       >
         It may have been removed.
       </EmptyState>
     ) : (
-      <Banner
-        tone="bad"
-        action={
-          <Button variant="line" onClick={() => void q.refetch()}>
-            Try again
-          </Button>
-        }
-      >
+      <Banner tone="bad" action={<Button variant="line" onClick={() => void q.refetch()}>Try again</Button>}>
         {describeError(q.error).message}
       </Banner>
     );
@@ -69,260 +92,208 @@ export function JobPage() {
   const j = q.data;
   const open = j.openRequest;
   const cancelled = j.status === 'CANCELLED';
+  const qItem = queue ? [...queue.inProgress, ...queue.ready, ...queue.waitingForPayment].find((x) => x.id === j.id) : undefined;
+  const workStatus = cancelled ? 'cancelled' : (qItem?.workStatus ?? (j.readyToStart ? 'ready' : 'awaiting_payment'));
+  const payStatus = cancelled ? 'cancelled' : BigInt(j.balanceKobo) <= 0n && BigInt(j.verifiedPaidKobo) > 0n ? 'paid' : open ? 'awaiting_payment' : 'not_requested';
   const total = BigInt(j.totalKobo);
-  const pct =
-    total > 0n
-      ? Math.min(100, Math.max(0, Number((BigInt(j.paidKobo) * 10000n) / total) / 100))
-      : 0;
-  const owed = BigInt(j.balanceKobo) > 0n;
-  const over = BigInt(j.balanceKobo) < 0n;
+  const pct = total > 0n ? Math.min(100, Math.max(0, Number((BigInt(j.paidKobo) * 10000n) / total) / 100)) : 0;
+
+  function switchTab(next: TabKey) {
+    setTab(next);
+    nav(`${loc.pathname}#${next}`, { replace: true });
+  }
+
+  const duplicateUrl = `/app/new?customerId=${j.customer.id}&service=${encodeURIComponent(j.service)}&plan=${j.plan}&total=${j.totalKobo}${j.depositKobo ? `&deposit=${j.depositKobo}` : ''}`;
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', display: 'grid', gap: 24 }}>
-      {/* Header (Spec Section 5.8) */}
+    <div style={{ maxWidth: 760, display: 'grid', gap: 20 }} data-flow-id="JBD-00">
       <div>
-        <Link to="/jobs" className="pd-back" style={{ color: 'var(--muted-on-ground)' }}>
-          <Icon name="chevron" size={16} />
-          <span>Jobs</span>
+        <Link to="/app/jobs" data-flow-id="JBD-01" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, color: 'var(--text-secondary)', textDecoration: 'none', marginBottom: 10 }}>
+          <span>← Back to Jobs</span>
         </Link>
-        <header style={{ marginTop: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontWeight: 800,
-                fontSize: 'clamp(28px, 7vw, 36px)',
-                letterSpacing: '-0.02em',
-                color: 'var(--ink-on-ground)',
-                margin: 0,
-              }}
-            >
-              <Link to={`/people/${j.customer.id}`} className="pd-plainlink" style={{ color: 'inherit' }}>
-                {j.customer.name}
-              </Link>
-            </h1>
-            {!cancelled && (
-              <Button variant="line" icon="pencil" onClick={() => setDlg('edit')}>
-                Edit
-              </Button>
-            )}
+
+        {/* Header */}
+        <header className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h1 data-flow-id="JBD-02" style={{ fontSize: 24 }}>{j.service}</h1>
+              <div style={{ marginTop: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
+                Client: <Link to={`/app/clients/${j.customer.id}`} data-flow-id="JBD-03" style={{ fontWeight: 600 }}>{j.customer.name}</Link>
+                {j.balanceDueAt && <> · Due {formatDate(j.balanceDueAt)}</>}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} data-flow-id="JBD-04">
+              <JobStatusChip status={workStatus} />
+              <PaymentStatusChip status={payStatus} />
+              {qItem?.isOverdue && <FlagChip flag="overdue" />}
+              {qItem?.isAtRisk && <FlagChip flag="at_risk" />}
+              {qItem?.startedWithoutPayment && <FlagChip flag="started_without_payment" />}
+            </div>
           </div>
-          <p style={{ color: 'var(--muted-on-ground)', fontSize: 16, margin: '4px 0 10px' }}>
-            {j.service}
-          </p>
-          {j.notes && (
-            <p style={{ color: 'var(--muted-on-ground)', fontSize: 14, fontStyle: 'italic', margin: '0 0 10px' }}>
-              {j.notes}
-            </p>
-          )}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <JobStatusPill status={j.status} />
-            {j.readyToStart && <ReadyBadge />}
+
+          {/* Payment Progress (JBD-06) */}
+          <div data-flow-id="JBD-06">
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginBottom: 6 }}>
+              <span><strong>{formatNaira(j.paidKobo)}</strong> paid of {formatNaira(j.totalKobo)}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{pct.toFixed(0)}%</span>
+            </div>
+            <div style={{ height: 8, background: 'var(--bg-surface-subtle)', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: 'var(--status-success)' }} />
+            </div>
+          </div>
+
+          {/* Primary Action Matrix (JBD-07) */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 4 }} data-flow-id="JBD-07">
+            {workStatus === 'awaiting_payment' && open && (
+              <button type="button" className="pf-btn pf-btn--primary" onClick={() => a.send.mutate(open.id)}>
+                Share payment link
+              </button>
+            )}
+            {workStatus === 'ready' && (
+              <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'start' })}>
+                Start job
+              </button>
+            )}
+            {workStatus === 'in_progress' && (
+              <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'complete' })}>
+                Mark completed
+              </button>
+            )}
+            {workStatus === 'on_hold' && (
+              <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'resume' })}>
+                Resume
+              </button>
+            )}
+            {(workStatus === 'completed' || workStatus === 'cancelled') && (
+              <Link to={duplicateUrl} className="pf-btn pf-btn--primary">Duplicate job</Link>
+            )}
+
+            {workStatus === 'awaiting_payment' && (
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideOpen(true)}>
+                Mark ready anyway
+              </button>
+            )}
+            {(workStatus === 'ready' || workStatus === 'in_progress') && (
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => transitionMut.mutate({ action: 'hold' })}>
+                Hold
+              </button>
+            )}
+            {!cancelled && (
+              <Link to={`/app/jobs/${j.id}/edit`} className="pf-btn pf-btn--secondary">Edit job</Link>
+            )}
+            {!cancelled && (
+              <button type="button" className="pf-btn pf-btn--secondary" style={{ color: 'var(--status-danger)' }} onClick={() => setCancelOpen(true)}>
+                Cancel job
+              </button>
+            )}
           </div>
         </header>
       </div>
 
-      {/* Payment Progress Bar & Summary (Spec Section 5.8) */}
-      <section
-        style={{
-          background: 'var(--paper)',
-          borderRadius: 'var(--r-ticket)',
-          padding: '24px 22px',
-          color: 'var(--paper-ink)',
-          boxShadow: '0 12px 28px rgba(16, 21, 77, 0.3)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24 }}>
-            {formatNaira(j.paidKobo)}
-            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--paper-muted)', marginLeft: 6 }}>
-              paid of {formatNaira(j.totalKobo)}
-            </span>
+      {/* 3 Tabs: Overview / Payments / Activity (JBD-09) */}
+      <div className="pf-tabs" role="tablist" data-flow-id="JBD-09">
+        <button type="button" role="tab" aria-selected={tab === 'overview'} className={`pf-tab-btn ${tab === 'overview' ? 'is-active' : ''}`} onClick={() => switchTab('overview')}>
+          Overview
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'payments'} className={`pf-tab-btn ${tab === 'payments' ? 'is-active' : ''}`} onClick={() => switchTab('payments')}>
+          Payments ({j.requests.length})
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'activity'} className={`pf-tab-btn ${tab === 'activity' ? 'is-active' : ''}`} onClick={() => switchTab('activity')}>
+          Activity
+        </button>
+      </div>
+
+      {tab === 'overview' && (
+        <section className="pf-card" style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Description</div>
+            <p data-flow-id="JBD-10">{j.service}</p>
           </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ok)' }}>
-            {Math.round(pct)}%
-          </span>
-        </div>
-
-        {/* Progress bar with ticks */}
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(pct)}
-          style={{
-            height: 10,
-            borderRadius: 999,
-            background: 'rgba(20, 24, 63, 0.1)',
-            overflow: 'hidden',
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              width: `${pct}%`,
-              height: '100%',
-              background: 'var(--ok)',
-              borderRadius: 999,
-              transition: 'width 0.4s ease',
-            }}
-          />
-        </div>
-
-        <p style={{ margin: 0, fontSize: 14, color: 'var(--paper-muted)' }}>
-          {over
-            ? `Overpaid by ${formatNaira((-BigInt(j.balanceKobo)).toString())}`
-            : owed
-              ? `${formatNaira(j.balanceKobo)} still to pay${j.balanceDueAt ? ` · due ${formatDate(j.balanceDueAt)}` : ''}`
-              : 'Nothing left to pay.'}
-        </p>
-
-        {/* Two-stub ledger (Spec Section 5.8) */}
-        {j.plan === 'DEPOSIT_BALANCE' && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-              marginTop: 18,
-              paddingTop: 16,
-              borderTop: '1px dashed var(--line)',
-            }}
-          >
-            {/* Stub 1: Deposit */}
-            <div
-              style={{
-                background: j.depositKobo && BigInt(j.paidKobo) >= BigInt(j.depositKobo) ? 'var(--tag-paid-bg)' : 'rgba(20, 24, 63, 0.05)',
-                border: `1.5px solid ${j.depositKobo && BigInt(j.paidKobo) >= BigInt(j.depositKobo) ? 'var(--ok)' : 'var(--line-strong)'}`,
-                borderRadius: 14,
-                padding: '12px 14px',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--paper-ink)' }}>
-                  Deposit
-                </span>
-                {j.depositKobo && BigInt(j.paidKobo) >= BigInt(j.depositKobo) && (
-                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ok)' }}>PAID ✓</span>
-                )}
-              </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, marginTop: 4 }}>
-                {j.depositKobo ? formatNaira(j.depositKobo) : '—'}
-              </div>
+          <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 10, margin: 0, fontSize: 13.5 }} data-flow-id="JBD-11">
+            <dt style={{ color: 'var(--text-secondary)' }}>Payment plan</dt>
+            <dd style={{ margin: 0 }}>{j.plan === 'DEPOSIT_BALANCE' ? 'Deposit + balance' : 'Full payment'}</dd>
+            <dt style={{ color: 'var(--text-secondary)' }}>Balance remaining</dt>
+            <dd style={{ margin: 0, fontWeight: 600 }}>{formatNaira(j.balanceKobo)}</dd>
+            <dt style={{ color: 'var(--text-secondary)' }}>Created</dt>
+            <dd style={{ margin: 0 }}>{formatDate(j.createdAt)}</dd>
+            <dt style={{ color: 'var(--text-secondary)' }}>Job ID</dt>
+            <dd className="pd-mono" style={{ margin: 0, fontSize: 12 }}>{j.id}</dd>
+          </dl>
+          {j.notes && (
+            <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9 }} data-flow-id="JBD-12">
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Private notes</div>
+              <p style={{ fontSize: 13.5 }}>{j.notes}</p>
             </div>
-
-            {/* Stub 2: Balance */}
-            <div
-              style={{
-                background: BigInt(j.balanceKobo) <= 0n ? 'var(--tag-paid-bg)' : 'rgba(20, 24, 63, 0.05)',
-                border: `1.5px dashed ${BigInt(j.balanceKobo) <= 0n ? 'var(--ok)' : 'var(--line-strong)'}`,
-                borderRadius: 14,
-                padding: '12px 14px',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--paper-muted)' }}>
-                  Balance
-                </span>
-                {BigInt(j.balanceKobo) <= 0n ? (
-                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ok)' }}>PAID ✓</span>
-                ) : (
-                  <span style={{ fontSize: 11, color: 'var(--paper-muted)' }}>
-                    {j.balanceDueAt ? `Due ${formatDate(j.balanceDueAt)}` : 'Pending'}
-                  </span>
-                )}
-              </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, marginTop: 4 }}>
-                {formatNaira(j.balanceKobo)}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Active Request Ticket / Next Payment (Spec Section 5.8) */}
-      <section>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--ink-on-ground)', marginBottom: 12 }}>
-          {open ? 'Active payment ticket' : 'Next payment'}
-        </h2>
-        {open && <RequestCard request={open} job={j} />}
-        {!open && cancelled && <Banner tone="bad">This job is cancelled.</Banner>}
-        {!open && !cancelled && owed && (
-          <div
-            style={{
-              background: 'var(--paper)',
-              borderRadius: 'var(--r-ticket)',
-              padding: '20px 22px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>No account active right now</p>
-              <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--paper-muted)' }}>
-                {formatNaira(j.balanceKobo)} is still owed.
-              </p>
-            </div>
-            <Button busy={a.balance.isPending} onClick={() => a.balance.mutate(j.id)}>
-              Get balance details
-            </Button>
-          </div>
-        )}
-      </section>
-
-      {/* Timeline (Receipt tape, Spec Section 5.8) */}
-      <section
-        style={{
-          background: 'var(--paper)',
-          borderRadius: 'var(--r-ticket)',
-          padding: '24px 22px',
-          color: 'var(--paper-ink)',
-          boxShadow: '0 8px 24px rgba(16, 21, 77, 0.25)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, margin: 0 }}>
-            Timeline
-          </h2>
-          {!cancelled && (
-            <Button variant="line" onClick={() => setDlg('manual')}>
-              Record a payment
-            </Button>
           )}
-        </div>
-        <JobTimeline
-          items={items}
-          receiptBusy={a.receipt.isPending ? a.receipt.variables?.paymentId : undefined}
-          onReceipt={(paymentId) =>
-            a.receipt.mutate({ paymentId, customerName: j.customer.name })
-          }
-        />
-      </section>
+          <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 12, display: 'flex', gap: 10 }} data-flow-id="JBD-13">
+            <a href={`https://wa.me/${j.customer.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="pf-btn pf-btn--sm pf-btn--secondary">
+              <Icon name="send" size={15} />
+              <span>Message on WhatsApp</span>
+            </a>
+            <a href={`tel:${j.customer.phone}`} className="pf-btn pf-btn--sm pf-btn--secondary">Call client</a>
+          </div>
+        </section>
+      )}
 
-      {/* Cancel Job (quiet link at the bottom, Spec Section 5.8) */}
-      {!cancelled && (
-        <div style={{ textAlign: 'center', padding: '12px 0 32px' }}>
-          <button
-            type="button"
-            onClick={() => setDlg('cancel')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--urgent)',
-              fontSize: 14,
-              textDecoration: 'underline',
-              cursor: 'pointer',
-            }}
-          >
-            Cancel job
-          </button>
+      {tab === 'payments' && (
+        <section style={{ display: 'grid', gap: 12 }}>
+          {j.requests.length === 0 ? (
+            <div className="pf-card"><p style={{ color: 'var(--text-secondary)' }}>No payment requests yet.</p></div>
+          ) : (
+            j.requests.map((r) => <RequestCard key={r.id} request={r} job={j} />)
+          )}
+        </section>
+      )}
+
+      {tab === 'activity' && (
+        <section className="pf-card" data-flow-id="JBD-26">
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }} data-flow-id="JBD-27">
+            {(['all', 'payments', 'edits'] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`pf-btn pf-btn--sm ${activityFilter === f ? 'pf-btn--primary' : 'pf-btn--secondary'}`}
+                onClick={() => setActivityFilter(f)}
+              >
+                {f === 'all' ? 'All' : f === 'payments' ? 'Payments' : 'Status / Edits'}
+              </button>
+            ))}
+          </div>
+          <JobTimeline
+            items={items}
+            onReceipt={(paymentId) => a.receipt.mutate({ paymentId, customerName: j.customer.name })}
+            receiptBusy={a.receipt.isPending ? a.receipt.variables?.paymentId : undefined}
+          />
+        </section>
+      )}
+
+      {/* Mark Ready Anyway Dialog */}
+      {overrideOpen && (
+        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setOverrideOpen(false)}>
+          <div role="dialog" aria-modal="true" className="pf-card" style={{ maxWidth: 440, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: 6 }}>Mark ready anyway?</h2>
+            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              You’re starting before payment is verified. This is logged and tagged “Started without payment”.
+            </p>
+            <input
+              type="text"
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="Reason (5–200 chars)"
+              style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', marginBottom: 12 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideOpen(false)}>Cancel</button>
+              <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'override-ready', reason: overrideReason })}>
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <EditJobDialog job={j} open={dlg === 'edit'} onClose={() => setDlg(null)} />
-      <ManualPaymentDialog job={j} open={dlg === 'manual'} onClose={() => setDlg(null)} />
-      <CancelJobDialog job={j} open={dlg === 'cancel'} onClose={() => setDlg(null)} />
+      <CancelJobDialog job={j} open={cancelOpen} onClose={() => setCancelOpen(false)} />
     </div>
   );
 }

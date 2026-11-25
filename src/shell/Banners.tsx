@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RELEASE_RISKS } from '../config';
+import { getPendingVerificationEmail, setPendingVerificationEmail } from '../lib/emailVerify';
 import { useOnline } from '../lib/online';
 import { useServiceWorkerUpdate } from '../pwa/usePwa';
 import { Banner, Button } from '../ui/primitives';
@@ -17,7 +18,56 @@ export function ConnectionBanner() {
     was.current = online;
   }, [online, qc, toast]);
   if (online) return null;
-  return <Banner tone="warn">You’re offline. What’s on screen may be out of date. New actions won’t work until you reconnect.</Banner>;
+  return (
+    <Banner tone="warn" data-flow-id="GLB-15">
+      You’re offline. Changes won’t save until you reconnect.
+    </Banner>
+  );
+}
+
+/** Persistent email verification soft-gate reminder (VFY-05 / DSH-12). */
+export function VerifyEmailBanner() {
+  const toast = useToast();
+  const [pendingEmail, setPendingEmail] = useState<string | null>(() => getPendingVerificationEmail());
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  if (!pendingEmail) return null;
+
+  function resend() {
+    setCooldown(60);
+    toast.success(`Verification link resent to ${pendingEmail}`);
+  }
+
+  function markVerifiedDemo() {
+    setPendingVerificationEmail(null);
+    setPendingEmail(null);
+    toast.success('Email verified.');
+  }
+
+  return (
+    <Banner
+      tone="info"
+      data-flow-id="DSH-12"
+      action={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="line" disabled={cooldown > 0} onClick={resend}>
+            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend'}
+          </Button>
+          <Button variant="line" onClick={markVerifiedDemo}>
+            Dismiss
+          </Button>
+        </div>
+      }
+    >
+      Verify your email ({pendingEmail}) to create payment links.
+    </Banner>
+  );
 }
 
 export function UpdateBanner() {
