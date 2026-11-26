@@ -6,6 +6,7 @@ import { todayApi } from '../api/endpoints';
 import { PaidPingLayer } from '../features/ping/PaidPing';
 import { ShareProvider } from '../features/share/ShareProvider';
 import { cls } from '../lib/cls';
+import { Dialog } from '../ui/Dialog';
 import { Icon, type IconName } from '../ui/Icon';
 import { LogoMark } from '../ui/Logo';
 import { Skeleton } from '../ui/primitives';
@@ -356,30 +357,21 @@ export function AppShell() {
             </div>
           )}
 
-          {/* Test-mode explainer modal (GLB-04) */}
-          {testModalOpen && (
-            <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setTestModalOpen(false)}>
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Test mode information"
-                className="ob-modal-card"
-                onClick={(e) => e.stopPropagation()}
+          {/* Focus-trapped native Dialog for Test-mode explainer (GLB-04, §4.10) */}
+          <Dialog open={testModalOpen} onClose={() => setTestModalOpen(false)} title="Test mode is active">
+            <p className="pd-lede">
+              No real money moves in test mode. Virtual accounts and payment verifications are simulated in sandbox so you can test the full payment-to-work flow safely.
+            </p>
+            <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="pf-btn pf-btn--primary"
+                onClick={() => setTestModalOpen(false)}
               >
-                <h2 style={{ marginBottom: 8 }}>Test mode is active</h2>
-                <p style={{ color: 'var(--ink-2)', marginBottom: 18 }}>
-                  No real money moves in test mode. Virtual accounts and payment verifications are simulated in sandbox so you can test the full payment-to-work flow safely.
-                </p>
-                <button
-                  type="button"
-                  className="pf-btn pf-btn--primary"
-                  onClick={() => setTestModalOpen(false)}
-                >
-                  Got it
-                </button>
-              </div>
+                Got it
+              </button>
             </div>
-          )}
+          </Dialog>
         </div>
       </ShareProvider>
     </ToastProvider>

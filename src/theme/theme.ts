@@ -5,7 +5,7 @@ export type ResolvedTheme = 'obsidian' | 'daylight';
 export type FxPref = 'auto' | 'full' | 'lite' | 'min';
 export type ResolvedFx = 'full' | 'lite' | 'min';
 
-const THEME_KEY = 'paidar.theme';
+const THEME_KEY = 'paidar.theme.v2';
 const FX_KEY = 'paidar.fx';
 const THEME_COLORS: Record<ResolvedTheme, string> = {
   obsidian: '#090B11',
@@ -70,18 +70,9 @@ function getCaps(): FxCapabilities {
   };
 }
 
-function isPublicCustomerPath(): boolean {
-  try {
-    return /^\/(pay|p|receipt)(\/|$)/.test(window.location.pathname);
-  } catch {
-    return false;
-  }
-}
-
 function applyTheme(pref: ThemePref): void {
   const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
-  const effectivePref: ThemePref = isPublicCustomerPath() ? 'system' : pref;
-  const resolved = resolveTheme(effectivePref, systemLight);
+  const resolved = resolveTheme(pref, systemLight);
   document.documentElement.setAttribute('data-theme', resolved);
   document.getElementById('pd-theme-color')?.setAttribute('content', THEME_COLORS[resolved]);
 }

@@ -9,6 +9,7 @@ import { API_URL } from '../config';
 import type { ReadyRule } from '../contract/contract';
 import { useDocumentTitle } from '../lib/hooks';
 import { useUnsavedGuard } from '../lib/useUnsavedGuard';
+import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
 import { HoldConfirmButton } from '../ui/HoldButton';
 import { Banner, Switch } from '../ui/primitives';
@@ -47,6 +48,9 @@ export function SettingsPage() {
   const { pref: themePref, resolved: resolvedTheme, setPref: setThemePref } = useTheme();
   const { fxPref, resolvedFx, setFxPref } = useFxTier();
   const [audioPref, setAudioPref] = useState<AudioPref>(() => readAudioPref());
+  const [confirmBeforeStart, setConfirmBeforeStart] = useState<boolean>(() => {
+    try { return localStorage.getItem('paidar.confirmBeforeStart') !== '0'; } catch { return true; }
+  });
 
   // A. Business profile
   const [bizName, setBizName] = useState(provider?.businessName ?? '');
@@ -431,6 +435,24 @@ export function SettingsPage() {
                 {templateErr && <p className="pd-error" style={{ marginTop: 4 }}>{templateErr}</p>}
               </div>
 
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div className="pd-label">Confirm before 60-minute clock starts</div>
+                  <p style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
+                    Show the share sheet cleanly before sending instructions so the transfer countdown matches when your client sees the link.
+                  </p>
+                </div>
+                <Switch
+                  checked={confirmBeforeStart}
+                  onChange={(v) => {
+                    setConfirmBeforeStart(v);
+                    try { localStorage.setItem('paidar.confirmBeforeStart', v ? '1' : '0'); } catch { /* ignore */ }
+                    toast.success('Preference updated.');
+                  }}
+                  label="Confirm before 60-minute clock starts"
+                />
+              </div>
+
               <button type="button" className="pf-btn pf-btn--primary" disabled={saveProfile.isPending} onClick={saveDefaults}>
                 Save payment defaults
               </button>
@@ -531,6 +553,24 @@ export function SettingsPage() {
               <button type="button" disabled title="Live payments aren't available yet." data-flow-id="SET-18" className="pf-btn pf-btn--secondary">
                 Switch to live (Unavailable in sandbox)
               </button>
+
+              {/* Diagnostics & API Health Panel (§6.14) */}
+              <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 14, display: 'grid', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div className="ob-overline">Diagnostics & API Health</div>
+                  <Status
+                    tone={navigator.onLine ? 'mint' : 'flare'}
+                    icon={navigator.onLine ? 'shield' : 'alert'}
+                    label={navigator.onLine ? 'Healthy' : 'Offline'}
+                  />
+                </div>
+                <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 6, margin: 0, fontSize: 12.5 }}>
+                  <dt style={{ color: 'var(--ink-3)' }}>API Origin</dt>
+                  <dd className="pd-mono" style={{ margin: 0, color: 'var(--ink-2)' }}>{API_URL || 'Same-origin worker proxy'}</dd>
+                  <dt style={{ color: 'var(--ink-3)' }}>Theme / FX Tier</dt>
+                  <dd className="pd-mono" style={{ margin: 0, color: 'var(--ink-2)' }}>{resolvedTheme} · {resolvedFx}</dd>
+                </dl>
+              </div>
             </div>
           )}
 
@@ -593,35 +633,29 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {deleteDialogOpen && (
-        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setDeleteDialogOpen(false)}>
-          <div role="dialog" aria-modal="true" className="ob-modal-card" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ color: 'var(--flare-ink)', marginBottom: 8 }}>Delete account?</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--ink-2)', marginBottom: 12 }}>
-              Open payment requests will be cancelled first. Type <strong>DELETE</strong> below, then hold to confirm.
-            </p>
-            <input
-              type="text"
-              className="pd-input pd-mono"
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder="Type DELETE"
-              style={{ marginBottom: 16 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setDeleteDialogOpen(false)}>Cancel</button>
-              <HoldConfirmButton
-                label="Delete forever"
-                disabled={deleteConfirm !== 'DELETE'}
-                onConfirm={async () => {
-                  await api('/api/me', { method: 'DELETE' });
-                  await signOut();
-                }}
-              />
-            </div>
-          </div>
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} title="Delete account?">
+        <p className="pd-lede" style={{ color: 'var(--ink-2)' }}>
+          Open payment requests will be cancelled first. Type <strong>DELETE</strong> below, then hold to confirm.
+        </p>
+        <input
+          type="text"
+          className="pd-input pd-mono"
+          value={deleteConfirm}
+          onChange={(e) => setDeleteConfirm(e.target.value)}
+          placeholder="Type DELETE"
+        />
+        <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setDeleteDialogOpen(false)}>Cancel</button>
+          <HoldConfirmButton
+            label="Delete forever"
+            disabled={deleteConfirm !== 'DELETE'}
+            onConfirm={async () => {
+              await api('/api/me', { method: 'DELETE' });
+              await signOut();
+            }}
+          />
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

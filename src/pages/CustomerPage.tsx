@@ -6,10 +6,10 @@ import { describeError } from '../api/errors';
 import { customersApi } from '../api/endpoints';
 import { EditCustomerDialog } from '../features/customers/CustomerDialogs';
 import { useDocumentTitle } from '../lib/hooks';
-import { formatNaira } from '../lib/money';
 import { formatPhone } from '../lib/phone';
 import { formatTime } from '../lib/time';
 import { Icon } from '../ui/Icon';
+import { Money } from '../ui/Money';
 import { Banner, Button, EmptyState, Skeleton } from '../ui/primitives';
 import { useToast } from '../ui/Toast';
 
@@ -64,15 +64,31 @@ export function CustomerPage() {
 
   return (
     <div style={{ maxWidth: 700, display: 'grid', gap: 18 }} data-flow-id="CLT-11">
-      <Link to="/app/clients" style={{ fontSize: 13.5, color: 'var(--text-secondary)', textDecoration: 'none' }}>
-        ← Back to Clients
+      <Link to="/app/clients" className="pd-back">
+        <Icon name="chevron" size={16} />
+        <span>Back to Clients</span>
       </Link>
+
+      {BigInt(c.outstandingKobo) > 0n && (
+        <Banner
+          tone="warn"
+          action={
+            <Link to={`/app/new?customerId=${c.id}`} className="pf-btn pf-btn--sm pf-btn--primary">
+              Request balance
+            </Link>
+          }
+        >
+          <span>
+            Outstanding balance: <Money kobo={c.outstandingKobo} size="sm" tone="solar" />
+          </span>
+        </Banner>
+      )}
 
       <header className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1>{c.name}</h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>{formatPhone(c.phone)}</p>
+            <p className="pd-mono" style={{ color: 'var(--ink-2)', fontSize: 13.5, marginTop: 4 }}>{formatPhone(c.phone)}</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link to={`/app/new?customerId=${c.id}`} className="pf-btn pf-btn--sm pf-btn--primary" data-flow-id="CLT-13">
@@ -96,27 +112,27 @@ export function CustomerPage() {
         </div>
 
         {/* Stats Row (CLT-12) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, paddingTop: 10, borderTop: '1px solid var(--border-default)' }} data-flow-id="CLT-12">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, paddingTop: 12, borderTop: '1px solid var(--line-1)' }} data-flow-id="CLT-12">
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Verified paid</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--status-success)' }}>{formatNaira(lifetimePaid.toString())}</div>
+            <div className="ob-overline">Verified paid</div>
+            <Money kobo={lifetimePaid.toString()} size="md" tone={lifetimePaid > 0n ? 'mint' : 'default'} />
           </div>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Outstanding</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{formatNaira(c.outstandingKobo)}</div>
+            <div className="ob-overline">Outstanding</div>
+            <Money kobo={c.outstandingKobo} size="md" tone={BigInt(c.outstandingKobo) > 0n ? 'solar' : 'default'} />
           </div>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Jobs</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{c.jobCount}</div>
+            <div className="ob-overline">Jobs</div>
+            <div className="pd-mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--ink-1)' }}>{c.jobCount}</div>
           </div>
         </div>
       </header>
 
-      <div className="pf-tabs">
-        <button type="button" className={`pf-tab-btn ${tab === 'jobs' ? 'is-active' : ''}`} onClick={() => setTab('jobs')}>
+      <div className="pf-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'jobs'} className={`pf-tab-btn ${tab === 'jobs' ? 'is-active' : ''}`} onClick={() => setTab('jobs')}>
           Jobs ({jobs.length})
         </button>
-        <button type="button" className={`pf-tab-btn ${tab === 'activity' ? 'is-active' : ''}`} onClick={() => setTab('activity')}>
+        <button type="button" role="tab" aria-selected={tab === 'activity'} className={`pf-tab-btn ${tab === 'activity' ? 'is-active' : ''}`} onClick={() => setTab('activity')}>
           Activity
         </button>
       </div>
@@ -124,18 +140,19 @@ export function CustomerPage() {
       {tab === 'jobs' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} data-flow-id="CLT-14">
           {jobs.length === 0 ? (
-            <div className="pf-card"><p style={{ color: 'var(--text-secondary)' }}>No jobs for this client yet.</p></div>
+            <div className="pf-card"><p style={{ color: 'var(--ink-2)' }}>No jobs for this client yet.</p></div>
           ) : (
             jobs.map((j) => (
               <Link
                 key={j.id}
                 to={`/app/jobs/${j.id}`}
-                className="pf-card"
-                style={{ textDecoration: 'none', color: 'inherit', padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                className="pd-jobrow"
               >
-                <div>
-                  <div style={{ fontWeight: 600 }}>{j.service}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{formatNaira(j.paidKobo)} paid of {formatNaira(j.totalKobo)}</div>
+                <div className="pd-jobrow__main">
+                  <strong>{j.service}</strong>
+                  <p>
+                    <Money kobo={j.paidKobo} size="sm" /> paid of <Money kobo={j.totalKobo} size="sm" />
+                  </p>
                 </div>
                 <Icon name="chevron" size={16} />
               </Link>
@@ -145,15 +162,15 @@ export function CustomerPage() {
       ) : (
         <div className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {timeline.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>No activity yet.</p>
+            <p style={{ color: 'var(--ink-2)' }}>No activity yet.</p>
           ) : (
             timeline.map((ev, idx) => (
-              <div key={`${ev.at}_${idx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid var(--border-default)' }}>
+              <div key={`${ev.at}_${idx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid var(--line-1)' }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>{ev.label}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ev.service} · {formatTime(ev.at)}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--ink-1)' }}>{ev.label}</div>
+                  <div className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{ev.service} · {formatTime(ev.at)}</div>
                 </div>
-                {ev.amountKobo && <strong style={{ fontSize: 13.5 }}>{formatNaira(ev.amountKobo)}</strong>}
+                {ev.amountKobo && <Money kobo={ev.amountKobo} size="sm" />}
               </div>
             ))
           )}

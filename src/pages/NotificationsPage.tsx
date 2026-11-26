@@ -5,10 +5,12 @@ import { notificationsApi, todayApi } from '../api/endpoints';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
 import { formatTime } from '../lib/time';
+import { Icon } from '../ui/Icon';
 import { useToast } from '../ui/Toast';
 
 interface Notice {
   id: string;
+  kind: 'paid' | 'claim' | 'review';
   title: string;
   body: string;
   at: string;
@@ -33,15 +35,29 @@ export function NotificationsPage() {
     for (const p of today.justPaid) {
       list.push({
         id: `pay_${p.payment.id}`,
+        kind: 'paid',
         title: `${formatNaira(p.payment.amountKobo)} verified from ${p.job.customer.name}`,
         body: `${p.job.service} is ready in your work queue.`,
         at: p.payment.receivedAt,
         link: `/app/payments?tab=received&payment=${p.payment.id}`,
       });
     }
+    for (const w of today.waiting) {
+      if (w.request.customerClaimedPaidAt) {
+        list.push({
+          id: `clm_${w.request.id}`,
+          kind: 'claim',
+          title: `${w.job.customer.name} tapped I've paid`,
+          body: `${w.job.service} · awaiting bank verification.`,
+          at: w.request.customerClaimedPaidAt,
+          link: `/app/jobs/${w.job.id}#payments`,
+        });
+      }
+    }
     for (const r of today.needsReview) {
       list.push({
         id: `rev_${r.id}`,
+        kind: 'review',
         title: 'Payment needs attention',
         body: r.message,
         at: r.createdAt,
@@ -112,11 +128,22 @@ export function NotificationsPage() {
                   <span
                     aria-hidden="true"
                     style={{
-                      width: 8, height: 8, borderRadius: 999, marginTop: 7, flexShrink: 0,
+                      width: 8, height: 8, borderRadius: 999, marginTop: 9, flexShrink: 0,
                       background: unread ? 'var(--active-pill-bg)' : 'transparent',
                       border: unread ? '1px solid var(--volt-lo)' : 'none',
                     }}
                   />
+                  <span
+                    aria-hidden="true"
+                    className={`ob-status ob-status--${n.kind === 'paid' ? 'mint' : n.kind === 'claim' ? 'solar' : 'flare'}`}
+                    style={{ padding: 6 }}
+                  >
+                    <Icon
+                      name={n.kind === 'paid' ? 'shield' : n.kind === 'claim' ? 'radar' : 'alert'}
+                      size={15}
+                      pulse={n.kind === 'claim'}
+                    />
+                  </span>
                   <div>
                     <div style={{ fontWeight: unread ? 700 : 500, fontSize: 14, color: unread ? 'var(--ink-1)' : 'var(--ink-2)' }}>
                       {unread && <span className="pd-sr-only">Unread: </span>}

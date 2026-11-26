@@ -134,7 +134,7 @@ export function LandingPage() {
               <Link to={ctaTarget} data-flow-id="LND-06" className="pf-btn pd-btn--hero pf-btn--primary">
                 Create a payment request
               </Link>
-              <Link to="/pay/demo" target="_blank" data-flow-id="LND-07" className="pf-btn pd-btn--hero pf-btn--secondary">
+              <Link to="/pay/demo" data-flow-id="LND-07" className="pf-btn pd-btn--hero pf-btn--secondary">
                 See what your client sees
               </Link>
             </div>
@@ -286,7 +286,7 @@ export function LandingPage() {
           <span>paidar · Payment verified. Work in motion.</span>
           <div style={{ display: 'flex', gap: 16 }}>
             <a href="https://github.com/de-true-samuel/DonPay" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <Link to="/pay/demo" target="_blank">Client Demo</Link>
+            <Link to="/pay/demo">Client Demo</Link>
             <Link to="/auth">Log in</Link>
           </div>
         </div>

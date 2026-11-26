@@ -1,20 +1,16 @@
-// Applies theme ('obsidian' | 'daylight') and effects tier ('full' | 'lite' | 'min') before first paint.
+// Applies theme ('obsidian' default) and effects tier ('full' | 'lite' | 'min') before first paint.
 (function () {
   try {
-    var path = window.location && window.location.pathname || '/';
-    var isPublicCustomer = /^\/(pay|p|receipt)(\/|$)/.test(path);
-    var mqDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
     var mqLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+    var saved = localStorage.getItem('paidar.theme.v2');
     var resolvedTheme = 'obsidian';
 
-    if (isPublicCustomer) {
+    if (saved === 'daylight' || saved === 'light') {
+      resolvedTheme = 'daylight';
+    } else if (saved === 'system') {
       resolvedTheme = mqLight && mqLight.matches ? 'daylight' : 'obsidian';
     } else {
-      var saved = localStorage.getItem('paidar.theme');
-      if (saved === 'light' || saved === 'daylight') resolvedTheme = 'daylight';
-      else if (saved === 'dark' || saved === 'obsidian') resolvedTheme = 'obsidian';
-      else if (saved === 'system') resolvedTheme = mqLight && mqLight.matches ? 'daylight' : 'obsidian';
-      else resolvedTheme = 'obsidian';
+      resolvedTheme = 'obsidian';
     }
 
     document.documentElement.setAttribute('data-theme', resolvedTheme);

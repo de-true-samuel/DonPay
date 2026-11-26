@@ -33,7 +33,7 @@ function statusLine(r: PaymentRequest, copiedAt: string | null): string {
 }
 
 /** One payment request as a ticket, with the actions that make sense for its status. */
-export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRequest; job: JobSummary; linkToJob?: boolean }) {
+export function RequestCard({ request: r, job, linkToJob, hero }: { request: PaymentRequest; job: JobSummary; linkToJob?: boolean; hero?: boolean }) {
   const a = useRequestActions();
   const qc = useQueryClient();
   const toast = useToast();
@@ -46,6 +46,7 @@ export function RequestCard({ request: r, job, linkToJob }: { request: PaymentRe
   return (
     <>
       <TicketCard
+        hero={hero}
         title={linkToJob ? <Link to={`/jobs/${job.id}`} className="pd-plainlink">{heading}</Link> : heading}
         subtitle={`${KIND_LABEL[r.kind]} · ${statusLine(r, copiedAt)}`}
         amountKobo={r.amountKobo}

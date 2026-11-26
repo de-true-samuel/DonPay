@@ -4,15 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiRequestError } from '../api/client';
 import { describeError } from '../api/errors';
 import { jobsApi, queueApi } from '../api/endpoints';
-import { CancelJobDialog } from '../features/jobs/JobDialogs';
+import { CancelJobDialog, ManualPaymentDialog } from '../features/jobs/JobDialogs';
 import { JobTimeline } from '../features/jobs/JobTimeline';
 import { RequestCard } from '../features/requests/RequestCard';
 import { useRequestActions } from '../features/requests/useRequestActions';
 import { useDocumentTitle } from '../lib/hooks';
-import { formatNaira } from '../lib/money';
 import { formatDate } from '../lib/time';
 import { buildJobTimeline } from '../lib/timeline';
+import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
+import { Money } from '../ui/Money';
 import { Banner, Button, EmptyState, Skeleton } from '../ui/primitives';
 import { FlagChip, JobStatusChip, PaymentStatusChip } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
@@ -31,6 +32,7 @@ export function JobPage() {
     loc.hash === '#payments' ? 'payments' : loc.hash === '#activity' ? 'activity' : 'overview';
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [activityFilter, setActivityFilter] = useState<'all' | 'payments' | 'edits'>('all');
@@ -108,18 +110,19 @@ export function JobPage() {
   return (
     <div style={{ maxWidth: 760, display: 'grid', gap: 20 }} data-flow-id="JBD-00">
       <div>
-        <Link to="/app/jobs" data-flow-id="JBD-01" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, color: 'var(--text-secondary)', textDecoration: 'none', marginBottom: 10 }}>
-          <span>← Back to Jobs</span>
+        <Link to="/app/jobs" data-flow-id="JBD-01" className="pd-back">
+          <Icon name="chevron" size={16} />
+          <span>Back to Jobs</span>
         </Link>
 
         {/* Header */}
-        <header className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <header className="pf-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <h1 data-flow-id="JBD-02" style={{ fontSize: 24 }}>{j.service}</h1>
-              <div style={{ marginTop: 4, fontSize: 14, color: 'var(--text-secondary)' }}>
+              <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>
                 Client: <Link to={`/app/clients/${j.customer.id}`} data-flow-id="JBD-03" style={{ fontWeight: 600 }}>{j.customer.name}</Link>
-                {j.balanceDueAt && <> · Due {formatDate(j.balanceDueAt)}</>}
+                {j.balanceDueAt && <> · Due <span className="pd-mono">{formatDate(j.balanceDueAt)}</span></>}
               </div>
             </div>
 
@@ -132,14 +135,30 @@ export function JobPage() {
             </div>
           </div>
 
-          {/* Payment Progress (JBD-06) */}
-          <div data-flow-id="JBD-06">
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginBottom: 6 }}>
-              <span><strong>{formatNaira(j.paidKobo)}</strong> paid of {formatNaira(j.totalKobo)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>{pct.toFixed(0)}%</span>
+          {/* 3-Part Financial Strip & Progress (§6.6) */}
+          <div data-flow-id="JBD-06" style={{ display: 'grid', gap: 12, paddingTop: 12, borderTop: '1px solid var(--line-1)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+              <div>
+                <div className="ob-overline">Total price</div>
+                <Money kobo={j.totalKobo} size="md" />
+              </div>
+              <div>
+                <div className="ob-overline">Paid to date</div>
+                <Money kobo={j.paidKobo} size="md" tone={BigInt(j.verifiedPaidKobo) > 0n ? 'mint' : 'default'} />
+              </div>
+              <div>
+                <div className="ob-overline">Balance left</div>
+                <Money kobo={j.balanceKobo} size="md" tone={qItem?.isOverdue && BigInt(j.balanceKobo) > 0n ? 'flare' : 'default'} />
+              </div>
             </div>
-            <div style={{ height: 8, background: 'var(--bg-surface-subtle)', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--border-default)' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: 'var(--status-success)' }} />
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 6 }}>
+                <span>Payment progress</span>
+                <span className="pd-mono">{pct.toFixed(0)}%</span>
+              </div>
+              <div className="pd-progress">
+                <i style={{ width: `${pct}%` }} />
+              </div>
             </div>
           </div>
 
@@ -169,6 +188,11 @@ export function JobPage() {
               <Link to={duplicateUrl} className="pf-btn pf-btn--primary">Duplicate job</Link>
             )}
 
+            {!cancelled && BigInt(j.balanceKobo) > 0n && (
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setManualOpen(true)}>
+                Record cash payment
+              </button>
+            )}
             {workStatus === 'awaiting_payment' && (
               <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideOpen(true)}>
                 Mark ready anyway
@@ -183,7 +207,7 @@ export function JobPage() {
               <Link to={`/app/jobs/${j.id}/edit`} className="pf-btn pf-btn--secondary">Edit job</Link>
             )}
             {!cancelled && (
-              <button type="button" className="pf-btn pf-btn--secondary" style={{ color: 'var(--status-danger)' }} onClick={() => setCancelOpen(true)}>
+              <button type="button" className="pf-btn pf-btn--danger" onClick={() => setCancelOpen(true)}>
                 Cancel job
               </button>
             )}
@@ -207,26 +231,26 @@ export function JobPage() {
       {tab === 'overview' && (
         <section className="pf-card" style={{ display: 'grid', gap: 16 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Description</div>
-            <p data-flow-id="JBD-10">{j.service}</p>
+            <div className="ob-overline" style={{ marginBottom: 4 }}>Description</div>
+            <p data-flow-id="JBD-10" style={{ color: 'var(--ink-1)' }}>{j.service}</p>
           </div>
           <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 10, margin: 0, fontSize: 13.5 }} data-flow-id="JBD-11">
-            <dt style={{ color: 'var(--text-secondary)' }}>Payment plan</dt>
-            <dd style={{ margin: 0 }}>{j.plan === 'DEPOSIT_BALANCE' ? 'Deposit + balance' : 'Full payment'}</dd>
-            <dt style={{ color: 'var(--text-secondary)' }}>Balance remaining</dt>
-            <dd style={{ margin: 0, fontWeight: 600 }}>{formatNaira(j.balanceKobo)}</dd>
-            <dt style={{ color: 'var(--text-secondary)' }}>Created</dt>
-            <dd style={{ margin: 0 }}>{formatDate(j.createdAt)}</dd>
-            <dt style={{ color: 'var(--text-secondary)' }}>Job ID</dt>
-            <dd className="pd-mono" style={{ margin: 0, fontSize: 12 }}>{j.id}</dd>
+            <dt style={{ color: 'var(--ink-3)' }}>Payment plan</dt>
+            <dd style={{ margin: 0, color: 'var(--ink-1)' }}>{j.plan === 'DEPOSIT_BALANCE' ? 'Deposit + balance' : 'Full payment'}</dd>
+            <dt style={{ color: 'var(--ink-3)' }}>Balance remaining</dt>
+            <dd style={{ margin: 0 }}><Money kobo={j.balanceKobo} size="sm" /></dd>
+            <dt style={{ color: 'var(--ink-3)' }}>Created</dt>
+            <dd className="pd-mono" style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-2)' }}>{formatDate(j.createdAt)}</dd>
+            <dt style={{ color: 'var(--ink-3)' }}>Job ID</dt>
+            <dd className="pd-mono" style={{ margin: 0, fontSize: 12, color: 'var(--ink-3)' }}>{j.id}</dd>
           </dl>
           {j.notes && (
-            <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9 }} data-flow-id="JBD-12">
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Private notes</div>
+            <div className="pd-note" data-flow-id="JBD-12">
+              <div className="ob-overline" style={{ marginBottom: 4 }}>Private notes</div>
               <p style={{ fontSize: 13.5 }}>{j.notes}</p>
             </div>
           )}
-          <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 12, display: 'flex', gap: 10 }} data-flow-id="JBD-13">
+          <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 12, display: 'flex', gap: 10 }} data-flow-id="JBD-13">
             <a href={`https://wa.me/${j.customer.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="pf-btn pf-btn--sm pf-btn--secondary">
               <Icon name="send" size={15} />
               <span>Message on WhatsApp</span>
@@ -237,11 +261,13 @@ export function JobPage() {
       )}
 
       {tab === 'payments' && (
-        <section style={{ display: 'grid', gap: 12 }}>
+        <section style={{ display: 'grid', gap: 14 }}>
           {j.requests.length === 0 ? (
-            <div className="pf-card"><p style={{ color: 'var(--text-secondary)' }}>No payment requests yet.</p></div>
+            <div className="pf-card"><p style={{ color: 'var(--ink-2)' }}>No payment requests yet.</p></div>
           ) : (
-            j.requests.map((r) => <RequestCard key={r.id} request={r} job={j} />)
+            j.requests.map((r) => (
+              <RequestCard key={r.id} request={r} job={j} hero={r.id === open?.id && (r.status === 'SENT' || r.status === 'PAID')} />
+            ))
           )}
         </section>
       )}
@@ -268,31 +294,27 @@ export function JobPage() {
         </section>
       )}
 
-      {/* Mark Ready Anyway Dialog */}
-      {overrideOpen && (
-        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setOverrideOpen(false)}>
-          <div role="dialog" aria-modal="true" className="pf-card" style={{ maxWidth: 440, width: '100%' }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: 6 }}>Mark ready anyway?</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              You’re starting before payment is verified. This is logged and tagged “Started without payment”.
-            </p>
-            <input
-              type="text"
-              value={overrideReason}
-              onChange={(e) => setOverrideReason(e.target.value)}
-              placeholder="Reason (5–200 chars)"
-              style={{ width: '100%', height: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--border-strong)', marginBottom: 12 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideOpen(false)}>Cancel</button>
-              <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'override-ready', reason: overrideReason })}>
-                Confirm
-              </button>
-            </div>
-          </div>
+      {/* Focus-trapped native Dialog for Mark Ready Anyway (§4.10) */}
+      <Dialog open={overrideOpen} onClose={() => setOverrideOpen(false)} title="Mark ready anyway?">
+        <p className="pd-lede">
+          You’re starting before payment is verified. This is logged and tagged “Started without payment”.
+        </p>
+        <input
+          type="text"
+          className="pd-input"
+          value={overrideReason}
+          onChange={(e) => setOverrideReason(e.target.value)}
+          placeholder="Reason (5–200 chars)"
+        />
+        <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideOpen(false)}>Cancel</button>
+          <button type="button" className="pf-btn pf-btn--primary" onClick={() => transitionMut.mutate({ action: 'override-ready', reason: overrideReason })}>
+            Confirm
+          </button>
         </div>
-      )}
+      </Dialog>
 
+      <ManualPaymentDialog job={j} open={manualOpen} onClose={() => setManualOpen(false)} />
       <CancelJobDialog job={j} open={cancelOpen} onClose={() => setCancelOpen(false)} />
     </div>
   );

@@ -5,6 +5,7 @@ import { queueApi } from '../api/endpoints';
 import type { QueueJobItem } from '../contract/v2';
 import { useDocumentTitle } from '../lib/hooks';
 import { formatNaira } from '../lib/money';
+import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
 import { FlagChip, JobStatusChip } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
@@ -315,48 +316,34 @@ export function QueuePage() {
         </section>
       )}
 
-      {/* Owner Override Dialog (Mark ready anyway) */}
-      {overrideTarget && (
-        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setOverrideTarget(null)}>
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mark ready without payment"
-            className="pf-card"
-            style={{ maxWidth: 460, width: '100%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 6 }}>Mark ready anyway?</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 14 }}>
+      {/* Focus-trapped native Dialog for Owner Override (§4.10) */}
+      <Dialog open={!!overrideTarget} onClose={() => setOverrideTarget(null)} title="Mark ready anyway?">
+        {overrideTarget && (
+          <>
+            <p className="pd-lede">
               You’re starting <strong>{overrideTarget.title}</strong> before payment is verified. This is recorded in the job timeline with a “Started without payment” tag.
             </p>
-            <label htmlFor="override-reason" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-              Reason (5–200 characters)
-            </label>
-            <input
-              id="override-reason"
-              type="text"
-              value={overrideReason}
-              onChange={(e) => { setOverrideReason(e.target.value); setOverrideErr(''); }}
-              placeholder="e.g. Trusted repeat client, paying on Friday"
-              style={{
-                width: '100%', height: 44, padding: '0 12px', borderRadius: 9,
-                border: `1px solid ${overrideErr ? 'var(--status-danger)' : 'var(--border-strong)'}`,
-                marginBottom: 6,
-              }}
-            />
-            {overrideErr && <p style={{ color: 'var(--status-danger)', fontSize: 12.5, marginBottom: 10 }}>{overrideErr}</p>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
-              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideTarget(null)}>
-                Cancel
-              </button>
+            <div className="pd-field">
+              <label htmlFor="override-reason" className="pd-label">Reason (5–200 characters)</label>
+              <input
+                id="override-reason"
+                type="text"
+                className={`pd-input ${overrideErr ? 'pd-input--bad' : ''}`}
+                value={overrideReason}
+                onChange={(e) => { setOverrideReason(e.target.value); setOverrideErr(''); }}
+                placeholder="e.g. Trusted repeat client, paying on Friday"
+              />
+              {overrideErr && <p className="pd-error" role="alert">{overrideErr}</p>}
+            </div>
+            <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setOverrideTarget(null)}>Cancel</button>
               <button type="button" className="pf-btn pf-btn--primary" disabled={transitionMut.isPending} onClick={submitOverride}>
                 {transitionMut.isPending ? 'Saving…' : 'Mark as ready'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { queueApi, todayApi } from '../api/endpoints';
 import { useDocumentTitle } from '../lib/hooks';
-import { formatNaira } from '../lib/money';
 import { formatTime } from '../lib/time';
+import { CopyChip } from '../ui/CopyChip';
 import { Icon } from '../ui/Icon';
 import { FlagChip, JobStatusChip } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
@@ -115,13 +115,6 @@ export function TodayPage() {
     try { localStorage.setItem(CHECKLIST_DISMISSED_KEY, '1'); } catch { /* ignore */ }
   }
 
-  async function copyLink(url: string) {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success('Payment link copied');
-    } catch { /* ignore */ }
-  }
-
   return (
     <div data-flow-id="DSH-00">
       {/* Header */}
@@ -199,7 +192,7 @@ export function TodayPage() {
                       Check now
                     </button>
                   )}
-                  <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void copyLink(heroWaiting.request.payLink)}>
+                  <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void navigator.clipboard?.writeText(heroWaiting.request.payLink).then(() => toast.success('Payment link copied'))}>
                     Copy link
                   </button>
                 </div>
@@ -218,23 +211,23 @@ export function TodayPage() {
 
       {/* 4 Metric Cards (DSH-04 to DSH-07) */}
       <div className="pf-metrics">
-        <Link to="/app/payments?tab=received" className="pf-metric" data-flow-id="DSH-04">
+        <Link to="/app/payments?tab=received" className="pf-metric ob-rise" data-flow-id="DSH-04">
           <div className="pf-metric__top">
             <span>Verified received</span>
             <Icon name="shield" size={16} />
           </div>
-          <div className="pf-metric__val">{formatNaira(receivedTotal.toString())}</div>
+          <div className="pf-metric__val"><Money kobo={receivedTotal.toString()} size="md" /></div>
           <div className="pf-metric__sub">
             {receivedTotal === 0n ? 'Your first verified payment will show here.' : `${today?.justPaid.length ?? 0} verified`}
           </div>
         </Link>
 
-        <Link to="/app/payments?tab=awaiting" className="pf-metric" data-flow-id="DSH-05">
+        <Link to="/app/payments?tab=awaiting" className="pf-metric ob-rise" data-flow-id="DSH-05">
           <div className="pf-metric__top">
             <span>Awaiting payment</span>
             <Icon name="clock" size={16} />
           </div>
-          <div className="pf-metric__val">{formatNaira(awaitingTotal.toString())}</div>
+          <div className="pf-metric__val"><Money kobo={awaitingTotal.toString()} size="md" /></div>
           <div className="pf-metric__sub">{today?.waiting.length ?? 0} open requests</div>
         </Link>
 
@@ -339,24 +332,25 @@ export function TodayPage() {
             </section>
 
             {/* Secondary Column: Awaiting payment (DSH-10) */}
-            <section className="pf-card" data-flow-id="DSH-10">
+            <section className="pf-card ob-rise" data-flow-id="DSH-10">
               <div className="pf-panel-head">
                 <h2>Awaiting payment</h2>
                 <Link to="/app/payments?tab=awaiting" className="pf-panel-link">View all</Link>
               </div>
               {awaitingOldest.length === 0 ? (
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5 }}>No unpaid requests.</p>
+                <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>No unpaid requests.</p>
               ) : (
-                <div className="pf-list-rows">
+                <div className="pf-list-rows ob-wait-rail">
                   {awaitingOldest.map(({ request: r, job: j }) => (
                     <div key={r.id} className="pf-row" style={{ flexWrap: 'wrap' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{j.customer.name}</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                          {formatNaira(r.amountKobo)} · {j.service}
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)' }}>{j.customer.name}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Money kobo={r.amountKobo} size="sm" />
+                          <span>· {j.service}</span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <a
                           href={`https://wa.me/${j.customer.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${j.customer.name.split(' ')[0]}, friendly reminder for ${j.service}: ${r.payLink}`)}`}
                           target="_blank"
@@ -365,9 +359,7 @@ export function TodayPage() {
                         >
                           Remind
                         </a>
-                        <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => void copyLink(r.payLink)}>
-                          Copy
-                        </button>
+                        <CopyChip value={r.payLink} label="Copy" copyLabel="Payment link" />
                         <button type="button" className="pf-btn pf-btn--sm pf-btn--secondary" onClick={() => checkMut.mutate(r.id)}>
                           Check
                         </button>

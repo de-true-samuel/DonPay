@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { PaymentRequest, PreparedMessage } from '../../contract/contract';
 import { formatTime } from '../../lib/time';
 import { markCopied } from '../requests/copyTracker';
@@ -288,15 +289,14 @@ export function ShareProvider({ children }: { children: ReactNode }) {
               {msgObj.payLink && (
                 <>
                   <span style={{ color: 'var(--line-3)' }}>·</span>
-                  <a
-                    href={`/pay/${msgObj.payLink.split('/').pop()}?preview=1`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <Link
+                    to={`/pay/${msgObj.payLink.split('/').pop()}?preview=1`}
+                    onClick={close}
                     data-flow-id="SHR-09"
                     style={{ color: 'var(--ink-2)' }}
                   >
                     Preview as your client
-                  </a>
+                  </Link>
                 </>
               )}
             </div>

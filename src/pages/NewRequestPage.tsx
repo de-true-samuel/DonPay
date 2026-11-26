@@ -12,6 +12,7 @@ import { isValidNgPhone } from '../lib/quickEntry';
 import { formatPhone } from '../lib/phone';
 import { lagosDateToIso } from '../lib/time';
 import { useUnsavedGuard } from '../lib/useUnsavedGuard';
+import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
 import { Status } from '../ui/StatusChip';
 import { TicketCard } from '../ui/TicketCard';
@@ -639,39 +640,28 @@ export function NewRequestPage() {
         </aside>
       </div>
 
-      {/* Email Verification Gate Modal */}
-      {verifyModalOpen && (
-        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setVerifyModalOpen(false)}>
-          <div role="dialog" aria-modal="true" className="pf-card" style={{ maxWidth: 420, width: '100%' }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: 8 }}>Verify your email to create payment links</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Your typed job details are kept safe. Open the link we sent to your inbox to unlock link creation.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setVerifyModalOpen(false)}>Close</button>
-              <Link to="/verify-email" className="pf-btn pf-btn--primary">Verify email</Link>
-            </div>
-          </div>
+      {/* Focus-trapped native Dialogs (§4.10) */}
+      <Dialog open={verifyModalOpen} onClose={() => setVerifyModalOpen(false)} title="Verify your email to create payment links">
+        <p className="pd-lede">
+          Your typed job details are kept safe. Open the link we sent to your inbox to unlock link creation.
+        </p>
+        <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="pf-btn pf-btn--secondary" onClick={() => setVerifyModalOpen(false)}>Close</button>
+          <Link to="/verify-email" className="pf-btn pf-btn--primary">Verify email</Link>
         </div>
-      )}
+      </Dialog>
 
-      {/* 10-minute Duplicate Guard Dialog (NEW-18) */}
-      {dupJobId && (
-        <div className="pf-sheet-backdrop" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setDupJobId(null)}>
-          <div role="dialog" aria-modal="true" className="pf-card" style={{ maxWidth: 420, width: '100%' }} onClick={(e) => e.stopPropagation()} data-flow-id="NEW-18">
-            <h2 style={{ marginBottom: 8 }}>Similar request made recently</h2>
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              You created a request for this client and amount within the last 10 minutes.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <Link to={`/app/jobs/${dupJobId}`} className="pf-btn pf-btn--secondary">View it</Link>
-              <button type="button" className="pf-btn pf-btn--primary" onClick={() => { setDupJobId(null); handleSubmit(true); }}>
-                Create anyway
-              </button>
-            </div>
-          </div>
+      <Dialog open={!!dupJobId} onClose={() => setDupJobId(null)} title="Similar request made recently">
+        <p className="pd-lede">
+          You created a request for this client and amount within the last 10 minutes.
+        </p>
+        <div className="pd-actions" style={{ justifyContent: 'flex-end' }}>
+          {dupJobId && <Link to={`/app/jobs/${dupJobId}`} className="pf-btn pf-btn--secondary">View it</Link>}
+          <button type="button" className="pf-btn pf-btn--primary" onClick={() => { setDupJobId(null); handleSubmit(true); }}>
+            Create anyway
+          </button>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

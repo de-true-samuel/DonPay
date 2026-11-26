@@ -5,11 +5,12 @@ import { reviewApi, todayApi } from '../api/endpoints';
 import type { JobSummary, Payment, PaymentRequest, ReviewItem } from '../contract/contract';
 import { ResolveDialog } from '../features/review/ResolveDialog';
 import { useDocumentTitle } from '../lib/hooks';
-import { formatNaira } from '../lib/money';
 import { REVIEW_LABEL } from '../lib/review';
 import { formatTime } from '../lib/time';
+import { CopyChip } from '../ui/CopyChip';
 import { Icon } from '../ui/Icon';
-import { PaymentStatusChip } from '../ui/StatusChip';
+import { Money } from '../ui/Money';
+import { PaymentStatusChip, Status } from '../ui/StatusChip';
 import { useToast } from '../ui/Toast';
 
 type TabKey = 'attention' | 'awaiting' | 'received' | 'all';
@@ -43,7 +44,6 @@ export function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [attentionState, setAttentionState] = useState<'open' | 'resolved'>('open');
   const [resolving, setResolving] = useState<ReviewItem | null>(null);
-  const [copiedRef, setCopiedRef] = useState(false);
 
   const { data: today } = useQuery({
     queryKey: ['today'],
@@ -166,15 +166,6 @@ export function PaymentsPage() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  async function copyValue(val: string, label: string) {
-    try {
-      await navigator.clipboard.writeText(val);
-      setCopiedRef(true);
-      toast.success(`${label} copied`);
-      setTimeout(() => setCopiedRef(false), 2000);
-    } catch { /* ignore */ }
-  }
-
   return (
     <div data-flow-id="PMT-00">
       <div className="pf-page-head">
@@ -195,7 +186,7 @@ export function PaymentsPage() {
             <span>Verified received</span>
             <Icon name="shield" size={16} />
           </div>
-          <div className="pf-metric__val">{formatNaira(receivedTotal.toString())}</div>
+          <div className="pf-metric__val"><Money kobo={receivedTotal.toString()} size="md" tone="mint" /></div>
           <div className="pf-metric__sub">{today?.justPaid.length ?? 0} verified payments</div>
         </button>
 
@@ -204,7 +195,7 @@ export function PaymentsPage() {
             <span>Awaiting payment</span>
             <Icon name="clock" size={16} />
           </div>
-          <div className="pf-metric__val">{formatNaira(awaitingTotal.toString())}</div>
+          <div className="pf-metric__val"><Money kobo={awaitingTotal.toString()} size="md" tone="solar" /></div>
           <div className="pf-metric__sub">{today?.waiting.length ?? 0} open requests</div>
         </button>
 
@@ -262,7 +253,9 @@ export function PaymentsPage() {
               {reviewData!.items.map((item) => (
                 <div key={item.id} className="pd-rcard" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                   <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--ink-1)' }}>{REVIEW_LABEL[item.kind]}</div>
+                    <div style={{ marginBottom: 6 }}>
+                      <Status tone={item.resolvedAt ? 'mint' : 'flare'} icon={item.resolvedAt ? 'shield' : 'alert'} label={REVIEW_LABEL[item.kind]} />
+                    </div>
                     <p style={{ fontSize: 13.5, color: 'var(--ink-2)', marginBottom: 4 }}>{item.message}</p>
                     <span className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
                       {formatTime(item.createdAt)}
@@ -322,13 +315,15 @@ export function PaymentsPage() {
                   <tbody>
                     {filteredRows.map((row) => (
                       <tr key={row.id} className="is-clickable" onClick={() => openDrawer(row.id)}>
-                        <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{formatTime(row.dateIso)}</td>
-                        <td style={{ fontWeight: 600 }}>{row.clientName}</td>
+                        <td className="pd-mono" style={{ whiteSpace: 'nowrap', fontSize: 12.5, color: 'var(--ink-2)' }}>{formatTime(row.dateIso)}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--ink-1)' }}>{row.clientName}</td>
                         <td>{row.jobTitle}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatNaira(row.amountKobo)}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Money kobo={row.amountKobo} size="sm" tone={row.status === 'paid' ? 'mint' : undefined} />
+                        </td>
                         <td><PaymentStatusChip status={row.status} /></td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{row.paidBy}</td>
-                        <td className="pd-mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{row.reference.slice(-8)}</td>
+                        <td style={{ color: 'var(--ink-2)' }}>{row.paidBy}</td>
+                        <td className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{row.reference.slice(-8)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -339,12 +334,12 @@ export function PaymentsPage() {
                 {filteredRows.map((row) => (
                   <div key={row.id} className="pf-card" style={{ padding: 16, cursor: 'pointer' }} onClick={() => openDrawer(row.id)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <strong style={{ fontSize: 16 }}>{formatNaira(row.amountKobo)}</strong>
+                      <Money kobo={row.amountKobo} size="md" tone={row.status === 'paid' ? 'mint' : undefined} />
                       <PaymentStatusChip status={row.status} />
                     </div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{row.clientName}</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{row.jobTitle}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{formatTime(row.dateIso)}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)' }}>{row.clientName}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 2 }}>{row.jobTitle}</div>
+                    <div className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>{formatTime(row.dateIso)}</div>
                   </div>
                 ))}
               </div>
@@ -358,10 +353,10 @@ export function PaymentsPage() {
         <div className="pf-drawer-backdrop" onClick={closeDrawer}>
           <aside className="pf-drawer" role="dialog" aria-modal="true" aria-label="Payment details" onClick={(e) => e.stopPropagation()} data-flow-id="PMT-12">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <PaymentStatusChip status={selectedRow.status} />
-                <h2 style={{ fontSize: 26, marginTop: 10, fontVariantNumeric: 'tabular-nums' }}>{formatNaira(selectedRow.amountKobo)}</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginTop: 2 }}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div><PaymentStatusChip status={selectedRow.status} /></div>
+                <Money kobo={selectedRow.amountKobo} size="lg" tone={selectedRow.status === 'paid' ? 'mint' : undefined} />
+                <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
                   {selectedRow.clientName} · {selectedRow.kindLabel}
                 </p>
               </div>
@@ -371,35 +366,49 @@ export function PaymentsPage() {
             </div>
 
             {selectedRow.status === 'paid' && (
-              <div style={{ background: 'var(--status-success-tint)', color: 'var(--status-success)', padding: '10px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600 }}>
-                Confirmed through the payment provider’s transaction records.
+              <div className="ob-status ob-status--mint" style={{ width: '100%', padding: '10px 14px', whiteSpace: 'normal' }}>
+                <Icon name="shield" size={16} />
+                <span>Confirmed through Kora’s transaction records.</span>
               </div>
             )}
 
             <div className="pf-card" style={{ padding: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>Timeline</div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: '22px' }}>
-                <li>Request created</li>
-                <li>{selectedRow.request?.accountNumber ? 'Temporary account generated' : 'Account step'}</li>
-                <li style={{ color: selectedRow.status === 'paid' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                  {selectedRow.status === 'paid' ? `Verified (${formatTime(selectedRow.dateIso)})` : 'Awaiting verified transfer'}
+              <div className="ob-overline" style={{ marginBottom: 12 }}>Timeline</div>
+              <ul className="pd-tl">
+                <li className="pd-tl__item pd-tl__item--sent">
+                  <span className="pd-tl__dot" aria-hidden="true" />
+                  <div className="pd-tl__body">
+                    <span className="pd-tl__label">Request created</span>
+                  </div>
+                </li>
+                <li className="pd-tl__item pd-tl__item--sent">
+                  <span className="pd-tl__dot" aria-hidden="true" />
+                  <div className="pd-tl__body">
+                    <span className="pd-tl__label">{selectedRow.request?.accountNumber ? 'Dynamic Wema account allocated' : 'Account step'}</span>
+                  </div>
+                </li>
+                <li className={`pd-tl__item ${selectedRow.status === 'paid' ? 'pd-tl__item--verified' : ''}`}>
+                  <span className="pd-tl__dot" aria-hidden="true" />
+                  <div className="pd-tl__body">
+                    <span className="pd-tl__label">
+                      {selectedRow.status === 'paid' ? `Verified (${formatTime(selectedRow.dateIso)})` : 'Awaiting verified transfer'}
+                    </span>
+                  </div>
                 </li>
               </ul>
             </div>
 
-            <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 10, columnGap: 12, margin: 0, fontSize: 13.5 }}>
-              <dt style={{ color: 'var(--text-secondary)' }}>Job</dt>
+            <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 12, columnGap: 12, margin: 0, fontSize: 13.5, alignItems: 'center' }}>
+              <dt style={{ color: 'var(--ink-3)' }}>Job</dt>
               <dd style={{ margin: 0, textAlign: 'right' }}>
                 <Link to={`/app/jobs/${selectedRow.jobId}`}>{selectedRow.jobTitle}</Link>
               </dd>
-              <dt style={{ color: 'var(--text-secondary)' }}>Paid by</dt>
-              <dd style={{ margin: 0, textAlign: 'right' }}>{selectedRow.paidBy}</dd>
-              <dt style={{ color: 'var(--text-secondary)' }}>Reference</dt>
-              <dd style={{ margin: 0, textAlign: 'right', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span className="pd-mono" style={{ fontSize: 12 }}>{selectedRow.reference}</span>
-                <button type="button" onClick={() => void copyValue(selectedRow.reference, 'Reference')} style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface-subtle)', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer' }}>
-                  {copiedRef ? 'Copied' : 'Copy'}
-                </button>
+              <dt style={{ color: 'var(--ink-3)' }}>Paid by</dt>
+              <dd style={{ margin: 0, textAlign: 'right', color: 'var(--ink-1)' }}>{selectedRow.paidBy}</dd>
+              <dt style={{ color: 'var(--ink-3)' }}>Reference</dt>
+              <dd style={{ margin: 0, textAlign: 'right', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span className="pd-mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{selectedRow.reference}</span>
+                <CopyChip value={selectedRow.reference} label="Copy" copyLabel="Reference" />
               </dd>
             </dl>
 
@@ -410,12 +419,10 @@ export function PaymentsPage() {
                 </button>
               )}
               {selectedRow.payLink && selectedRow.status === 'awaiting_payment' && (
-                <button type="button" className="pf-btn pf-btn--secondary" onClick={() => void copyValue(selectedRow.payLink!, 'Payment link')}>
-                  Copy payment link
-                </button>
+                <CopyChip value={selectedRow.payLink} label="Copy payment link" copyLabel="Payment link" />
               )}
               {selectedRow.status === 'paid' && selectedRow.token && (
-                <Link to={`/receipt/${selectedRow.token}`} target="_blank" className="pf-btn pf-btn--primary">
+                <Link to={`/receipt/${selectedRow.token}`} className="pf-btn pf-btn--primary">
                   View receipt
                 </Link>
               )}
