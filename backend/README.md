@@ -1,8 +1,8 @@
-# Paidar backend (formerly Kobo-Exact)
+# Paidar Backend
 
-Implements **contract 1.1.0** ([`../Paidar_Backend_Implementation_Spec.md`](../Paidar_Backend_Implementation_Spec.md)). Operations, monitoring, backups, rollback and the live Kora cutover: [`OPERATIONS.md`](OPERATIONS.md).
+Implements the Paidar Backend ↔ Frontend Contract ([`../contract.md`](../contract.md)) aligned with the Paidar Product Scope & Execution Blueprint. Operations, monitoring, backups, rollback, and live Kora cutover live in [`OPERATIONS.md`](OPERATIONS.md).
 
-One Cloudflare Worker (Hono + TypeScript) with three entry points (HTTP, queue consumer, per-minute cron), backed by Postgres through Hyperdrive and Prisma. Design: [`../ARCHITECTURE.md`](../ARCHITECTURE.md). API: [`../contract.md`](../contract.md). The frontend lives in `../frontend` and talks to this backend only through the contract.
+One Cloudflare Worker (Hono + TypeScript) with three entry points (HTTP, queue consumer, per-minute cron), backed by Postgres through Hyperdrive and Prisma. Design: [`../ARCHITECTURE.md`](../ARCHITECTURE.md). The frontend SPA lives at the repository root (`../src`) and proxies `/api/*` through `../worker/index.js`.
 
 ## Quick start (local, no Kora or Telegram account needed)
 
@@ -44,7 +44,7 @@ Locally `KORA_MODE=fake`: sending a request allocates a fake account, and `POST 
 | `npm run db:seed` | Reset and reseed the demo provider |
 | `npm run cf-typegen` | Regenerate `worker-configuration.d.ts` after changing `wrangler.jsonc` |
 | `npm run telegram:set-webhook` | Point the bot at `WORKER_URL/webhooks/telegram` |
-| `npm run kora:sandbox-e2e` | Real Kora sandbox check against a deployed Worker (EXECUTION_PLAN M3) |
+| `npm run kora:sandbox-e2e` | Real Kora sandbox check against a deployed Worker (`scripts/sandbox-e2e.ts`) |
 
 ## Layout
 
@@ -121,7 +121,7 @@ CI: [`../.github/workflows/backend.yml`](../.github/workflows/backend.yml) runs 
 ## Deviations from ARCHITECTURE.md (deliberate)
 
 - **No grammY.** The bot handles four commands (`/start`, `/login`, `/today`, `/help`), so a small parser plus a `fetch`-based sender is lighter on Workers. It needs no `getMe` call per cold start and is testable without network mocks.
-- **The frontend is a separate app** (`../frontend`), not Workers Static Assets. That means CORS with credentials and `COOKIE_SAMESITE=None` when it is on a different site. A Bearer token is also accepted.
+- **The frontend is a standalone Vite SPA at the repository root** (`../src`, deployed behind `../worker/index.js`). Same-origin proxying avoids CORS cookie issues; Bearer auth and configured `FRONTEND_ORIGINS` remain supported.
 - **Today and search derive balances in application code** over indexed candidate sets (at most 1,000 jobs for search), rather than one hand-written SQL query. That is plenty at provider scale. Move it to SQL if a provider ever outgrows it.
 - **Customer receipts**: the payment link turns into the receipt, and the provider's alert includes a one-tap "Send receipt on WhatsApp" button. We never message customers directly.
 

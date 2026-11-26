@@ -1,48 +1,71 @@
-# Deploying Paidar (staging, on workers.dev)
+# Deploying Paidar (Cloudflare Workers)
 
-How the deployed app fits together, and the steps to get there, in order. Operations after launch (alerts, backups, rollback, the live Kora cutover) are in `backend/OPERATIONS.md`.
+Paidar deploys as a root frontend Worker (`paidar`) serving the built Vite SPA and proxying API/public payment status calls to the backend Hono Worker (`backend/`).
 
-## How it fits together
+---
+
+## 1. Topology
 
 ```
-browser ──► paidar.<sub>.workers.dev  (frontend Worker "paidar", built from frontend/)
-              │  /api/*, /p/:token/status, /p/:token/claim-paid
-              ▼  service binding "BACKEND" (Worker to Worker, never leaves Cloudflare)
-            kobo-exact-staging.<sub>.workers.dev  (backend Worker, backend/ env "staging")
-              │  Hyperdrive (caching off)
+Browser ──► paidar.<account>.workers.dev   (Root Wrangler Worker: ./dist + worker/index.js)
+              │  forwards /api/*, /p/:token/status, /p/:token/claim-paid
+              ▼  via BACKEND_ORIGIN
+            backend.<account>.workers.dev  (backend/ Cloudflare Worker: Hono + Prisma)
+              │  Hyperdrive (caching disabled)
               ▼
-            Neon Postgres (staging database)
-
-Kora sandbox ──webhooks──► kobo-exact-staging.<sub>.workers.dev/webhooks/kora
-Customers' payment links ► kobo-exact-staging.<sub>.workers.dev/p/:token
+            PostgreSQL (Neon)
 ```
 
-The browser only talks to the frontend's address. That means no CORS, the session cookie is first-party (`COOKIE_SAMESITE=Lax`), and Clerk's token reaches the backend unchanged.
+---
 
-## Steps
+## 2. Backend Worker Setup (`backend/`)
 
-| # | Who | Step |
-|---|---|---|
-| 1 | Owner of the Cloudflare account that hosts `paidar` | `cd backend && npx wrangler login` on the machine that deploys. Check with `npx wrangler whoami`, which also shows the account id. |
-| 2 | **Done 2026-11-17** | Neon project `old-art-33870905`, branch `production`, in AWS us-east-2. It is linked in `backend/` (`neon.ts`, `.neon`). `backend/.env.staging` (ignored by git) holds `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct). All 4 migrations are applied, and it was tested end to end. |
-| 3 | Deploy (scripted) | Create Hyperdrive with the **direct** string (Hyperdrive pools by itself; Neon's guidance is node-postgres + Hyperdrive on Cloudflare): `npx wrangler hyperdrive create kobo-exact-staging --connection-string="$DATABASE_URL_UNPOOLED" --caching-disabled`. Put the id in `wrangler.jsonc`, `env.staging.hyperdrive`. |
-| 4 | Deploy (scripted) | Create the queues: `npx wrangler queues create kobo-exact-staging` and `npx wrangler queues create kobo-exact-staging-dlq`. |
-| 5 | Deploy (scripted) | Fill the hostnames in `wrangler.jsonc`, `env.staging.vars`: `PUBLIC_BASE_URL=https://kobo-exact-staging.<sub>.workers.dev`, and `FRONTEND_URL` / `FRONTEND_ORIGINS=https://paidar.<sub>.workers.dev`. Also set `CLERK_PUBLISHABLE_KEY`. |
-| 6 | Deploy (scripted) | Secrets (each prompts for the value): `npx wrangler secret put <NAME> --env staging` for `KORA_SECRET_KEY` (sandbox `sk_test_…`), `CLERK_SECRET_KEY`, `ADMIN_SECRET` and `TELEGRAM_WEBHOOK_SECRET` (both random). Add `TELEGRAM_BOT_TOKEN` once the bot exists. |
-| 7 | Deploy (scripted) | Migrate over the **direct** string (never the `-pooler` one), then deploy: `DATABASE_URL="$DATABASE_URL_UNPOOLED" npx prisma migrate deploy`, then `npx wrangler deploy --env staging`. Check: `curl https://kobo-exact-staging.<sub>.workers.dev/health` should return `{"ok":true,"db":true}`. |
-| 8 | Owner, Cloudflare dashboard | Workers & Pages → `paidar` → Settings → Build: set **Root directory** to `frontend`, keep build command `npm run build` and deploy command `npx wrangler deploy`. Under build **Variables**, add `VITE_CLERK_PUBLISHABLE_KEY=pk_test_…`. Then retry the latest build. |
-| 9 | Deploy | After step 8 builds from `frontend/`: delete the duplicate frontend at the repo root (`src/`, `public/`, `index.html`, root `package*.json`, `vite.config.ts`, `tsconfig.json`, `wrangler.jsonc`), then push. |
-| 10 | You, Kora dashboard (sandbox) | Webhook URL: `https://kobo-exact-staging.<sub>.workers.dev/webhooks/kora`. |
-| 11 | Check | Open `https://paidar.<sub>.workers.dev`: sign up with Clerk, create a job, get payment details. The Kora sandbox pays it within about 2 minutes, and the job turns Paid. Or run `WORKER_URL=https://kobo-exact-staging.<sub>.workers.dev npm run kora:sandbox-e2e`. |
+1. Authenticate Wrangler:
+   ```bash
+   cd backend
+   npx wrangler login
+   npx wrangler whoami
+   ```
+2. Provision Hyperdrive (pointing at direct Postgres connection string, caching disabled) and Queues:
+   ```bash
+   npx wrangler hyperdrive create paidar-staging --connection-string="$DATABASE_URL_UNPOOLED" --caching-disabled
+   npx wrangler queues create kobo-exact-staging
+   npx wrangler queues create kobo-exact-staging-dlq
+   ```
+3. Configure secrets for the target environment (`--env staging` or `--env production`):
+   ```bash
+   npx wrangler secret put KORA_SECRET_KEY --env staging
+   npx wrangler secret put ADMIN_SECRET --env staging
+   npx wrangler secret put TELEGRAM_WEBHOOK_SECRET --env staging
+   npx wrangler secret put CLERK_SECRET_KEY --env staging
+   ```
+4. Apply Prisma migrations against the direct database URL (`DATABASE_URL_UNPOOLED`), then deploy:
+   ```bash
+   npm run db:deploy
+   npm run deploy:staging
+   ```
+5. Verify database health:
+   ```bash
+   curl https://<backend-host>/health
+   # Expected: {"ok":true,"db":true,...}
+   ```
+6. Point the Kora dashboard webhook URL to `https://<backend-host>/webhooks/kora`.
 
-**Order matters:** deploy the backend (step 7) before the frontend builds from `frontend/` (step 8). The frontend's service binding points at `kobo-exact-staging`.
+---
 
-## Automatic deploys afterwards (optional)
+## 3. Frontend Worker Setup (Repository Root)
 
-`.github/workflows/backend.yml` runs migrations and `wrangler deploy --env staging` on every push to `main`, once these GitHub secrets exist:
+1. Confirm `wrangler.jsonc` sets `BACKEND_ORIGIN` (and `.env.production` configures any required build-time variables such as `VITE_MOCK=false`).
+2. Run typechecks, tests, build, and deploy from the repository root:
+   ```bash
+   npm run typecheck
+   npm test
+   npm run build
+   npx wrangler deploy
+   ```
 
-- `CLOUDFLARE_API_TOKEN` (template "Edit Cloudflare Workers", plus Hyperdrive and Queues edit)
-- `CLOUDFLARE_ACCOUNT_ID`
-- `STAGING_DATABASE_URL`: the Neon **direct** (`DATABASE_URL_UNPOOLED`) string, because CI runs `prisma migrate deploy` with it
+---
 
-The frontend redeploys on its own through Cloudflare's Git build.
+## 4. CI/CD Automation
+
+`.github/workflows/backend.yml` runs backend typechecks, tests, bundle checks, and deployments when repository secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `STAGING_DATABASE_URL`, `PRODUCTION_DATABASE_URL`) are configured.

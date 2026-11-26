@@ -1,10 +1,10 @@
 # Paidar: Backend ↔ Frontend Contract
 
-**Contract version: 1.1.1** · Backend: `backend/` · Source of truth for types: `backend/src/shared/contract.ts` · Every response carries the header `x-contract-version: 1.1.1`.
+**Contract versions:** `v1.1.1` core baseline (`backend/src/shared/contract.ts`) + **`v2.0.0` Payment-to-Work extensions** (`src/contract/v2.ts`).
 
-Paidar was called Kobo-Exact. Two identifiers keep the old name and **must not be renamed** without a coordinated backend + frontend change: the header `X-Requested-With: kobo-exact` and the session cookie `ke_session`.
+Two wire identifiers keep the historical project slug and **must not be renamed** without a coordinated backend + frontend release: header `X-Requested-With: kobo-exact` and session cookie `ke_session`.
 
-This document describes every piece of data the backend sends to the frontend or accepts from it. If the code and this document disagree, treat it as a bug and fix one of them. Every change bumps the version and adds a changelog entry (§12).
+This document describes every piece of data exchanged between frontend (`src/`) and backend (`backend/`). If code and document disagree, update one of them so they match. Every change bumps the changelog (§12).
 
 ---
 
@@ -643,10 +643,28 @@ Read-only support view (BE-18). `:reference` is the Kora reference (`KE-<id>-1`)
 
 ---
 
+## 11.1 Paidar v2.0.0 Payment-to-Work Extensions (`src/contract/v2.ts`)
+
+Aligned with the Paidar Product Scope & Execution Blueprint (`Priority = 0.35D + 0.25P + 0.15C + 0.15E + 0.10R`, capacity scheduling, notifications read-state, and public receipts):
+
+- **`GET /api/queue`** → `{ capacity, inProgress, ready, waitingForPayment }`
+  Each `QueueJobItem` carries `workStatus` (`awaiting_payment | ready | in_progress | completed | on_hold | cancelled`), `rank`, `priorityScore` (0–100), `priorityBreakdown`, `recommendedSlot` (`{ startIso, endIso, dayLabel, hasConflict }`), `scheduleApproved`, and `approvedSlotLabel`.
+- **`POST /api/jobs/:id/start`**, **`/complete`**, **`/resume`** → Transitions `workStatus` explicitly and logs an `ActivityEvent`.
+- **`POST /api/jobs/:id/hold`** → `{ reason?: string }` → Moves active/ready job to `on_hold`.
+- **`POST /api/jobs/:id/override-ready`** → `{ reason: string (5–200 chars) }` → Promotes unpaid job to `ready` with `startedWithoutPayment: true` audit tag.
+- **`POST /api/jobs/:id/approve-schedule`** → `{ slotLabel: string }` → Records owner approval (`SCHEDULE_APPROVED`) for the suggested time window.
+- **`PATCH /api/notifications/:id/read`** & **`POST /api/notifications/read-all`** → Updates in-app `Notification.readAt`.
+- **`POST /api/public/pay/:token/attempt`** → Creates/returns active `ChargeAttempt` (ephemeral Kora virtual account window).
+- **`GET /api/public/receipt/:token`** → Returns verified `PublicReceiptV2` JSON (`acceptedAmountKobo`, `feeKobo`, `netKobo`, `koraReference`, `paidAt`).
+- **`POST /api/waitlist`** → `{ email, whatsappPhone?, businessType? }` → Public early-access signup.
+
+---
+
 ## 12. Changelog
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.0.0 | 2026-11-25 | **Paidar Payment-to-Work release:** Added `/api/queue` deterministic rules-based priority scoring (`0.35D + 0.25P + 0.15C + 0.15E + 0.10R`) & greedy schedule allocation (`recommendedSlot`, conflict detection, `POST /api/jobs/:id/approve-schedule`), separated `JobWorkStatus` transitions (`/start`, `/complete`, `/hold`, `/resume`, `/override-ready`), `ChargeAttempt` public checkout endpoints, verified public receipts (`/api/public/receipt/:token`), in-app notification read state, and waitlist intake. |
 | 1.1.1 | 2026-11-17 | **Fixed:** `JobSummary.openRequest` now includes an unsent `DRAFT` request (it was only `SCHEDULED`/`SENT`). A new job's draft was invisible, so the frontend couldn't get payment details for it, and asking for a balance instead was refused with `OPEN_REQUEST_EXISTS`. |
 | 1.1.0 | 2026-11-12 | Paidar. **Changed:** `PreparedMessage.text` uses the short template; `GET /p/:token/status` returns the new `PublicStatus` (the old shape stays at `GET /api/public/requests/:token`); `/p/:token` page rebuilt (no-store, noindex, CSP). **New:** `PreparedMessage.details` and `.language`; `TodayResponse.dueReminders` + `counts.dueReminders`; `PaymentRequest.detailsCopiedAt`, `.customerClaimedPaidAt`; `POST /api/requests/:id/copied`, `/recheck`, `GET /api/requests/:id/nudge-message`, `GET /api/jobs/:id/start-message`; `POST /p/:token/claim-paid`; `Idempotency-Key` header; `Provider.phone`, `.onboardedAt` (settable via `PATCH /api/me`); `Customer.messageLanguage`; `GET /api/me/export`, `POST /api/me/delete`, `POST /api/auth/logout-all`; `GET /api/admin/support/requests/:reference`; richer admin health; error codes `REQUEST_NOT_WAITING`, `REQUEST_EXPIRED`, `JOB_NOT_READY`, `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_IN_PROGRESS`; `x-contract-version` header. **Deprecated:** `Customer.messageConsent` (accepted, ignored, always false; CSV `consent` column ignored). |
 | 1.0.0 | 2026-11-05 | Initial contract, as implemented in `backend/`: added `POST /api/me/telegram-link`, `POST /api/dev/simulate-payment/:requestId`, `unattributedReviewItems` in admin health; `OPEN_REQUEST_EXISTS` also covers unsent drafts for balance requests |

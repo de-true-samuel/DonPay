@@ -1,8 +1,8 @@
-# Paidar backend: operations runbook
+# Paidar Backend: Operations Runbook
 
-Covers the operations side of the Paidar spec: BE-17 (staging/production baseline), BE-14 (reconciliation alerts) and BE-19 (live Kora cutover). The code side is already built. This file lists what someone has to set up, rehearse or decide.
+Covers production/staging operational setup, monitoring & reconciliation alerts, backups, rollback, and live Kora cutover.
 
-Status key: **Built** = in the code and covered by tests · **To do** = a person has to do it once · **Blocked** = waiting on an open decision (D1–D7 in the spec).
+Status key: **Built** = in the code and covered by tests · **To do** = operator setup · **Blocked** = waiting on live Kora merchant decisions.
 
 ---
 
@@ -18,7 +18,7 @@ Status key: **Built** = in the code and covered by tests · **To do** = a person
 
 **Secrets** (each environment separately: `npx wrangler secret put <NAME> --env <env>`): `KORA_SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_SECRET`. Never reuse a value across environments.
 
-**Cookies and CORS:** use one origin (the frontend proxies `/api` and `/p` to the Worker) or sibling subdomains of one registered domain (`app.example.com` + `api.example.com`), always HTTPS. The cookie is `Secure` whenever `PUBLIC_BASE_URL` is https. Set `FRONTEND_ORIGINS` (plural, comma-separated) to the exact frontend origin. `COOKIE_SAMESITE=Lax` for one origin or sibling subdomains; `None` only if the domains are unrelated (not recommended).
+**Cookies and CORS:** use one origin (the root frontend Worker `worker/index.js` proxies `/api` and `/p` to the Backend Worker) or sibling subdomains of one registered domain (`app.example.com` + `api.example.com`), always HTTPS. The cookie is `Secure` whenever `PUBLIC_BASE_URL` is https. Set `FRONTEND_ORIGINS` (plural, comma-separated) to the exact frontend origin. `COOKIE_SAMESITE=Lax` for one origin or sibling subdomains; `None` only if the domains are unrelated (not recommended).
 
 **To do:** fill in the real hostnames and Hyperdrive ids in `wrangler.jsonc`, and add the GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `STAGING_DATABASE_URL` and `PRODUCTION_DATABASE_URL`.
 

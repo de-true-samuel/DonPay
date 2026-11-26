@@ -58,14 +58,21 @@ export function SettingsPage() {
   const [showPhone, setShowPhone] = useState(true);
 
   // B. Working hours
-  const [days, setDays] = useState<Record<string, { on: boolean; start: string; end: string }>>({
-    Mon: { on: true, start: '09:00', end: '17:00' },
-    Tue: { on: true, start: '09:00', end: '17:00' },
-    Wed: { on: true, start: '09:00', end: '17:00' },
-    Thu: { on: true, start: '09:00', end: '17:00' },
-    Fri: { on: true, start: '09:00', end: '17:00' },
-    Sat: { on: false, start: '09:00', end: '17:00' },
-    Sun: { on: false, start: '09:00', end: '17:00' },
+  const [days, setDays] = useState<Record<string, { on: boolean; start: string; end: string }>>(() => {
+    const defaults = {
+      Mon: { on: true, start: '09:00', end: '17:00' },
+      Tue: { on: true, start: '09:00', end: '17:00' },
+      Wed: { on: true, start: '09:00', end: '17:00' },
+      Thu: { on: true, start: '09:00', end: '17:00' },
+      Fri: { on: true, start: '09:00', end: '17:00' },
+      Sat: { on: false, start: '09:00', end: '17:00' },
+      Sun: { on: false, start: '09:00', end: '17:00' },
+    };
+    try {
+      const saved = localStorage.getItem('paidar.workingHours');
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch { /* ignore */ }
+    return defaults;
   });
 
   // C. Payment defaults
@@ -360,7 +367,15 @@ export function SettingsPage() {
               <div style={{ background: 'var(--bg-surface-subtle)', padding: 12, borderRadius: 9, fontSize: 13.5 }}>
                 Total available: <strong>{weeklyHours} hours / week</strong>
               </div>
-              <button type="button" className="pf-btn pf-btn--primary" onClick={() => { void qc.invalidateQueries({ queryKey: ['queue'] }); toast.success('Working hours saved and queue flags recomputed.'); }}>
+              <button
+                type="button"
+                className="pf-btn pf-btn--primary"
+                onClick={() => {
+                  try { localStorage.setItem('paidar.workingHours', JSON.stringify(days)); } catch { /* ignore */ }
+                  void qc.invalidateQueries({ queryKey: ['queue'] });
+                  toast.success('Working hours saved and queue schedule recomputed.');
+                }}
+              >
                 Save working hours
               </button>
             </div>

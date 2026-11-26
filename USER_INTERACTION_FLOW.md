@@ -253,11 +253,12 @@ Public mobile-first bank-transfer checkout page viewed by the end client:
   - Time-aware **Lagos greeting** (`Good morning/afternoon/evening, ...`).
   - **Period Selector**: `This week` (`week`), `This month` (`month`), `Last 30 days` (`30d`), `All time` (`all`).
   - **`New request` CTA** → `/app/new`.
-- **4 Clickable KPI Metric Cards**:
-  1. **Verified received** → Navigates to `/app/payments?tab=received`.
-  2. **Awaiting payment** → Navigates to `/app/payments?tab=awaiting`.
-  3. **Needs attention** → Navigates to `/app/payments?tab=attention`.
-  4. **At risk / overdue** → Navigates to `/app/queue?filter=risk`.
+- **4 Clickable KPI Metric Cards (`Blueprint §2.5`)**:
+  1. **Payments received** → Navigates to `/app/payments?tab=received`.
+  2. **Outstanding payments** (shows unpaid count & open exception count) → Navigates to `/app/payments?tab=awaiting`.
+  3. **Active jobs** (shows in-progress & ready counts) → Navigates to `/app/queue`.
+  4. **Overdue & at-risk** → Navigates to `/app/queue?filter=risk`.
+- **Needs Attention Alert Card** (shown when `needsReview > 0`): Surfaces flagged/unmatched payments with **`Resolve exceptions`** CTA linking directly to `/app/payments?tab=attention`.
 - **Onboarding Checklist (`DSH-08`)**: Dismissible first-run setup checklist card (can be replayed later from Settings).
 - **Brand-New Empty State**: When zero jobs exist, displays welcoming prompt with primary CTA to create the first request (`/app/new`).
 - **7 / 5 Split Action Lists**:
@@ -270,18 +271,21 @@ Public mobile-first bank-transfer checkout page viewed by the end client:
 - **Bottom Section — `Recent verified payments`**:
   - Lists recent confirmed transfers; clicking any row opens `/app/payments?tab=received&payment={id}` with the Payment Detail Drawer pre-opened.
 
-### 4.2 Work Queue & Capacity (`/app/queue`, `src/pages/QueuePage.tsx`, `QUE-00`..`QUE-15`)
+### 4.2 Work Queue & Scheduling (`/app/queue`, `src/pages/QueuePage.tsx`, `QUE-00`..`QUE-15`)
 - **Toolbar & Filters**:
-  - **`"Why this order?"` Info Popover**: Explains deterministic queue ordering (in-progress → due/overdue → FIFO ready jobs).
+  - **`"Why this order?"` Info Popover**: Explains deterministic weighted priority (`0.35 Deadline + 0.25 Payment + 0.15 Client + 0.15 Effort + 0.10 Dependencies`) and greedy working-hours slot allocation with conflict detection.
   - **`At risk / Overdue` Toggle** (synced with `?filter=risk`): Filters list to flagged jobs.
   - **Client Filter Dropdown**: Scopes queue lanes to one client.
 - **Clickable Capacity Strip**:
-  - Compares scheduled/estimated work hours against weekly working hours configured in Settings.
+  - Compares committed work hours against configured weekly working hours (`Settings -> Working hours`).
   - Color thresholds:
-    - `< 90%` → **Cobalt** (healthy load)
-    - `90%–100%` → **Amber** (near capacity)
-    - `> 100%` → **Red** (`"Over by Xh"` warning)
+    - `< 90%` → **Volt** (healthy load)
+    - `90%–100%` → **Solar Amber** (near capacity)
+    - `> 100%` → **Flare Red** (`"Over by Xh"` warning)
   - Clicking opens an explanation/summary linking directly to **Working hours in Settings** (`/app/settings`).
+- **Priority Score & Recommended Schedule (Per Job Card)**:
+  - Displays deterministic **`Score XX`** badge alongside **`Suggested: <Window>`** or **`Conflict · <Window>`** indicator.
+  - **`Approve schedule`**: Locks in the suggested window as **`Scheduled: <Window>`** (logged on the job timeline).
 - **3 Queue Lanes**:
   1. **`In progress`**:
      - **`Mark completed`** → Moves job to `completed`.
@@ -389,16 +393,17 @@ Uses `MasterDetail` layout.
 - **Notification Items**: Unread items show a visual unread indicator dot and bold title; clicking marks the notification read and deep-links to the relevant job, payment drawer (`?payment=...`), or review item.
 
 ### 4.8 Settings (`/app/settings`, `src/pages/SettingsPage.tsx`, `SET-00`..`SET-25`)
-Organized into **8 interactive sections**:
+Organized into **9 interactive sections**:
 
 1. **Business profile**: Edit business name (live Kora display preview), WhatsApp phone, **`Show my number on the payment page`** switch, plus read-only Currency (`NGN`) and Timezone (`Africa/Lagos`).
-2. **Working hours**: Mon–Sun active toggles and shift start/end times powering Queue capacity calculation.
-3. **Payment defaults**: Default payment rule (`FULL`/`DEPOSIT`/`PAY_ON_DELIVERY`), deposit % slider (`10–90%`), fee bearer, Ready-to-start rule, and customizable **WhatsApp message template** featuring clickable variable insertion chips (`{client}`, `{amount}`, `{link}`, etc.) and client-side validation ensuring **`{link}`** remains present.
-4. **Notifications**: Locked in-app paid alert toggle (always enabled for transaction safety), due-soon reminder toggle, and summary digest preference.
-5. **Kora connection**: Displays integration status, copyable **Webhook URL** button, **Telegram bot link** trigger (for reminders & alerts), and a disabled **`Switch to live`** control in test mode.
-6. **Account & security**: **`Log out of all devices`** button revoking all active sessions.
-7. **Data**: **`Remove sample data`** (purges seeded demo jobs/customers) and **`Replay setup checklist`** (restores Dashboard `DSH-08` checklist).
-8. **Danger zone**: **`Delete account`** button opening an explicit confirmation dialog requiring typing **`DELETE`** verbatim to enable permanent deletion.
+2. **Theme & visual effects**: Switch default Obsidian theme (`Obsidian`, `Daylight`, `System`) and ambient FX tier (`Auto`, `Full`, `Lite`, `Minimal`).
+3. **Working hours**: Mon–Sun active toggles and shift start/end times (persisted cleanly and powering Queue capacity & greedy schedule recommendations).
+4. **Payment defaults**: Default payment rule (`FULL`/`DEPOSIT`/`PAY_ON_DELIVERY`), deposit % slider (`10–90%`), fee bearer, Ready-to-start rule, confirm-before-clock switch, and customizable **WhatsApp message template** featuring clickable variable insertion chips (`{client}`, `{amount}`, `{link}`, etc.) with `{link}` validation.
+5. **Notifications & audio**: Locked in-app paid alert toggle (always enabled for transaction safety), Paid Ping sound profile (`Subtle Bell`, `Deep Drum`, `Silent`), due-soon reminder selector, and daily summary digest preference.
+6. **Kora connection**: Displays integration status, copyable **Webhook URL** button, secondary **Telegram alert link**, API/theme diagnostics panel, and a disabled **`Switch to live`** control in test mode.
+7. **Account & security**: **`Log out of all devices`** button revoking all active sessions.
+8. **Data**: **`Remove sample data`** (purges seeded demo jobs/customers) and **`Replay first-run checklist`** (restores Dashboard `DSH-08` checklist).
+9. **Danger zone**: **`Delete account`** button opening an explicit confirmation dialog requiring typing **`DELETE`** verbatim to confirm deletion.
 
 ### 4.9 Search & CSV Export (`/search`, `src/pages/SearchPage.tsx`, `src/features/search/ExportDialog.tsx`)
 All search state is synchronized directly to URL query parameters (`?q=`, `?view=`, `?status=`, `?from=`, `?to=`):

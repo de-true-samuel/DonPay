@@ -209,11 +209,11 @@ export function TodayPage() {
         </div>
       )}
 
-      {/* 4 Metric Cards (DSH-04 to DSH-07) */}
+      {/* 4 Metric Cards (Blueprint §2.5: Payments received · Outstanding · Active jobs · Overdue / Attention) */}
       <div className="pf-metrics">
         <Link to="/app/payments?tab=received" className="pf-metric ob-rise" data-flow-id="DSH-04">
           <div className="pf-metric__top">
-            <span>Verified received</span>
+            <span>Payments received</span>
             <Icon name="shield" size={16} />
           </div>
           <div className="pf-metric__val"><Money kobo={receivedTotal.toString()} size="md" /></div>
@@ -224,39 +224,55 @@ export function TodayPage() {
 
         <Link to="/app/payments?tab=awaiting" className="pf-metric ob-rise" data-flow-id="DSH-05">
           <div className="pf-metric__top">
-            <span>Awaiting payment</span>
+            <span>Outstanding payments</span>
             <Icon name="clock" size={16} />
           </div>
           <div className="pf-metric__val"><Money kobo={awaitingTotal.toString()} size="md" /></div>
-          <div className="pf-metric__sub">{today?.waiting.length ?? 0} open requests</div>
+          <div className="pf-metric__sub">
+            {today?.waiting.length ?? 0} unpaid · {(today?.counts.needsReview ?? 0) > 0 ? `${today?.counts.needsReview} need review` : 'No exceptions'}
+          </div>
         </Link>
 
-        <Link to="/app/payments?tab=attention" className="pf-metric" data-flow-id="DSH-06">
+        <Link to="/app/queue" className="pf-metric" data-flow-id="DSH-06">
           <div className="pf-metric__top">
-            <span>Needs attention</span>
-            <Icon name="alert" size={16} />
+            <span>Active jobs</span>
+            <Icon name="queue" size={16} />
           </div>
-          <div className={`pf-metric__val ${(today?.counts.needsReview ?? 0) > 0 ? 'pf-metric__val--danger' : ''}`}>
-            {today?.counts.needsReview ?? 0}
+          <div className="pf-metric__val">
+            {(queue?.inProgress.length ?? 0) + (queue?.ready.length ?? 0)}
           </div>
           <div className="pf-metric__sub">
-            {(today?.counts.needsReview ?? 0) > 0 ? 'Review exceptions' : 'No exceptions'}
+            {queue?.inProgress.length ?? 0} in progress · {queue?.ready.length ?? 0} ready
           </div>
         </Link>
 
         <Link to="/app/queue?filter=risk" className="pf-metric" data-flow-id="DSH-07">
           <div className="pf-metric__top">
-            <span>At risk / overdue</span>
-            <Icon name="queue" size={16} />
+            <span>Overdue &amp; at-risk</span>
+            <Icon name="alert" size={16} />
           </div>
           <div className={`pf-metric__val ${riskCounts.overdue > 0 ? 'pf-metric__val--danger' : ''}`}>
-            {riskCounts.total}
+            {riskCounts.overdue}
           </div>
           <div className="pf-metric__sub">
-            {riskCounts.overdue} overdue · {riskCounts.atRisk} at risk
+            {riskCounts.overdue} overdue · {riskCounts.atRisk} deadline at risk
           </div>
         </Link>
       </div>
+
+      {/* Unmatched / flagged payment review alert (Blueprint §2.2 & §2.5) */}
+      {(today?.counts.needsReview ?? 0) > 0 && (
+        <div className="pf-card" style={{ marginBottom: 16, borderColor: 'var(--flare-bd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="alert" size={18} />
+            <div>
+              <strong>{today!.counts.needsReview} payment{today!.counts.needsReview === 1 ? '' : 's'} need{today!.counts.needsReview === 1 ? 's' : ''} attention</strong>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>Review mismatched amounts, late transfers, or unallocated references.</div>
+            </div>
+          </div>
+          <Link to="/app/payments?tab=attention" className="pf-btn pf-btn--sm pf-btn--secondary">Resolve exceptions</Link>
+        </div>
+      )}
 
       {/* First-run checklist (DSH-08) */}
       {!checklistHidden && (

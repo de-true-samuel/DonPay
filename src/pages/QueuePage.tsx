@@ -30,6 +30,18 @@ export function QueuePage() {
     queryFn: () => queueApi.get(),
   });
 
+  const approveMut = useMutation({
+    mutationFn: ({ id, slotLabel }: { id: string; slotLabel: string }) =>
+      queueApi.approveSchedule(id, slotLabel),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['queue'] });
+      toast.success('Schedule window approved.');
+    },
+    onError: (err) => {
+      toast.error((err as Error).message || 'Could not approve schedule.');
+    },
+  });
+
   const transitionMut = useMutation({
     mutationFn: ({ id, action, reason }: { id: string; action: 'start' | 'complete' | 'hold' | 'resume' | 'override-ready'; reason?: string }) =>
       queueApi.transition(id, action, reason),
@@ -117,17 +129,44 @@ export function QueuePage() {
           {item.isAtRisk && <FlagChip flag="at_risk" />}
           {item.depositPaid && <FlagChip flag="deposit_paid" />}
           {item.startedWithoutPayment && <FlagChip flag="started_without_payment" />}
+          {typeof item.priorityScore === 'number' && (
+            <span className="pd-mono" style={{ fontSize: 11.5, padding: '2px 7px', borderRadius: 6, background: 'var(--bg-2)', border: '1px solid var(--line-1)', color: 'var(--ink-2)' }}>
+              Score {item.priorityScore}
+            </span>
+          )}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>{item.client.name}</span>
           <span>·</span>
           <span>{item.reasonLabel}</span>
           <span>·</span>
           <strong style={{ color: 'var(--text-primary)' }}>{formatNaira(item.totalKobo)}</strong>
+          {item.recommendedSlot && (
+            <>
+              <span>·</span>
+              <span style={{ color: item.recommendedSlot.hasConflict ? 'var(--flare-ink)' : 'var(--mint)' }}>
+                {item.scheduleApproved
+                  ? `Scheduled: ${item.approvedSlotLabel ?? item.recommendedSlot.dayLabel}`
+                  : item.recommendedSlot.hasConflict
+                    ? `Conflict · ${item.recommendedSlot.dayLabel}`
+                    : `Suggested: ${item.recommendedSlot.dayLabel}`}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {kind !== 'waiting' && item.recommendedSlot && !item.scheduleApproved && !item.recommendedSlot.hasConflict && (
+          <button
+            type="button"
+            className="pf-btn pf-btn--sm pf-btn--secondary"
+            disabled={approveMut.isPending}
+            onClick={() => approveMut.mutate({ id: item.id, slotLabel: item.recommendedSlot!.dayLabel })}
+          >
+            Approve schedule
+          </button>
+        )}
         {kind === 'ready' && (
           <button
             type="button"
@@ -226,10 +265,10 @@ export function QueuePage() {
             </button>
           </div>
           <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, color: 'var(--text-primary)', lineHeight: '22px' }}>
-            <li><strong>In progress</strong> jobs come first, sorted by earliest due date.</li>
-            <li><strong>Ready to start</strong> jobs follow: overdue first, then at-risk, earliest due date, and shorter estimates.</li>
-            <li><strong>No-deadline</strong> jobs sort last and are excluded from at-risk checks.</li>
-            <li><strong>Waiting for payment</strong> jobs are kept collapsed until their payment policy is satisfied.</li>
+            <li><strong>Rules-based priority score</strong>: 35% deadline urgency, 25% payment readiness, 15% client priority, 15% duration fit, and 10% dependency readiness.</li>
+            <li><strong>In progress</strong> and overdue or at-risk jobs surface at the top so urgent paid work never slips.</li>
+            <li><strong>Recommended schedule windows</strong> allocate active jobs into your configured working hours, flagging conflicts instead of inventing impossible slots.</li>
+            <li><strong>Waiting for payment</strong> jobs stay collapsed until payment is verified or you record a payment-override reason.</li>
           </ol>
         </div>
       )}

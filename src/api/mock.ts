@@ -1,7 +1,6 @@
 /**
- * In-browser stand-in for the backend, following contract v1.0.0.
- * Phase 1 covers auth + /api/me. Later phases add the rest.
- * Demo sign-in tokens: anything starting with "demo" works; other tokens fail like an expired link.
+ * In-browser mock API stand-in for local/demo development when no backend is attached.
+ * Demo sign-in tokens: anything starting with "demo" works; other tokens simulate expired links.
  */
 import { z } from 'zod';
 import type { Provider } from '../contract/contract';

@@ -104,6 +104,11 @@ export const queueApi = {
       method: 'POST',
       body: reason !== undefined ? { reason } : {},
     }),
+  approveSchedule: (id: string, slotLabel: string) =>
+    api<{ id: string; scheduleApproved: boolean; approvedSlotLabel: string }>(`/api/jobs/${id}/approve-schedule`, {
+      method: 'POST',
+      body: { slotLabel },
+    }),
 };
 
 export const waitlistApi = {

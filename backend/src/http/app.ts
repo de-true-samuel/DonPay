@@ -165,7 +165,7 @@ export function createApp(opts: AppOptions) {
 
   /**
    * The visitor's IP. Normally Cloudflare's cf-connecting-ip. When the frontend Worker forwards a request
-   * (frontend/worker/index.js), every request would carry the Worker's IP, so it passes the real one in
+   * (worker/index.js), every request would carry the Worker's IP, so it passes the real one in
    * x-paidar-client-ip; that header is trusted only with the shared proxy secret, so nobody can spoof it.
    */
   const clientIp = (c: Context<AppEnv>): string | null => {
@@ -521,6 +521,11 @@ export function createApp(opts: AppOptions) {
     '/api/jobs/:id/override-ready',
     validate('json', z.object({ reason: z.string().min(5).max(200) })),
     async (c) => c.json(await v2.transitionJobWorkStatus(d(c), pid(c), c.req.param('id'), 'override_ready', c.req.valid('json').reason)),
+  );
+  app.post(
+    '/api/jobs/:id/approve-schedule',
+    validate('json', z.object({ slotLabel: z.string().trim().min(2).max(120) })),
+    async (c) => c.json(await v2.approveJobSchedule(d(c), pid(c), c.req.param('id'), c.req.valid('json').slotLabel)),
   );
   app.patch('/api/notifications/:id/read', async (c) => c.json(await v2.markNotificationRead(d(c), pid(c), c.req.param('id'))));
   app.post('/api/notifications/read-all', async (c) => c.json(await v2.markAllNotificationsRead(d(c), pid(c))));

@@ -204,6 +204,27 @@ export type ActivityEvent = z.infer<typeof ActivityEvent>;
 
 export const QueueJobItem = JobSummaryV2.extend({
   rank: z.number().int().nullable(),
+  priorityScore: z.number().optional(),
+  priorityBreakdown: z
+    .object({
+      deadlineUrgency: z.number(),
+      paymentReadiness: z.number(),
+      customerPriority: z.number(),
+      effortSuitability: z.number(),
+      dependencyReadiness: z.number(),
+    })
+    .optional(),
+  recommendedSlot: z
+    .object({
+      startIso: z.string(),
+      endIso: z.string(),
+      dayLabel: z.string(),
+      hasConflict: z.boolean(),
+    })
+    .nullable()
+    .optional(),
+  scheduleApproved: z.boolean().optional(),
+  approvedSlotLabel: z.string().nullable().optional(),
   reasonLabel: z.string(), // e.g. "Overdue · Paid", "Due tomorrow · 4h est."
 });
 export type QueueJobItem = z.infer<typeof QueueJobItem>;

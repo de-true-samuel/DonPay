@@ -1,7 +1,7 @@
 /**
- * Mirrors "Kobo-Exact: Backend ↔ Frontend Contract" v1.0.0.
+ * Paidar Backend ↔ Frontend Contract schemas.
  * Types are inferred from the Zod schemas so there is one source of truth.
- * If the backend contract changes, change it here and bump CONTRACT_VERSION.
+ * If the backend contract changes, update it here alongside src/contract/v2.ts.
  */
 import { z } from 'zod';
 

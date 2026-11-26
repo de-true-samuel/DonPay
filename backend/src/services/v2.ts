@@ -49,11 +49,23 @@ export async function getQueueV2(d: Deps, providerId: string) {
 
   const jobs = await d.db.job.findMany({
     where: { providerId, cancelledAt: null },
-    include: { customer: true, payments: true },
+    include: {
+      customer: true,
+      payments: true,
+      activityEvents: {
+        where: { eventType: 'SCHEDULE_APPROVED' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: 'desc' },
   });
 
+  const approvalByJob = new Map<string, string>();
   const mapped = jobs.map((j) => {
+    if (j.activityEvents[0]) {
+      approvalByJob.set(j.id, j.activityEvents[0].detail ?? 'Approved');
+    }
     const verifiedPaidKobo = j.payments
       .filter((p) => p.source === 'KORA_VERIFIED')
       .reduce((s, p) => s + p.amountKobo, 0n);
@@ -92,6 +104,11 @@ export async function getQueueV2(d: Deps, providerId: string) {
     isOverdue: item.isOverdue,
     isAtRisk: item.isAtRisk,
     rank: item.rank,
+    priorityScore: item.priorityScore,
+    priorityBreakdown: item.priorityBreakdown,
+    recommendedSlot: item.recommendedSlot,
+    scheduleApproved: approvalByJob.has(item.job.id),
+    approvedSlotLabel: approvalByJob.get(item.job.id) ?? null,
     reasonLabel: item.reasonLabel,
   });
 
@@ -101,6 +118,24 @@ export async function getQueueV2(d: Deps, providerId: string) {
     ready: computed.ready.map(serializeItem),
     waitingForPayment: computed.waitingForPayment.map(serializeItem),
   };
+}
+
+export async function approveJobSchedule(d: Deps, providerId: string, jobId: string, slotLabel: string) {
+  const job = await d.db.job.findFirst({ where: { id: jobId, providerId } });
+  if (!job) throw new AppError('NOT_FOUND', 'Job not found');
+  const clean = slotLabel.trim().slice(0, 120) || 'Approved schedule window';
+  await d.db.activityEvent.create({
+    data: {
+      providerId,
+      jobId: job.id,
+      actor: 'OWNER',
+      category: 'STATUS',
+      eventType: 'SCHEDULE_APPROVED',
+      summary: `Approved schedule: ${clean}`,
+      detail: clean,
+    },
+  });
+  return { id: job.id, scheduleApproved: true, approvedSlotLabel: clean };
 }
 
 export async function transitionJobWorkStatus(

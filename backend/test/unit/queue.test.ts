@@ -69,8 +69,11 @@ describe('computeQueue', () => {
     const q = computeQueue(jobs, DEFAULT_WORKING_HOURS, now);
     expect(q.ready.find((x) => x.job.id === 'j1')?.isAtRisk).toBe(false);
     expect(q.ready.find((x) => x.job.id === 'j2')?.isAtRisk).toBe(true);
+    expect(q.ready.find((x) => x.job.id === 'j2')?.recommendedSlot?.hasConflict).toBe(true);
     expect(q.capacity.committedHours).toBe(10);
     expect(q.capacity.availableHours).toBe(40);
     expect(q.capacity.utilizationPercent).toBe(25);
+    expect(q.ready[0]!.priorityScore).toBeGreaterThan(0);
+    expect(q.ready[0]!.recommendedSlot?.dayLabel).toBeTruthy();
   });
 });

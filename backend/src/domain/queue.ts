@@ -1,8 +1,13 @@
 /**
- * Deterministic rules-based Queue & Capacity Engine (Spec §9.10 / Flow §6.7).
- * Paidar suggests the order and flags capacity risks; the owner stays in control.
+ * Deterministic rules-based Priority & Scheduling Engine (Blueprint §2.3 & §5.3).
+ *
+ * Stage 1 (Priority): Priority = 0.35D + 0.25P + 0.15C + 0.15E + 0.10R
+ *   D = deadline urgency, P = payment readiness, C = customer priority,
+ *   E = effort & duration suitability, R = dependency readiness.
+ * Stage 2 (Scheduling): Greedy slot allocation against working hours and deadlines,
+ *   flagging conflicts rather than inventing impossible slots.
  */
-import { addDays, formatDueDay, lagosMinuteOfDay, lagosStartOfDay, lagosStartOfWeek, parseHHMM } from './time';
+import { addDays, formatDueDay, formatHHMM, lagosMinuteOfDay, lagosStartOfDay, lagosStartOfWeek, parseHHMM } from './time';
 
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -106,11 +111,31 @@ export interface QueueInputJob {
   estimatedHours: number | null;
   depositPaid: boolean;
   startedWithoutPayment: boolean;
+  customerPriority?: number | null;
+  dependenciesReady?: boolean;
+}
+
+export interface PriorityBreakdown {
+  deadlineUrgency: number;
+  paymentReadiness: number;
+  customerPriority: number;
+  effortSuitability: number;
+  dependencyReadiness: number;
+}
+
+export interface RecommendedSlot {
+  startIso: string;
+  endIso: string;
+  dayLabel: string;
+  hasConflict: boolean;
 }
 
 export interface RankedQueueJob<T extends QueueInputJob> {
   job: T;
   rank: number | null;
+  priorityScore: number;
+  priorityBreakdown: PriorityBreakdown;
+  recommendedSlot: RecommendedSlot | null;
   isOverdue: boolean;
   isAtRisk: boolean;
   reasonLabel: string;
@@ -162,6 +187,126 @@ function buildReasonLabel(
   return parts.join(' · ');
 }
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** Normalized 0–100 priority factors matching Blueprint §5.3: Priority = 0.35D + 0.25P + 0.15C + 0.15E + 0.10R. */
+export function computePriorityBreakdown(job: QueueInputJob, now: Date): { score: number; breakdown: PriorityBreakdown } {
+  let deadlineUrgency = 15;
+  if (job.dueDate) {
+    const hoursLeft = (job.dueDate.getTime() - now.getTime()) / (60 * 60 * 1000);
+    if (hoursLeft <= 0) deadlineUrgency = 100;
+    else if (hoursLeft <= 24) deadlineUrgency = 92;
+    else if (hoursLeft <= 48) deadlineUrgency = 82;
+    else if (hoursLeft <= 72) deadlineUrgency = 70;
+    else if (hoursLeft <= 7 * 24) deadlineUrgency = 55;
+    else deadlineUrgency = 35;
+  }
+
+  let paymentReadiness = 20;
+  if (job.workStatus === 'in_progress' || job.workStatus === 'ready') {
+    paymentReadiness = job.startedWithoutPayment ? 45 : job.depositPaid ? 90 : 100;
+  } else if (job.depositPaid) {
+    paymentReadiness = 65;
+  }
+
+  const customerPriority = Math.max(0, Math.min(100, Math.round(job.customerPriority ?? 50)));
+
+  let effortSuitability = 55;
+  if (job.estimatedHours !== null) {
+    if (job.estimatedHours <= 2) effortSuitability = 95;
+    else if (job.estimatedHours <= 4) effortSuitability = 80;
+    else if (job.estimatedHours <= 8) effortSuitability = 65;
+    else effortSuitability = 45;
+  }
+
+  const dependencyReadiness = job.dependenciesReady === false ? 20 : 100;
+
+  const breakdown: PriorityBreakdown = {
+    deadlineUrgency,
+    paymentReadiness,
+    customerPriority,
+    effortSuitability,
+    dependencyReadiness,
+  };
+  const score = Math.round(
+    0.35 * deadlineUrgency +
+      0.25 * paymentReadiness +
+      0.15 * customerPriority +
+      0.15 * effortSuitability +
+      0.10 * dependencyReadiness,
+  );
+  return { score, breakdown };
+}
+
+/** Greedy Stage-2 slot allocator over Lagos working windows; flags conflicts rather than inventing slots. */
+function allocateGreedySlots(
+  jobs: readonly QueueInputJob[],
+  wh: WorkingHours,
+  now: Date,
+  isOverdueOf: (j: QueueInputJob) => boolean,
+  isAtRiskIds: Set<string>,
+): Map<string, RecommendedSlot> {
+  const result = new Map<string, RecommendedSlot>();
+  const baseDay = lagosStartOfDay(now);
+  const nowMin = lagosMinuteOfDay(now);
+
+  // Build mutable open intervals across the next 21 Lagos calendar days
+  const windows: Array<{ dayStart: Date; dowLabel: string; startMin: number; endMin: number }> = [];
+  for (let i = 0; i < 21; i++) {
+    const dayStart = addDays(baseDay, i);
+    const key = lagosDayKey(dayStart);
+    const sched = wh[key];
+    if (!sched.enabled) continue;
+    const s = parseHHMM(sched.start) ?? 9 * 60;
+    const e = parseHHMM(sched.end) ?? 17 * 60;
+    const startMin = i === 0 ? Math.max(s, nowMin) : s;
+    if (e > startMin) {
+      const dowIdx = DOW_TO_KEY.indexOf(key);
+      windows.push({ dayStart, dowLabel: DAY_NAMES[dowIdx] ?? key, startMin, endMin: e });
+    }
+  }
+
+  let wIdx = 0;
+  for (const job of jobs) {
+    const durationMin = Math.max(30, Math.round((job.estimatedHours ?? 2) * 60));
+    while (wIdx < windows.length && windows[wIdx]!.endMin - windows[wIdx]!.startMin < 30) {
+      wIdx++;
+    }
+    if (wIdx >= windows.length) {
+      result.set(job.id, {
+        startIso: now.toISOString(),
+        endIso: now.toISOString(),
+        dayLabel: 'No working hours window',
+        hasConflict: true,
+      });
+      continue;
+    }
+
+    const win = windows[wIdx]!;
+    const allocStartMin = win.startMin;
+    const allocMinutes = Math.min(durationMin, win.endMin - win.startMin);
+    const allocEndMin = allocStartMin + allocMinutes;
+    win.startMin = allocEndMin;
+
+    const startDate = new Date(win.dayStart.getTime() + allocStartMin * 60_000);
+    const endDate = new Date(win.dayStart.getTime() + allocEndMin * 60_000);
+    const dayPrefix = formatDueDay(win.dayStart, now);
+    const capDay = dayPrefix.charAt(0).toUpperCase() + dayPrefix.slice(1);
+    const fitsFully = allocMinutes >= durationMin;
+    const missesDeadline = job.dueDate !== null && endDate.getTime() > job.dueDate.getTime();
+    const hasConflict = isOverdueOf(job) || isAtRiskIds.has(job.id) || missesDeadline || !fitsFully;
+
+    result.set(job.id, {
+      startIso: startDate.toISOString(),
+      endIso: endDate.toISOString(),
+      dayLabel: `${capDay} ${formatHHMM(allocStartMin)}–${formatHHMM(allocEndMin)}`,
+      hasConflict,
+    });
+  }
+
+  return result;
+}
+
 export function computeQueue<T extends QueueInputJob>(
   jobs: readonly T[],
   wh: WorkingHours,
@@ -170,7 +315,7 @@ export function computeQueue<T extends QueueInputJob>(
   const active = jobs.filter((j) => j.workStatus === 'in_progress' || j.workStatus === 'ready');
   const waiting = jobs.filter((j) => j.workStatus === 'awaiting_payment');
 
-  const isOverdueOf = (j: T) =>
+  const isOverdueOf = (j: QueueInputJob) =>
     j.dueDate !== null && j.dueDate.getTime() < now.getTime() && j.workStatus !== 'completed' && j.workStatus !== 'cancelled';
 
   // At-risk calculation: walk active jobs with dueDate + estimatedHours in dueDate ascending order
@@ -201,12 +346,19 @@ export function computeQueue<T extends QueueInputJob>(
   const utilizationPercent = availableHours > 0 ? Math.round((committedHours / availableHours) * 100) : 0;
   const overByHours = committedHours > availableHours ? Math.round((committedHours - availableHours) * 10) / 10 : 0;
 
-  // Sort In-Progress: by dueDate ascending (no-deadline last)
+  const scores = new Map<string, { score: number; breakdown: PriorityBreakdown }>();
+  for (const j of jobs) scores.set(j.id, computePriorityBreakdown(j, now));
+
+  // Sort In-Progress: overdue / dueDate ascending, then priority score descending
   const inProgressSorted = active
     .filter((j) => j.workStatus === 'in_progress')
-    .sort((a, b) => compareNullableDatesAsc(a.dueDate, b.dueDate));
+    .sort((a, b) => {
+      const dueCmp = compareNullableDatesAsc(a.dueDate, b.dueDate);
+      if (dueCmp !== 0) return dueCmp;
+      return (scores.get(b.id)?.score ?? 0) - (scores.get(a.id)?.score ?? 0);
+    });
 
-  // Sort Ready: overdue first -> at_risk -> earliest dueDate -> shorter estimate -> no-deadline last
+  // Sort Ready: overdue first -> at_risk -> earliest dueDate -> higher priority score -> shorter estimate
   const readySorted = active
     .filter((j) => j.workStatus === 'ready')
     .sort((a, b) => {
@@ -221,16 +373,26 @@ export function computeQueue<T extends QueueInputJob>(
       const dueCmp = compareNullableDatesAsc(a.dueDate, b.dueDate);
       if (dueCmp !== 0) return dueCmp;
 
+      const scA = scores.get(a.id)?.score ?? 0;
+      const scB = scores.get(b.id)?.score ?? 0;
+      if (scA !== scB) return scB - scA;
+
       return compareNullableHoursAsc(a.estimatedHours, b.estimatedHours);
     });
+
+  const slots = allocateGreedySlots([...inProgressSorted, ...readySorted], wh, now, isOverdueOf, atRiskIds);
 
   let rank = 1;
   const inProgress: RankedQueueJob<T>[] = inProgressSorted.map((job) => {
     const overdue = isOverdueOf(job);
     const atRisk = atRiskIds.has(job.id);
+    const p = scores.get(job.id)!;
     return {
       job,
       rank: rank++,
+      priorityScore: p.score,
+      priorityBreakdown: p.breakdown,
+      recommendedSlot: slots.get(job.id) ?? null,
       isOverdue: overdue,
       isAtRisk: atRisk,
       reasonLabel: buildReasonLabel(job, overdue, atRisk, now),
@@ -240,9 +402,13 @@ export function computeQueue<T extends QueueInputJob>(
   const ready: RankedQueueJob<T>[] = readySorted.map((job) => {
     const overdue = isOverdueOf(job);
     const atRisk = atRiskIds.has(job.id);
+    const p = scores.get(job.id)!;
     return {
       job,
       rank: rank++,
+      priorityScore: p.score,
+      priorityBreakdown: p.breakdown,
+      recommendedSlot: slots.get(job.id) ?? null,
       isOverdue: overdue,
       isAtRisk: atRisk,
       reasonLabel: buildReasonLabel(job, overdue, atRisk, now),
@@ -253,9 +419,13 @@ export function computeQueue<T extends QueueInputJob>(
     .sort((a, b) => compareNullableDatesAsc(a.dueDate, b.dueDate))
     .map((job) => {
       const overdue = isOverdueOf(job);
+      const p = scores.get(job.id)!;
       return {
         job,
         rank: null,
+        priorityScore: p.score,
+        priorityBreakdown: p.breakdown,
+        recommendedSlot: null,
         isOverdue: overdue,
         isAtRisk: false,
         reasonLabel: buildReasonLabel(job, overdue, false, now),
